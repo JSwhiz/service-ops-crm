@@ -7,6 +7,17 @@ import { FilesService } from '../src/modules/files/files.service';
 import type { AccessRule } from '../src/modules/users-access/types/access-policy.type';
 
 type RecordValue = Record<string, unknown>;
+function persistedReader(getReader: () => { id: string; isActive: boolean; roleCodes: string[]; permissionCodes: string[]; accessRules: AccessRule[] }) {
+  return { findFirst: async () => {
+    const reader = getReader();
+    return {
+      ...reader,
+      accessVersion: 0,
+      roles: reader.roleCodes.map((code) => ({ role: { code, permissions: [] } })),
+      permissions: reader.permissionCodes.map((code) => ({ permission: { code } })),
+    };
+  } };
+}
 function record(value: unknown): value is RecordValue {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
@@ -56,6 +67,7 @@ test('specification child grant cannot download attached file without root order
     attachments: [{ entityType: 'one_time_order_specification_item', entityId: item.id }],
   };
   const db = {
+    user: persistedReader(() => reader),
     file: { findFirst: async ({ where }: { where: RecordValue }) => matches(where, file) ? file : null },
     oneTimeOrder: {
       findFirst: async ({ where }: { where: RecordValue }) => matches(where, order) ? order : null,
@@ -102,7 +114,7 @@ function objectFileFixture() {
     findFirst: async ({ where }: { where: RecordValue }) => rows.find((row) => matches(where, row)) ?? null,
     findUnique: async ({ where }: { where: RecordValue }) => rows.find((row) => matches(where, row)) ?? null,
   });
-  const db = { file: model(files), object: model([object]),
+  const db = { user: persistedReader(() => reader), file: model(files), object: model([object]),
     objectDailyReport: model([{ id: 'object_daily_report', objectId: object.id, object }]),
     objectComment: model([{ id: 'object_comment', objectId: object.id, object }]),
     objectArrivalPhoto: model([{ id: 'object_arrival_photo', objectId: object.id, object }]),

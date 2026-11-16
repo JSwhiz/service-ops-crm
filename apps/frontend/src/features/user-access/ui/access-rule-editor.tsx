@@ -24,6 +24,8 @@ export interface AccessRuleEditorProps {
   hasPersonalRule: boolean;
   scope: AccessScopeChoice | '';
   supportedScopes: ReadonlyArray<{ value: AccessScopeChoice; label: string }>;
+  legacyScopeLabel?: string;
+  legacyScopeUnchanged?: boolean;
   onModeChange: (mode: AccessOverrideChoice) => void;
   onScopeChange: (scope: AccessScopeChoice) => void;
   selectedEntitiesControl?: React.ReactNode;
@@ -36,6 +38,7 @@ export function AccessRuleEditor({
   title, description, effectiveResult, source, effectiveScope, constraints,
   editable, unavailableReason, mode, hasPersonalRule, scope, supportedScopes, onModeChange,
   onScopeChange, selectedEntitiesControl, pending = false, error,
+  legacyScopeLabel, legacyScopeUnchanged = false,
 }: AccessRuleEditorProps): React.JSX.Element {
   const titleId = React.useId();
 
@@ -51,6 +54,7 @@ export function AccessRuleEditor({
         <div><dt>Область</dt><dd>{effectiveScope}</dd></div>
       </dl>
       {constraints ? <div className={styles.constraints}>{constraints}</div> : null}
+      {legacyScopeLabel ? <p className="ui-text-muted">Прежняя область: {legacyScopeLabel}. Для новых и изменяемых правил эта область недоступна. Сохранённое правило продолжает учитываться по прежним правилам и не меняется при сохранении других прав. {editable ? 'Чтобы снять его, выберите «По умолчанию».' : 'Персональное управление этим действием остаётся недоступным.'}</p> : null}
       {editable ? (
         <div className={styles.controls}>
           <Field label={`Персональное правило: ${title}`}>
@@ -69,11 +73,11 @@ export function AccessRuleEditor({
             </Select>
           </Field>
           {mode !== 'default' && supportedScopes.length > 0 ? (
-            <Field label={`Область персонального правила: ${title}`} required error={error || (!supportedScopes.some((option) => option.value === scope) ? 'Выберите поддерживаемую область.' : undefined)}>
+            <Field label={`Область персонального правила: ${title}`} required error={error || (!legacyScopeUnchanged && !supportedScopes.some((option) => option.value === scope) ? 'Выберите поддерживаемую область.' : undefined)}>
               <Select
                 name="accessScope"
-                value={scope}
-                placeholder="Выберите область…"
+                value={supportedScopes.some((option) => option.value === scope) ? scope : ''}
+                placeholder={legacyScopeLabel ? 'Выберите новую область для изменения…' : 'Выберите область…'}
                 disabled={pending}
                 onChange={(event) => {
                   const next = supportedScopes.find((option) => option.value === event.target.value);

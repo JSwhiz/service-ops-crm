@@ -3,10 +3,11 @@
 import { useRouter } from 'next/navigation';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 
-import { createUserAbsence, listUserAbsences, listUserAbsenceUsers } from '@/entities/user-absence/api/user-absence-client';
+import { createUserAbsence, listUserAbsenceUsers } from '@/entities/user-absence/api/user-absence-client';
 import type { UserAbsenceType, UserAbsenceUserOption } from '@/entities/user-absence/model/user-absence.types';
-import { toCreateUserAbsencePayload } from '@/features/user-absence-create/model/create-user-absence-payload';
+import { changeUserAbsenceCreateTarget, toCreateUserAbsencePayload } from '@/features/user-absence-create/model/create-user-absence-payload';
 import { useAuth } from '@/shared/auth/use-auth';
+import { useAccessRevision } from '@/shared/auth/use-access-revision';
 import { useCreateDraft } from '@/shared/drafts';
 import { useCreateNavigation } from '@/shared/create-navigation';
 import { Alert, Button, Field } from '@/shared/ui/foundation';
@@ -45,12 +46,6 @@ function validDate(value: string | null): value is string {
   return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
 }
 
-function monthBounds(date: string): { from: string; to: string } {
-  const [year = 0, month = 1] = date.split('-').map(Number);
-  const end = new Date(Date.UTC(year, month, 0)).getUTCDate();
-  return { from: `${year}-${String(month).padStart(2, '0')}-01`, to: `${year}-${String(month).padStart(2, '0')}-${String(end).padStart(2, '0')}` };
-}
-
 function hasValues(value: AbsenceDraft, initial: AbsenceDraft): boolean {
   return value.userId !== initial.userId || value.absenceType !== initial.absenceType ||
     value.startDate !== initial.startDate || value.endDate !== initial.endDate || value.comment !== initial.comment;
@@ -60,6 +55,8 @@ export function UserAbsenceCreateDialog(): React.JSX.Element {
   const router = useRouter();
   const navigation = useCreateNavigation();
   const { user } = useAuth();
+  const accessRevision = useAccessRevision();
+  const [loadedAccessRevision, setLoadedAccessRevision] = useState<string | null>(null);
   const params = navigation.getTargetSearchParams();
   const dateParam = params.get('date');
   const contextualDate = validDate(dateParam) ? dateParam : todayInMoscow();
@@ -69,14 +66,13 @@ export function UserAbsenceCreateDialog(): React.JSX.Element {
   directReturnParams.delete('forUser');
   const returnQuery = directReturnParams.toString();
   const closeContext = navigation.closeContext(`/user-absences${returnQuery ? `?${returnQuery}` : ''}`);
-  const [access, setAccess] = useState<{ canManage: boolean; canManageAll: boolean; canViewPrivateReasons: boolean } | null>(null);
   const [users, setUsers] = useState<UserAbsenceUserOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [localBusy, setBusy] = useState(false);
   const [created, setCreated] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [retry, setRetry] = useState(0);
   const submitLock = useRef(false);
-  const bounds = useMemo(() => monthBounds(contextualDate), [contextualDate]);
   const initialDraft = useMemo<AbsenceDraft>(() => ({
     userId: forUser || user?.id || '',
     absenceType: 'vacation',
@@ -89,18 +85,15 @@ export function UserAbsenceCreateDialog(): React.JSX.Element {
 
   useEffect(() => {
     let active = true;
+    setLoading(true);
+    setLoadedAccessRevision(null);
     void (async () => {
       try {
-        const response = await listUserAbsences(bounds);
-        if (!active) return;
-        setAccess({
-          canManage: response.capabilities.canManage,
-          canManageAll: response.capabilities.canManageAll,
-          canViewPrivateReasons: response.capabilities.canViewPrivateReasons,
-        });
         const options = await listUserAbsenceUsers();
         if (!active) return;
         setUsers(options);
+        setError(null);
+        setLoadedAccessRevision(accessRevision);
       } catch (caught) {
         if (active) setError(caught instanceof Error ? caught.message : 'Не удалось проверить доступ к календарю.');
       } finally {
@@ -108,26 +101,37 @@ export function UserAbsenceCreateDialog(): React.JSX.Element {
       }
     })();
     return () => { active = false; };
-  }, [bounds]);
+  }, [accessRevision, retry]);
+
+  const accessCurrent = loadedAccessRevision === accessRevision && !loading;
+  const selectedTarget = accessCurrent ? users.find((entry) => entry.id === draft.value.userId) : undefined;
+  const canCreate = selectedTarget?.capabilities?.canCreate === true;
+  const creatableUsers = accessCurrent ? users.filter((entry) => entry.capabilities?.canCreate === true) : [];
+  const showComment = selectedTarget?.capabilities?.canViewPrivateReasons === true;
+  const blockedReason = !accessCurrent
+    ? loading ? 'Проверяем доступ к выбранному пользователю. Черновик сохранён.' : 'Не удалось подтвердить доступ. Черновик сохранён. Нажмите «Обновить доступ».'
+    : creatableUsers.length === 0
+      ? 'Нет пользователей, для которых разрешено создание отсутствий. Черновик сохранён.'
+      : !canCreate
+        ? 'Создание отсутствия для выбранного пользователя недоступно. Выберите пользователя с правом создания. Черновик сохранён.'
+        : null;
 
   const update = (key: keyof AbsenceDraft, value: string): void => {
-    const next = { ...draft.value, [key]: value } as AbsenceDraft;
+    const next = key === 'userId'
+      ? changeUserAbsenceCreateTarget(draft.value, value)
+      : { ...draft.value, [key]: value } as AbsenceDraft;
     draft.setValue(next);
     draft.setDirty(hasValues(next, initialDraft));
   };
 
   const submit = async (event: React.FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault();
-    if (submitLock.current || busy || !access?.canManage) return;
+    if (submitLock.current || busy || created || !accessCurrent || !canCreate) return;
     submitLock.current = true;
     setBusy(true);
     setError(null);
     try {
-      await draft.submit(() => createUserAbsence(toCreateUserAbsencePayload(draft.value, {
-        canManageAll: access.canManageAll,
-        canViewPrivateReasons: access.canViewPrivateReasons,
-        currentUserId: user?.id,
-      })));
+      await draft.submit(() => createUserAbsence(toCreateUserAbsencePayload(draft.value, selectedTarget)));
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Не удалось сохранить отсутствие.');
       submitLock.current = false;
@@ -147,10 +151,6 @@ export function UserAbsenceCreateDialog(): React.JSX.Element {
     }
   };
 
-  const canManage = access?.canManage === true;
-  const canChooseUser = access?.canManageAll === true;
-  const showComment = draft.value.userId === user?.id || access?.canViewPrivateReasons === true;
-
   return (
     <FormDialog
       open
@@ -163,28 +163,28 @@ export function UserAbsenceCreateDialog(): React.JSX.Element {
       footer={({ requestClose }) => (
         <div className={styles.footer}>
           <Button onClick={() => void requestClose()} disabled={busy}>Отмена</Button>
-          {canManage ? <Button
+          <Button
             variant="primary"
             type="submit"
             form={FORM_ID}
             pending={busy}
             pendingLabel="Сохраняем…"
-            disabled={loading || busy || created || !draft.value.userId || !draft.value.startDate || !draft.value.endDate}
-          >{created ? 'Создано' : 'Создать отсутствие'}</Button> : null}
+            disabled={!accessCurrent || !canCreate || busy || created || !draft.value.userId || !draft.value.startDate || !draft.value.endDate}
+          >{created ? 'Создано' : 'Создать отсутствие'}</Button>
         </div>
       )}
     >
-      {canManage ? (
         <form id={FORM_ID} className={styles.form} onSubmit={(event) => void submit(event)}>
           <p className={styles.requiredNote}><span aria-hidden="true">*</span> — обязательные поля</p>
           <div className={styles.fields}>
-            {canChooseUser ? <Field label="Пользователь" required className={styles.fullWidth}>
-              <Select value={draft.value.userId} onChange={(event) => update('userId', event.target.value)} required>
-                {users.map((entry) => <option key={entry.id} value={entry.id}>{entry.fullName || entry.login}</option>)}
+            <Field label="Пользователь" required className={styles.fullWidth}>
+              <Select value={draft.value.userId} disabled={busy || !accessCurrent} onChange={(event) => update('userId', event.target.value)} required>
+                {!canCreate ? <option value={draft.value.userId}>{selectedTarget ? `${selectedTarget.fullName || selectedTarget.login} — создание недоступно` : draft.value.userId ? 'Выбранный пользователь недоступен' : 'Выберите доступного пользователя'}</option> : null}
+                {creatableUsers.map((entry) => <option key={entry.id} value={entry.id}>{entry.fullName || entry.login}</option>)}
               </Select>
-            </Field> : null}
+            </Field>
             <Field label="Тип отсутствия" required className={styles.fullWidth}>
-              <Select value={draft.value.absenceType} onChange={(event) => update('absenceType', event.target.value)} required>
+              <Select value={draft.value.absenceType} disabled={busy} onChange={(event) => update('absenceType', event.target.value)} required>
                 {ABSENCE_TYPES.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}
               </Select>
             </Field>
@@ -203,11 +203,11 @@ export function UserAbsenceCreateDialog(): React.JSX.Element {
               <input value={draft.value.comment} onChange={(event) => update('comment', event.target.value)} placeholder="Необязательно" disabled={busy} />
             </Field> : null}
           </div>
-          {loading ? <p role="status">Проверяем доступ…</p> : null}
+          {blockedReason ? <Alert tone="warning" role="status">{blockedReason}</Alert> : null}
           {error ? <Alert tone="danger" role="alert">{error}</Alert> : null}
+          {!loading && !created ? <Button disabled={busy} onClick={() => { setError(null); setLoadedAccessRevision(null); setRetry((value) => value + 1); }}>Обновить доступ</Button> : null}
           {created ? <Alert tone="success" role="status">Отсутствие создано.</Alert> : null}
         </form>
-      ) : access?.canManage === false ? <Alert tone="danger" role="alert">Нет доступа к созданию записей календаря.</Alert> : error ? <Alert tone="danger" role="alert">{error}</Alert> : null}
     </FormDialog>
   );
 }

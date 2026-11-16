@@ -86,6 +86,12 @@ function fixture(rules: AccessRule[] = [], permissions: string[] = []) {
       object: data.object.find((item) => item.id === row.objectId) ?? null,
       oneTimeOrder: data.oneTimeOrder.find((item) => item.id === row.oneTimeOrderId) ?? null,
     };
+    if (model === 'inventoryMovement') return { ...row,
+      // The real movement visibility predicate requires a positive source read,
+      // not merely the absence of an inventory deny. Model the actual relations.
+      relatedObject: data.object.find((item) => item.id === row.relatedObjectId) ?? null,
+      relatedOneTimeOrder: data.oneTimeOrder.find((item) => item.id === row.relatedOneTimeOrderId) ?? null,
+    };
     if (model === 'taskAssigneeCompletion') {
       assert.ok(isRecord(row.taskAssignee));
       const task = data.task.find((item) => item.id === (row.taskAssignee as Row).taskId);
@@ -267,7 +273,10 @@ test('selected specification deny hides item and specification_updated notificat
   assert.equal(matches(where, notification('one_time_order', 'order-other', { type: 'one_time_order.specification_updated' })), true);
   assert.equal(matches(where, notification('one_time_order_specification_item', 'spec-other')), true);
   assert.equal(matches(where, notification('one_time_order', 'order-a', { type: 'one_time_order.status_changed' })), true);
-  assert.equal(matches(where, notification('accountability_expense', 'expense-a')), true);
+  assert.equal(matches(where, notification('accountability_expense', 'expense-a')), false,
+    'A raw expense is not a registered positive notification source; an unrelated leaf deny cannot authorize it by absence');
+  assert.equal(matches(where, notification('approval_request', 'approval-expense')), true,
+    'The saved approval is a registered, actually readable source with the real expense/order ancestry');
 });
 
 for (const actionCode of ['objects.access', 'objects.read', 'one_time_orders.access', 'one_time_orders.read']) {
@@ -288,7 +297,7 @@ for (const actionCode of ['objects.access', 'objects.read', 'one_time_orders.acc
   });
 }
 
-test('empty refs fail closed for every supported source type and preserve explicit null/other types', async () => {
+test('empty refs fail closed for known, unknown and incomplete sources; only genuinely source-less notices remain visible', async () => {
   const f = fixture();
   f.data.notification.splice(0);
   const subject = await loadAccessSubject(f.db, 'reader');
@@ -296,14 +305,40 @@ test('empty refs fail closed for every supported source type and preserve explic
   const where = await notificationSourceVisibilityWhere(f.db, subject);
   for (const type of ['object', 'object_daily_report', 'object_arrival_photo', 'object_comment',
     'one_time_order', 'one_time_order_daily_report', 'one_time_order_comment', 'one_time_order_photo',
-    'one_time_order_specification_item', 'task', 'task_assignee_completion', 'candidate', 'employee', 'chat_room', 'manager_visit_plan']) {
+    'one_time_order_specification_item', 'task', 'task_assignee_completion', 'candidate', 'employee', 'chat_room', 'manager_visit_plan',
+    'inventory_movement', 'approval_request']) {
     assert.equal(matches(where, notification(type, 'inserted-after-refs')), false, type);
   }
-  assert.equal(matches(where, notification('custom_uncovered_source', 'opaque')), true);
-  assert.equal(matches(where, notification('placeholder', 'opaque', { entityType: null })), true);
+  assert.equal(matches(where, notification('custom_uncovered_source', 'opaque')), false);
+  assert.equal(matches(where, notification('placeholder', 'opaque', { entityType: null })), false,
+    'A null type with a non-null ID is incomplete, not source-less');
+  assert.equal(matches(where, notification('object', 'opaque', { entityId: null })), false);
+  assert.equal(matches(where, notification('custom_uncovered_source', 'opaque', { entityId: null })), false);
+  assert.equal(matches(where, notification('placeholder', 'opaque', { entityType: null, entityId: null })), true);
   assert.equal(f.queries.some((query) => query.model === 'userSubstitution'), false,
     'Empty refs must not trigger delegation or whole-domain scans');
   assert.deepEqual(f.queries.map((query) => query.model), ['notification']);
+});
+
+test('saved inventory notifications require actual readable source relations and explicit recipient references', async () => {
+  const f = fixture();
+  f.data.inventoryMovement.push({ id: 'movement-control', inventoryItemId: 'item-control', createdByUserId: 'creator',
+    relatedObjectId: 'object-outside', relatedOneTimeOrderId: null });
+  f.syncNotifications();
+  const subject = await loadAccessSubject(f.db, 'reader');
+  assert.ok(subject);
+  const visible = async (id: string) => matches(await notificationSourceVisibilityWhere(f.db, subject), notification('inventory_movement', id));
+  assert.equal(await visible('movement-a'), true, 'Saved movement has an actually assigned readable object source');
+  assert.equal(await visible('movement-control'), true, 'Control source is independently owned by the reader');
+  f.data.object[0].assignments = [];
+  assert.equal(await visible('movement-a'), false, 'Inventory baseline cannot replace positive parent object read');
+  assert.equal(await visible('movement-control'), true);
+  f.data.object[0].assignments = [{ userId: 'reader', isActive: true }];
+  f.data.notification.splice(0);
+  assert.equal(await visible('movement-a'), false, 'Existing accessible domain rows do not manufacture missing notification references');
+  f.data.notification.push(notification('inventory_movement', 'movement-control'));
+  assert.equal(await visible('movement-a'), false, 'An unrelated saved reference cannot authorize A');
+  assert.equal(await visible('movement-control'), true, 'Explicit saved known reference restores only its own readable source');
 });
 
 test('saved core 12 sources are positively allowed by actual source ids, with no body loading or domain scan', async () => {

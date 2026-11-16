@@ -32,6 +32,8 @@ export interface AccessActionDefinition {
   module: string;
   resourceType: string;
   allowedScopes: readonly AccessScope[];
+  /** Scopes accepted for new/changed personal rules; runtime compatibility uses allowedScopes. */
+  managementScopes?: readonly AccessScope[];
   parentAction?: string;
   manageable: boolean;
   constraint?: string;

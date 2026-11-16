@@ -7,6 +7,7 @@ import {
 } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { createHash, randomBytes } from "node:crypto";
+import { lockActorAccessRevision } from "../../common/access/lock-actor-access-revision";
 import { PrismaService } from "../prisma/prisma.service";
 import {
   ACCESS_ACTION_CATALOG,
@@ -101,6 +102,25 @@ function subjectOf(user: Source, rules = rulesOf(user)): AccessSubject {
 export class AccessAdminService {
   constructor(private readonly prisma: PrismaService) {}
 
+  private async accessTransaction<T>(work: (db: Db) => Promise<T>): Promise<T> {
+    try {
+      return await this.prisma.$transaction(work, {
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+        maxWait: 5_000,
+        timeout: 15_000,
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2028") {
+        throw new ConflictException("Проверка прав не завершилась вовремя. Обновите карточку пользователя, проверьте историю изменений и выполните предварительный просмотр заново.");
+      }
+      if (error instanceof Prisma.PrismaClientKnownRequestError &&
+        (error.code === "P2034" || (error.code === "P2010" && String(error.meta?.code) === "40001"))) {
+        throw new ConflictException("Concurrent access change; preview again");
+      }
+      throw error;
+    }
+  }
+
   private async user(db: Db, id: string) {
     const user = await db.user.findFirst({
       where: { id, deletedAt: null },
@@ -111,12 +131,12 @@ export class AccessAdminService {
   }
   private async assertFounder(db: Db, actorId: string) {
     const actor = await this.user(db, actorId);
+    const subject = subjectOf(actor);
     if (
-      !decideAccess(
-        subjectOf(actor),
-        "users_access.manage",
-        actor.roles.some((r) => r.role.code === "founder"),
-      )
+      !decideAccess(subject, "auth.access", true, {
+        resourceType: "user", resourceId: actor.id, ownerUserId: actor.id,
+      }) ||
+      !decideAccess(subject, "users_access.manage", actor.roles.some((r) => r.role.code === "founder"))
     )
       throw new ForbiddenException("Founder access required");
     return actor;
@@ -708,6 +728,13 @@ export class AccessAdminService {
             `Action is constrained: ${action.code}`,
           );
         if (
+          change.effect !== "default" &&
+          !(action.managementScopes ?? action.allowedScopes).includes(change.scope)
+        )
+          throw new BadRequestException(
+            `Область «Назначенные» недоступна для новых или изменяемых правил «${action.name}». Прежнее правило сохраняется без изменения; для его снятия выберите «По умолчанию».`,
+          );
+        if (
           change.selectedIds !== undefined &&
           !Array.isArray(change.selectedIds)
         )
@@ -835,28 +862,30 @@ export class AccessAdminService {
         "Cannot deny access to the last active founder administrator",
       );
   }
-  private async baseHash(db: Db, user: Source) {
+  private async baseHash(db: Db, user: Source, baseline: Map<string, LegacyAccessBaseline>) {
     return hash({
       user,
       sources: this.sources(user),
       assignments: await this.loadAssignments(db, user.id),
-      baseline: [...(await this.baseline(db, user)).entries()],
+      baseline: [...baseline.entries()],
     });
   }
   async preview(actor: AccessSubject, id: string, input: PreviewAccessDto) {
     const payload = this.normalize(input);
-    return this.prisma.$transaction(
+    return this.accessTransaction(
       async (db) => {
-        await this.assertFounder(db, actor.id);
+        const admin = await this.assertFounder(db, actor.id);
         const user = await this.user(db, id);
         if (user.accessVersion !== payload.expectedVersion)
           throw new ConflictException("Access version changed");
         await this.validateSelected(db, payload.changes);
         const rules = this.apply(user, payload.changes);
         await this.protectFounder(db, user, rules);
-        const baseHash = await this.baseHash(db, user);
+        const baseline = await this.baseline(db, user);
+        const baseHash = await this.baseHash(db, user, baseline);
         const previewHash = hash({
           actorId: actor.id,
+          actorAccessVersion: admin.accessVersion,
           userId: id,
           payload,
           baseHash,
@@ -879,7 +908,7 @@ export class AccessAdminService {
         const effective = this.effectiveRows(
           user,
           rules,
-          await this.baseline(db, user),
+          baseline,
         );
         return {
           previewToken,
@@ -899,7 +928,6 @@ export class AccessAdminService {
           effective,
         };
       },
-      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
   }
   async save(actor: AccessSubject, id: string, input: SaveAccessDto) {
@@ -910,12 +938,15 @@ export class AccessAdminService {
     )
       throw new BadRequestException("Invalid preview token/hash");
     try {
-      return await this.prisma.$transaction(
+      return await this.accessTransaction(
         async (db) => {
           // Serializes administrative writes and last-founder checks across target users.
           // Do not return the lock function's PostgreSQL void value to Prisma.
           await db.$queryRaw`SELECT 1 AS locked FROM pg_advisory_xact_lock(20261106, 100000)`;
-          await this.assertFounder(db, actor.id);
+          const admin = await this.assertFounder(db, actor.id);
+          // A serializable snapshot can predate the advisory-lock wait.
+          // The row lock rejects that snapshot if this founder was changed first.
+          await lockActorAccessRevision(db, { id: admin.id, accessVersion: admin.accessVersion });
           const user = await this.user(db, id);
           if (user.accessVersion !== payload.expectedVersion)
             throw new ConflictException("Access version changed");
@@ -938,11 +969,13 @@ export class AccessAdminService {
           await this.validateSelected(db, payload.changes);
           const rules = this.apply(user, payload.changes);
           await this.protectFounder(db, user, rules);
-          const baseHash = await this.baseHash(db, user);
+          const baseline = await this.baseline(db, user);
+          const baseHash = await this.baseHash(db, user, baseline);
           if (
             baseHash !== preview.baseHash ||
             hash({
               actorId: actor.id,
+              actorAccessVersion: admin.accessVersion,
               userId: id,
               payload,
               baseHash,
@@ -985,6 +1018,19 @@ export class AccessAdminService {
                 },
               });
           }
+          if (payload.changes.some(({ actionCode, effect }) =>
+            effect === "deny" && (actionCode === "auth.access" || actionCode === "auth.refresh")
+          ) && !decideAccess(subjectOf(user, rules), "auth.refresh", true, {
+            resourceType: "user", resourceId: id, ownerUserId: id,
+          })) {
+            // Include rotations committed before the deny whose Set-Cookie
+            // headers might still be in transit.
+            const now = new Date();
+            await db.authSession.updateMany({
+              where: { userId: id, revokedAt: null, expiresAt: { gt: now } },
+              data: { revokedAt: now },
+            });
+          }
           await db.userAccessAudit.create({
             data: {
               userId: id,
@@ -1008,11 +1054,10 @@ export class AccessAdminService {
             effective: this.effectiveRows(
               user,
               rules,
-              await this.baseline(db, user),
+              baseline,
             ),
           };
         },
-        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
       );
     } catch (error) {
       if (

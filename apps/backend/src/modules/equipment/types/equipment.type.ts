@@ -22,3 +22,9 @@ export const EQUIPMENT_MOVEMENT_TYPES = [
 ] as const;
 
 export type EquipmentMovementType = (typeof EQUIPMENT_MOVEMENT_TYPES)[number];
+
+/** Persisted unit facts. This does not enable a new ACL scope or holder model. */
+export interface EquipmentUnitPolicyFacts {
+  id: string;
+  createdByUserId: string;
+}

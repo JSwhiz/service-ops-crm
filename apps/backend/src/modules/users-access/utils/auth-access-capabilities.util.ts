@@ -1,11 +1,12 @@
 import {
+  canCreateObject,
   canEditObject,
   hasWideObjectAccess,
 } from "../../objects/utils/object-access.util";
 import { hasWideTimesheetAccess } from "../../timesheets/utils/timesheet-access.util";
 import { hasOneTimeOrderManagementAccess } from "../../one-time-orders/utils/one-time-order-access.util";
 import { AccessScope, AccessSubject } from "../types/access-policy.type";
-import { decideAccess } from "./access-policy.util";
+import { decideAccess, hasModuleDeny } from "./access-policy.util";
 import { canEnterAccessModule } from "./access-summary.util";
 
 const actions: Record<string, string> = {
@@ -84,6 +85,13 @@ export function applyAccessCapabilities<T extends Record<string, boolean>>(
     ...(subject.roleCodes ?? (subject.roleCode ? [subject.roleCode] : [])),
   ];
   const permissions = [...(subject.permissionCodes ?? [])];
+  const dashboardVisible = decideAccess(subject, 'dashboard.view', true);
+  const dashboardVariant = (variant: string, legacyAllowed: boolean) =>
+    dashboardVisible && decideAccess(subject, `dashboard.${variant}.view`, legacyAllowed);
+  const specificationCatalogLeader = roles.some(role =>
+    ['founder', 'deputy_founder', 'director', 'corporate_director'].includes(role));
+  const specificationCatalogAction = (suffix: string) =>
+    decideAccess(subject, `specification_catalog.${suffix}`, specificationCatalogLeader);
   const objectScopes: readonly AccessScope[] =
     hasWideObjectAccess(roles) || permissions.includes("objects.view_hr")
       ? ["all"]
@@ -93,6 +101,7 @@ export function applyAccessCapabilities<T extends Record<string, boolean>>(
     resourceId: subject.id,
     ownerUserId: subject.id,
   };
+  const newObjectContext = { resourceType: 'object', ownerUserId: subject.id };
   const result = { ...legacy };
   for (const key of Object.keys(legacy)) {
     if (actions[key])
@@ -103,6 +112,17 @@ export function applyAccessCapabilities<T extends Record<string, boolean>>(
         context,
       ) as T[keyof T];
   }
+  // This opens the selector for a scoped grant; the selected counterparty's
+  // read and link authority remain mandatory in the actual mutation.
+  if ('canLinkCounterpartyObjects' in result)
+    result['canLinkCounterpartyObjects' as keyof T] = canEnterAccessModule(
+      subject, 'counterparties.access', ['counterparties.objects.link'], legacy.canLinkCounterpartyObjects === true,
+    ) as T[keyof T];
+  // Creation always returns the new owner's card. The eventual assignment is
+  // user-selected, so this only subtracts denies inevitable for every new ID.
+  if ('canCreateObject' in result)
+    result['canCreateObject' as keyof T] = (decideAccess(subject, 'objects.create', legacy.canCreateObject, newObjectContext) &&
+      decideAccess(subject, 'objects.read', true, newObjectContext)) as T[keyof T];
   // A personal order grant uses the order-scoped endpoint, not the generic
   // inventory form. Keep the same generic issuer invariant as its domain helper.
   if ("canIssueInventoryToOneTimeOrder" in result)
@@ -183,7 +203,29 @@ export function applyAccessCapabilities<T extends Record<string, boolean>>(
       )) as T[keyof T];
   return {
     ...result,
-    canCreateTask: decideAccess(subject, "tasks.create", true),
+    canUploadFile: decideAccess(subject, 'files.upload', true, { resourceType: 'file', ownerUserId: subject.id }),
+    // setup creation keeps its independent role guard and the creator's object-read gate.
+    canCreateObjectBudget: result.canCreateObject === true && canCreateObject(roles) &&
+      decideAccess(subject, 'objects.read', true, newObjectContext) &&
+      decideAccess(subject, 'objects.budget.edit', roles.some(role => role === 'founder' || role === 'director') || permissions.includes('object.budget_edit'), newObjectContext),
+    canReadSpecificationCatalog: specificationCatalogAction('read'),
+    canCreateSpecificationCatalog: specificationCatalogAction('create'),
+    canUpdateSpecificationCatalog: specificationCatalogAction('update'),
+    canArchiveSpecificationCatalog: specificationCatalogAction('archive'),
+    canViewLeadershipDashboard: dashboardVariant('leadership', roles.some(role =>
+      ['founder', 'deputy_founder', 'director', 'corporate_director', 'deputy_director'].includes(role))),
+    canViewManagerDashboard: dashboardVariant('manager', roles.some(role =>
+      ['manager', 'senior_manager', 'operation_manager'].includes(role))),
+    canViewHrDashboard: dashboardVariant('hr', roles.includes('hr')),
+    canViewOperationsDashboard: dashboardVariant('operations', roles.includes('operation_manager')),
+    canViewInventoryMovements: canEnterAccessModule(subject, 'inventory.access',
+      ['inventory.movements.read'], legacy.canAccessInventory === true),
+    canReadEquipmentCatalog: decideAccess(subject, 'equipment.catalog.read', legacy.canAccessEquipment === true),
+    canDeleteEquipmentCatalog: decideAccess(subject, 'equipment.catalog.delete', legacy.canManageEquipmentCatalog === true),
+    canDiscoverAccountabilityReview: canEnterAccessModule(subject, 'accountability.access',
+      ['accountability.review'], legacy.canReviewAccountability === true),
+    canCreateTask: decideAccess(subject, "tasks.create", true) &&
+      !hasModuleDeny(subject, 'tasks.read', { resourceType: 'task', ownerUserId: subject.id }),
     canCreateCandidate: decideAccess(
       subject,
       "candidates.create",
@@ -198,12 +240,12 @@ export function applyAccessCapabilities<T extends Record<string, boolean>>(
       subject,
       "inventory.catalog.create",
       legacy.canManageInventoryCatalog === true,
-    ),
+    ) && !hasModuleDeny(subject, 'inventory.read', { resourceType: 'inventory_item', ownerUserId: subject.id }),
     canCreateEquipmentUnit: decideAccess(
       subject,
       "equipment.unit.create",
       legacy.canManageEquipmentCatalog === true,
-    ),
+    ) && !hasModuleDeny(subject, 'equipment.read', { resourceType: 'equipment_unit', ownerUserId: subject.id }),
     canAccessSearch: decideAccess(subject, "search.query", true),
     canAccessNotifications: decideAccess(subject, "notifications.read", true, {
       resourceType: "notification",

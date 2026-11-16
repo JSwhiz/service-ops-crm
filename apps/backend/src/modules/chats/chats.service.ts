@@ -1,3 +1,6 @@
+import { randomUUID } from 'node:crypto';
+import { lockActorAccessRevision } from '../../common/access/lock-actor-access-revision';
+import {chatMessageSourceWhere,hasChatSourceDeny} from '../../common/access/chat-message-source-access';
 import {
   BadRequestException,
   ConflictException,
@@ -208,7 +211,7 @@ export class ChatsService implements OnModuleInit {
       visibleRooms.push(await this.mapRoom(currentUser, room, participant));
     }
 
-    return visibleRooms;
+    return hasChatSourceDeny(currentUser) ? visibleRooms.sort((a,b)=>(b.lastMessageAt??'').localeCompare(a.lastMessageAt??'')) : visibleRooms;
   }
 
   async search(
@@ -229,12 +232,7 @@ export class ChatsService implements OnModuleInit {
     );
     // Resolve room-scoped search/message denies before any text query, cursor,
     // or result limit; listing a room alone does not allow reading its messages.
-    const allowed = await Promise.all(candidates.map(async room => {
-      const context = await this.roomAccessContext(await this.getRoomRecord(room.id));
-      return decideAccess(currentUser, 'chat.search', true, context) &&
-        decideAccess(currentUser, 'chat.messages.read', true, context);
-    }));
-    const visibleRooms = candidates.filter((_, index) => allowed[index]);
+    const visibleRooms = candidates.filter((room) => room.capabilities.canSearch);
     const visibleRoomIds = visibleRooms.map((room) => room.id);
     const currentParticipants = visibleRoomIds.length
       ? await this.prisma.chatRoomParticipant.findMany({
@@ -295,7 +293,7 @@ export class ChatsService implements OnModuleInit {
     const cursor =
       options.before && accessClauses.length
         ? await this.prisma.chatMessage.findFirst({
-            where: { id: options.before, OR: accessClauses, deletedAt: null },
+            where: await chatMessageSourceWhere(this.prisma, currentUser, { id: options.before, OR: accessClauses, deletedAt: null }),
             select: { id: true, createdAt: true },
           })
         : null;
@@ -304,7 +302,7 @@ export class ChatsService implements OnModuleInit {
     }
     const messages = accessClauses.length
       ? await this.prisma.chatMessage.findMany({
-          where: {
+          where: await chatMessageSourceWhere(this.prisma, currentUser, {
             OR: accessClauses,
             ...(cursor
               ? {
@@ -323,7 +321,7 @@ export class ChatsService implements OnModuleInit {
               contains: query,
               mode: 'insensitive',
             },
-          },
+          }),
           include: {
             chatRoom: true,
             author: {
@@ -406,96 +404,39 @@ export class ChatsService implements OnModuleInit {
     if (!decideAccess(currentUser, 'chat.room.direct', canCreateDirectChat(), { resourceType: 'chat_room', ownerUserId: currentUser.id })) {
       throw new ForbiddenException('Direct chat creation denied');
     }
-
     const targetUserId = dto.targetUserId.trim();
-
     if (!targetUserId || targetUserId === currentUser.id) {
       throw new BadRequestException('Direct chat target user is invalid');
     }
-
-    const targetUser = await this.findActiveUser(targetUserId);
-
-    if (!targetUser) {
+    if (!(await this.findActiveUser(targetUserId))) {
       throw new BadRequestException('Direct chat target user is not available');
     }
-
-    const directKey = [currentUser.id, targetUser.id].sort().join(':');
-    let wasCreated = false;
-    let room: ChatRoomRecord;
-
-    try {
-      room = (await this.prisma.chatRoom.create({
-        data: {
-          title: `${currentUser.fullName} / ${targetUser.fullName}`,
-          roomType: 'direct',
-          visibilityType: 'explicit_members',
-          directKey,
-          createdByUserId: currentUser.id,
-          participants: {
-            create: [
-              {
-                userId: currentUser.id,
-                roleInRoom: 'member',
-                joinedAt: new Date(),
-              },
-              {
-                userId: targetUser.id,
-                roleInRoom: 'member',
-                joinedAt: new Date(),
-              },
-            ],
-          },
-        },
-      })) as ChatRoomRecord;
-      wasCreated = true;
-    } catch (error) {
-      if (!this.isUniqueConstraintError(error)) {
-        throw error;
-      }
-
-      const existingRoom = (await this.prisma.chatRoom.findUnique({
-        where: {
-          directKey,
-        },
-      })) as ChatRoomRecord | null;
-
-      if (!existingRoom) {
-        throw error;
-      }
-
-      room = existingRoom;
-    }
-
-    await this.ensureDirectParticipant(room.id, currentUser.id, true);
-    await this.ensureDirectParticipant(room.id, targetUser.id, false);
-
-    if (wasCreated) {
-      await this.auditService.writeAuditEvent({
-        entityType: 'chat_room',
-        entityId: room.id,
-        actorUserId: currentUser.id,
+    const directKey = [currentUser.id, targetUserId].sort().join(':');
+    const { room, wasCreated } = await this.prisma.$transaction(async (tx) => {
+      await lockActorAccessRevision(tx, currentUser);
+      await tx.$queryRaw`SELECT "id" FROM "users" WHERE "id" = ${targetUserId} FOR SHARE`;
+      const targetUser = await this.findActiveUser(targetUserId, tx);
+      if (!targetUser) throw new BadRequestException('Direct chat target user is not available');
+      // ON CONFLICT keeps the transaction usable when the opposite-side
+      // request has already created this pair. Never continue an aborted TX.
+      const inserted = await tx.chatRoom.createMany({ data: [{
+        id: randomUUID(), title: `${currentUser.fullName} / ${targetUser.fullName}`,
+        roomType: 'direct', visibilityType: 'explicit_members', directKey,
+        createdByUserId: currentUser.id,
+      }], skipDuplicates: true });
+      const stored = await tx.chatRoom.findUniqueOrThrow({ where: { directKey } });
+      await this.ensureDirectParticipant(stored.id, currentUser.id, true, tx);
+      await this.ensureDirectParticipant(stored.id, targetUser.id, false, tx);
+      if (inserted.count === 1) await this.auditService.writeAuditEvent({
+        entityType: 'chat_room', entityId: stored.id, actorUserId: currentUser.id,
         action: 'chat.room.direct.created',
-        newValues: {
-          directKey,
-          participantUserIds: [currentUser.id, targetUser.id],
-        },
-      });
-
-      await this.publishRoomLifecycleEvent(room, 'chat.room_created', [
-        currentUser.id,
-        targetUser.id,
-      ]);
-    } else {
-      await this.publishRoomLifecycleEvent(room, 'chat.room_updated', [
-        currentUser.id,
-      ]);
-    }
-
-    const participant = await this.ensureParticipantForAccessibleRoom(
-      currentUser,
-      room,
-    );
-
+        newValues: { directKey, participantUserIds: [currentUser.id, targetUser.id] },
+      }, tx);
+      return { room: stored as ChatRoomRecord, wasCreated: inserted.count === 1 };
+    });
+    await this.publishRoomLifecycleEvent(room, wasCreated ? 'chat.room_created' : 'chat.room_updated',
+      wasCreated ? [currentUser.id, targetUserId] : [currentUser.id]);
+    const participant = await this.ensureParticipantForAccessibleRoom(currentUser, room);
     return this.mapRoom(currentUser, room, participant);
   }
 
@@ -526,7 +467,11 @@ export class ChatsService implements OnModuleInit {
 
     await this.assertActiveUsersExist(participantIds);
 
-    const room = await this.prisma.chatRoom.create({
+    const room = await this.prisma.$transaction(async (tx) => {
+      await lockActorAccessRevision(tx, currentUser);
+      await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "users" WHERE "id" IN (${Prisma.join([...participantIds].sort())}) ORDER BY "id" FOR SHARE`);
+      await this.assertActiveUsersExist(participantIds, tx);
+      const created = await tx.chatRoom.create({
       data: {
         title,
         roomType: 'group',
@@ -544,13 +489,15 @@ export class ChatsService implements OnModuleInit {
 
     await this.auditService.writeAuditEvent({
       entityType: 'chat_room',
-      entityId: room.id,
+      entityId: created.id,
       actorUserId: currentUser.id,
       action: 'chat.room.group.created',
       newValues: {
-        title: room.title,
+        title: created.title,
         participantUserIds: participantIds,
       },
+    }, tx);
+      return created;
     });
 
     await this.publishRoomLifecycleEvent(
@@ -574,28 +521,49 @@ export class ChatsService implements OnModuleInit {
   ): Promise<ChatRoomResponseDto> {
     const room = await this.getRoomRecord(roomId);
     await this.assertCanManageRoom(currentUser, room);
+    if (!(await this.canAccessRoom(currentUser, room))) {
+      throw new ForbiddenException('Chat room access denied');
+    }
     this.assertRoomOpen(room);
 
-    const updated = await this.prisma.chatRoom.update({
-      where: { id: room.id },
-      data: { title: dto.title.trim() },
-    });
-
-    await this.auditService.writeAuditEvent({
-      entityType: 'chat_room',
-      entityId: room.id,
-      actorUserId: currentUser.id,
-      action: 'chat.room.renamed',
-      oldValues: { title: room.title },
-      newValues: { title: updated.title },
+    const { updated, participant } = await this.prisma.$transaction(async (tx) => {
+      // Room lock coordinates remove/add/close; the member row lock also
+      // coordinates the existing leave path's direct participant update.
+      await tx.$queryRaw`SELECT "id" FROM "chat_rooms" WHERE "id" = ${room.id} FOR UPDATE`;
+      await tx.$queryRaw`SELECT "id" FROM "chat_room_participants" WHERE "chatRoomId" = ${room.id} AND "userId" = ${currentUser.id} FOR UPDATE`;
+      const current = await tx.chatRoom.findUniqueOrThrow({ where: { id: room.id } });
+      this.assertRoomOpen(current);
+      await this.assertCanManageRoom(currentUser, current, tx);
+      if (!(await this.canAccessRoom(currentUser, current, tx))) {
+        throw new ForbiddenException('Chat room access denied');
+      }
+      const existing = await tx.chatRoomParticipant.findUnique({ where: {
+        chatRoomId_userId: { chatRoomId: room.id, userId: currentUser.id },
+      } });
+      if (current.visibilityType === 'explicit_members' && (!existing || existing.leftAt)) {
+        throw new ForbiddenException('Chat participant not found');
+      }
+      const snapshotParticipant = existing ?? await tx.chatRoomParticipant.create({ data: {
+        chatRoomId: room.id, userId: currentUser.id,
+        roleInRoom: canManageChats(this.getRoleCodes(currentUser)) ? 'admin' : 'member',
+        joinedAt: new Date(0),
+      } });
+      const changed = await tx.chatRoom.update({
+        where: { id: room.id },
+        data: { title: dto.title.trim() },
+      });
+      await this.auditService.writeAuditEvent({
+        entityType: 'chat_room',
+        entityId: room.id,
+        actorUserId: currentUser.id,
+        action: 'chat.room.renamed',
+        oldValues: { title: current.title },
+        newValues: { title: changed.title },
+      }, tx);
+      return { updated: changed, participant: snapshotParticipant };
     });
 
     await this.publishRoomUpdate(updated);
-
-    const participant = await this.ensureParticipantForAccessibleRoom(
-      currentUser,
-      updated,
-    );
 
     return this.mapRoom(currentUser, updated, participant);
   }
@@ -701,6 +669,9 @@ export class ChatsService implements OnModuleInit {
     const room = await this.getRoomRecord(roomId);
     await this.assertRoomAction(currentUser, room, 'chat.room.unhide');
     this.assertRoomOpen(room);
+    if (!(await this.canAccessRoom(currentUser, room))) {
+      throw new ForbiddenException('Chat room access denied');
+    }
 
     if (!this.isDirectOrGroupRoom(room)) {
       throw new BadRequestException(
@@ -885,11 +856,11 @@ export class ChatsService implements OnModuleInit {
       : 50;
     const beforeMessage = options.before
       ? await this.prisma.chatMessage.findFirst({
-          where: {
+          where: await chatMessageSourceWhere(this.prisma, currentUser, {
             id: options.before,
             chatRoomId: room.id,
             createdAt: { gte: participant.joinedAt },
-          },
+          }),
           select: {
             id: true,
             createdAt: true,
@@ -902,7 +873,7 @@ export class ChatsService implements OnModuleInit {
     }
 
     const messages = await this.prisma.chatMessage.findMany({
-      where: {
+      where: await chatMessageSourceWhere(this.prisma, currentUser, {
         chatRoomId: room.id,
         createdAt: {
           gte: participant.joinedAt,
@@ -918,7 +889,7 @@ export class ChatsService implements OnModuleInit {
               ],
             }
           : {}),
-      },
+      }),
       include: {
         author: {
           select: {
@@ -948,11 +919,11 @@ export class ChatsService implements OnModuleInit {
     const room = await this.getRoomRecord(roomId);
     const participant = await this.assertCanReadRoom(currentUser, room);
     const anchor = await this.prisma.chatMessage.findFirst({
-      where: {
+      where: await chatMessageSourceWhere(this.prisma, currentUser, {
         id: options.around,
         chatRoomId: room.id,
         createdAt: { gte: participant.joinedAt },
-      },
+      }),
       include: {
         author: {
           select: {
@@ -971,14 +942,14 @@ export class ChatsService implements OnModuleInit {
     const limitBefore = this.parseMessageWindowLimit(options.limitBefore, 25);
     const limitAfter = this.parseMessageWindowLimit(options.limitAfter, 24);
     const older = await this.prisma.chatMessage.findMany({
-      where: {
+      where: await chatMessageSourceWhere(this.prisma, currentUser, {
         chatRoomId: room.id,
         createdAt: { gte: participant.joinedAt },
         OR: [
           { createdAt: { lt: anchor.createdAt } },
           { createdAt: anchor.createdAt, id: { lt: anchor.id } },
         ],
-      },
+      }),
       include: {
         author: {
           select: {
@@ -992,13 +963,13 @@ export class ChatsService implements OnModuleInit {
       take: limitBefore + 1,
     });
     const newer = await this.prisma.chatMessage.findMany({
-      where: {
+      where: await chatMessageSourceWhere(this.prisma, currentUser, {
         chatRoomId: room.id,
         OR: [
           { createdAt: { gt: anchor.createdAt } },
           { createdAt: anchor.createdAt, id: { gt: anchor.id } },
         ],
-      },
+      }),
       include: {
         author: {
           select: {
@@ -1037,14 +1008,14 @@ export class ChatsService implements OnModuleInit {
     const participant = await this.assertCanReadRoom(currentUser, room);
     const unreadThreshold = participant.lastReadAt ?? participant.joinedAt;
     const firstUnread = await this.prisma.chatMessage.findFirst({
-      where: {
+      where: await chatMessageSourceWhere(this.prisma, currentUser, {
         chatRoomId: room.id,
         createdAt: {
           gt: unreadThreshold,
           gte: participant.joinedAt,
         },
         OR: [{ authorUserId: { not: currentUser.id } }, { authorUserId: null }],
-      },
+      }),
       orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
       select: { id: true },
     });
@@ -1066,10 +1037,10 @@ export class ChatsService implements OnModuleInit {
       limit: '50',
     });
     const totalVisibleMessages = await this.prisma.chatMessage.count({
-      where: {
+      where: await chatMessageSourceWhere(this.prisma, currentUser, {
         chatRoomId: room.id,
         createdAt: { gte: participant.joinedAt },
-      },
+      }),
     });
 
     return {
@@ -1086,8 +1057,8 @@ export class ChatsService implements OnModuleInit {
     currentUser: CurrentAuthUser,
     messageId: string,
   ): Promise<ChatMessageResponseDto> {
-    const message = await this.prisma.chatMessage.findUnique({
-      where: { id: messageId },
+    const message = await this.prisma.chatMessage.findFirst({
+      where: await chatMessageSourceWhere(this.prisma, currentUser, { id: messageId }),
       include: {
         chatRoom: true,
         author: {
@@ -1745,7 +1716,7 @@ export class ChatsService implements OnModuleInit {
     mode: 'read' | 'write',
   ): Promise<boolean> {
     const message = await this.prisma.chatMessage.findFirst({
-      where: { id: messageId },
+      where: await chatMessageSourceWhere(this.prisma, currentUser, { id: messageId }),
       include: {
         chatRoom: true,
       },
@@ -1784,6 +1755,13 @@ export class ChatsService implements OnModuleInit {
 
   private async ensureDefaultRooms(): Promise<void> {
     for (const room of DEFAULT_CHAT_ROOMS) {
+      const existing = await this.prisma.chatRoom.findUnique({
+        where: { code: room.code },
+        select: { roomType: true, visibilityType: true },
+      });
+      // Reading a correct room list must not rewrite updatedAt on every GET.
+      // Preserve the legacy repair path only for missing/drifted defaults.
+      if (existing?.roomType === 'system_default' && existing.visibilityType === room.visibilityType) continue;
       await this.prisma.chatRoom.upsert({
         where: { code: room.code },
         create: {
@@ -1858,8 +1836,9 @@ export class ChatsService implements OnModuleInit {
   private async assertCanManageRoom(
     currentUser: CurrentAuthUser,
     room: ChatRoomRecord,
+    database: Prisma.TransactionClient = this.prisma,
   ): Promise<void> {
-    if (!(await this.canManageRoom(currentUser, room))) {
+    if (!(await this.canManageRoom(currentUser, room, database))) {
       throw new ForbiddenException('Chat admin access denied');
     }
   }
@@ -1867,16 +1846,17 @@ export class ChatsService implements OnModuleInit {
   private async canAccessRoom(
     currentUser: CurrentAuthUser,
     room: ChatRoomRecord,
+    database: Prisma.TransactionClient = this.prisma,
   ): Promise<boolean> {
-    const context = await this.roomAccessContext(room);
+    const context = await this.roomAccessContext(room, database);
     const invariantAllowed = currentUser.isActive && !room.deletedAt &&
       (room.visibilityType !== 'leadership_only' || isChatLeadership(this.getRoleCodes(currentUser))) &&
       (room.visibilityType !== 'explicit_members' || context.assignedUserIds?.includes(currentUser.id) === true);
-    return decideAccess(currentUser, 'chat.read', await this.canAccessRoomLegacy(currentUser, room), { ...context, invariantAllowed });
+    return decideAccess(currentUser, 'chat.read', await this.canAccessRoomLegacy(currentUser, room, database), { ...context, invariantAllowed });
   }
 
-  private async roomAccessContext(room: ChatRoomRecord): Promise<AccessContext> {
-    const target = await resourceAccessTarget(this.prisma, 'chat_room', room.id);
+  private async roomAccessContext(room: ChatRoomRecord, database: Prisma.TransactionClient = this.prisma): Promise<AccessContext> {
+    const target = await resourceAccessTarget(database, 'chat_room', room.id);
     return { ...(target?.context ?? { resourceType: 'chat_room', resourceId: room.id }),
       parents: room.visibilityType === 'objects_scope' ? [{ actionCode: 'objects.access', context: {} }]
         : room.visibilityType === 'one_time_orders_scope' ? [{ actionCode: 'one_time_orders.access', context: {} }] : [],
@@ -1890,6 +1870,7 @@ export class ChatsService implements OnModuleInit {
   private async canAccessRoomLegacy(
     currentUser: CurrentAuthUser,
     room: ChatRoomRecord,
+    database: Prisma.TransactionClient = this.prisma,
   ): Promise<boolean> {
     if (!currentUser.isActive || room.deletedAt) {
       return false;
@@ -1904,15 +1885,15 @@ export class ChatsService implements OnModuleInit {
         return (
           !isObjectsChatDenied(roleCodes) &&
           (hasOperationalChatRole(roleCodes) ||
-            (await this.hasActiveObjectAssignment(currentUser.id)))
+            (await this.hasActiveObjectAssignment(currentUser.id, database)))
         );
       case 'one_time_orders_scope':
         return (
           hasOperationalChatRole(roleCodes) ||
-          (await this.hasActiveOneTimeOrderManagerAssignment(currentUser.id))
+          (await this.hasActiveOneTimeOrderManagerAssignment(currentUser.id, database))
         );
       case 'explicit_members':
-        return this.hasActiveParticipant(room.id, currentUser.id);
+        return this.hasActiveParticipant(room.id, currentUser.id, database);
     }
   }
 
@@ -1935,15 +1916,17 @@ export class ChatsService implements OnModuleInit {
   private async canManageRoom(
     currentUser: CurrentAuthUser,
     room: ChatRoomRecord,
+    database: Prisma.TransactionClient = this.prisma,
   ): Promise<boolean> {
-    return decideAccess(currentUser, 'chat.room.update', await this.canManageRoomLegacy(currentUser, room), {
-      ...await this.roomAccessContext(room), invariantAllowed: !room.deletedAt,
+    return decideAccess(currentUser, 'chat.room.update', await this.canManageRoomLegacy(currentUser, room, database), {
+      ...await this.roomAccessContext(room, database), invariantAllowed: !room.deletedAt,
     });
   }
 
   private async canManageRoomLegacy(
     currentUser: CurrentAuthUser,
     room: ChatRoomRecord,
+    database: Prisma.TransactionClient = this.prisma,
   ): Promise<boolean> {
     const roleCodes = this.getRoleCodes(currentUser);
 
@@ -1959,7 +1942,7 @@ export class ChatsService implements OnModuleInit {
       return false;
     }
 
-    const participant = await this.prisma.chatRoomParticipant.findUnique({
+    const participant = await database.chatRoomParticipant.findUnique({
       where: {
         chatRoomId_userId: {
           chatRoomId: room.id,
@@ -2041,14 +2024,36 @@ export class ChatsService implements OnModuleInit {
       ? 'admin'
       : 'member';
 
-    return this.prisma.chatRoomParticipant.create({
-      data: {
-        chatRoomId: room.id,
-        userId: currentUser.id,
-        roleInRoom,
-        joinedAt: new Date(0),
-      },
-    });
+    try {
+      return await this.prisma.chatRoomParticipant.create({
+        data: {
+          chatRoomId: room.id,
+          userId: currentUser.id,
+          roleInRoom,
+          joinedAt: new Date(0),
+        },
+      });
+    } catch (error) {
+      const target = error instanceof Prisma.PrismaClientKnownRequestError
+        && error.code === 'P2002'
+        ? error.meta?.target
+        : undefined;
+      if (!Array.isArray(target) || target.length !== 2
+        || !target.includes('chatRoomId') || !target.includes('userId')) {
+        throw error;
+      }
+
+      // Another accessible-room read initialized this exact membership first.
+      // Preserve its role and lifecycle/read state; never rejoin or reset it.
+      return this.prisma.chatRoomParticipant.findUniqueOrThrow({
+        where: {
+          chatRoomId_userId: {
+            chatRoomId: room.id,
+            userId: currentUser.id,
+          },
+        },
+      });
+    }
   }
 
   private async resolveRoomDisplayTitle(
@@ -2095,6 +2100,8 @@ export class ChatsService implements OnModuleInit {
   ): Promise<ChatRoomResponseDto> {
     const accessContext = await this.roomAccessContext(room);
     const canSeeMessages = decideAccess(currentUser, 'chat.messages.read', true, accessContext);
+    const canAccess = await this.canAccessRoom(currentUser, room);
+    const canWrite = await this.canWriteRoom(currentUser, room);
     const participantCount = await this.prisma.chatRoomParticipant.count({
       where: {
         chatRoomId: room.id,
@@ -2103,7 +2110,7 @@ export class ChatsService implements OnModuleInit {
     });
     const unreadThreshold = participant.lastReadAt ?? participant.joinedAt;
     const unreadCount = await this.prisma.chatMessage.count({
-      where: {
+      where: await chatMessageSourceWhere(this.prisma, currentUser, {
         chatRoomId: room.id,
         createdAt: {
           gt: unreadThreshold,
@@ -2118,9 +2125,18 @@ export class ChatsService implements OnModuleInit {
             authorUserId: null,
           },
         ],
-      },
+      }),
     });
 
+    let recipientLastAt=room.lastMessageAt,recipientPreview=room.lastMessagePreview;
+    if(hasChatSourceDeny(currentUser)){
+      const latest=await this.prisma.chatMessage.findFirst({where:await chatMessageSourceWhere(this.prisma,currentUser,{chatRoomId:room.id}),orderBy:[{createdAt:'desc'},{id:'desc'}]});
+      recipientLastAt=latest?.createdAt??null;
+      if(!latest)recipientPreview=null;
+      else if(latest.deletedAt)recipientPreview=latest.deletedByKind==='author'?'Сообщение удалено автором':'Сообщение удалено администратором';
+      else if(latest.messageType==='system')recipientPreview=latest.text;
+      else recipientPreview=this.buildMessagePreviewFromAttachmentCount(latest.text,latest.text?0:await this.prisma.fileAttachment.count({where:{entityType:CHAT_MESSAGE_FILE_ENTITY_TYPE,entityId:latest.id}}));
+    }
     return {
       id: room.id,
       code: room.code,
@@ -2128,13 +2144,21 @@ export class ChatsService implements OnModuleInit {
       displayTitle: await this.resolveRoomDisplayTitle(currentUser, room),
       roomType: room.roomType,
       visibilityType: room.visibilityType,
-      lastMessageAt: room.lastMessageAt?.toISOString() ?? null,
-      lastMessagePreview: canSeeMessages ? room.lastMessagePreview : null,
+      lastMessageAt: recipientLastAt?.toISOString() ?? null,
+      lastMessagePreview: canSeeMessages ? recipientPreview : null,
       lastReadAt: participant.lastReadAt?.toISOString() ?? null,
       unreadCount: canSeeMessages ? unreadCount : 0,
       participantCount,
       capabilities: {
-        canWrite: await this.canWriteRoom(currentUser, room),
+        canWrite,
+        canSearch: canAccess && canSeeMessages &&
+          this.shouldIncludeRoomInView(room, participant, 'active') &&
+          decideAccess(currentUser, 'chat.search', true) &&
+          decideAccess(currentUser, 'chat.search', true, accessContext),
+        canReadReceipts: canAccess && canSeeMessages &&
+          decideAccess(currentUser, 'chat.read_receipts', true, accessContext),
+        canForwardToRoom: canWrite &&
+          decideAccess(currentUser, 'chat.messages.forward', true, accessContext),
         canManage: await this.canManageRoom(currentUser, room),
         canManageMembers: await this.canManageMembers(currentUser, room),
         canHide:
@@ -2142,6 +2166,9 @@ export class ChatsService implements OnModuleInit {
           this.isDirectOrGroupRoom(room) &&
           !room.deletedAt &&
           participant.leftAt === null,
+        canUnhide:
+          canAccess && decideAccess(currentUser, 'chat.room.unhide', true, accessContext) &&
+          this.isDirectOrGroupRoom(room) && !room.deletedAt && participant.leftAt === null,
         canLeave:
           decideAccess(currentUser, 'chat.room.leave', true, accessContext) &&
           room.roomType === 'group' &&
@@ -2314,10 +2341,17 @@ export class ChatsService implements OnModuleInit {
   ): Promise<ChatMessageResponseDto> {
     const accessContext = context?.accessByRoomId.get(message.chatRoomId) ?? await this.roomAccessContext(await this.getRoomRecord(message.chatRoomId));
     const isDeleted = message.deletedAt !== null;
-    const attachments = isDeleted
+    const loadedAttachments = isDeleted
       ? []
       : (context?.attachmentsByMessageId.get(message.id) ??
         (await this.loadMessageAttachments(message.id)));
+    // A readable message does not override a file/root deny. Use the uploader
+    // for own and the actual room membership for assigned, on both the single
+    // and batched DTO paths, before exposing names or content URLs.
+    const attachments = loadedAttachments.filter(file => this.canReadChatFileMetadata(
+      currentUser, accessContext, file.id, file.uploadedByUserId ?? undefined,
+    ));
+    const metadata = await this.mapMessageMetadata(currentUser, accessContext, message.metadata);
     const canManageRoom =
       context?.canManageByRoomId.get(message.chatRoomId) ??
       (currentUser.id
@@ -2380,7 +2414,7 @@ export class ChatsService implements OnModuleInit {
       chatRoomId: message.chatRoomId,
       messageType: message.messageType,
       text: isDeleted ? deletedText : message.text,
-      metadata: this.mapJsonObject(message.metadata),
+      metadata,
       createdAt: message.createdAt.toISOString(),
       updatedAt: message.updatedAt.toISOString(),
       editedAt: message.editedAt?.toISOString() ?? null,
@@ -2478,6 +2512,59 @@ export class ChatsService implements OnModuleInit {
     );
   }
 
+  private canReadChatFileMetadata(
+    currentUser: CurrentAuthUser,
+    accessContext: AccessContext,
+    fileId: string,
+    uploadedByUserId?: string,
+  ): boolean {
+    return decideAccess(currentUser, 'files.read', true, {
+      resourceType: 'file', resourceId: fileId, ownerUserId: uploadedByUserId,
+      assignedUserIds: accessContext.assignedUserIds,
+      parents: [{ actionCode: 'chat.messages.read', context: {
+        ...accessContext, parents: [{ actionCode: 'chat.read', context: accessContext }],
+      } }],
+    });
+  }
+
+  private async mapMessageMetadata(
+    currentUser: CurrentAuthUser,
+    accessContext: AccessContext,
+    value: Prisma.JsonValue | null,
+  ): Promise<Record<string, unknown> | null> {
+    const metadata = this.mapJsonObject(value);
+    if (!metadata) return metadata;
+    // Publication snapshots remain immutable in storage. Their known file
+    // projections use the same file/root decision as ordinary chat attachments.
+    const fileId = (entry: unknown): string | null => {
+      if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return null;
+      const ref = entry as Record<string, unknown>;
+      return typeof ref.fileId === 'string' ? ref.fileId
+        : typeof ref.id === 'string' ? ref.id : null;
+    };
+    const diff = metadata.attachmentDiff && typeof metadata.attachmentDiff === 'object' && !Array.isArray(metadata.attachmentDiff)
+      ? metadata.attachmentDiff as Record<string, unknown> : null;
+    const lists = [metadata.attachmentSnapshot, diff?.removed, diff?.added].filter(Array.isArray) as unknown[][];
+    const ids = [...new Set(lists.flatMap(entries => entries.map(fileId).filter((id): id is string => id !== null)))];
+    if (!ids.length) return metadata;
+    const owners = new Map((await this.prisma.file.findMany({
+      where: { id: { in: ids } }, select: { id: true, uploadedByUserId: true },
+    })).map(file => [file.id, file.uploadedByUserId]));
+    const readable = (entry: unknown): boolean => {
+      const id = fileId(entry);
+      return id === null || this.canReadChatFileMetadata(currentUser, accessContext, id, owners.get(id) ?? undefined);
+    };
+    return {
+      ...metadata,
+      ...(Array.isArray(metadata.attachmentSnapshot) ? { attachmentSnapshot: metadata.attachmentSnapshot.filter(readable) } : {}),
+      ...(diff ? { attachmentDiff: {
+        ...diff,
+        ...(Array.isArray(diff.removed) ? { removed: diff.removed.filter(readable) } : {}),
+        ...(Array.isArray(diff.added) ? { added: diff.added.filter(readable) } : {}),
+      } } : {}),
+    };
+  }
+
   private mapChatFileAttachment(
     attachment: ChatFileAttachmentRecord,
   ): FileResponseDto {
@@ -2491,7 +2578,9 @@ export class ChatsService implements OnModuleInit {
       uploadedByUserId: attachment.file.uploadedByUserId,
       createdAt: attachment.file.createdAt.toISOString(),
       url: `/api/v1/files/${attachment.file.id}/content`,
-      attachments: attachment.file.attachments.map((item) => ({
+      // A file can be attached elsewhere too. This message grants no right to
+      // discover those other rooms or domain links through its nested metadata.
+      attachments: attachment.file.attachments.filter(item => item.id === attachment.id).map((item) => ({
         id: item.id,
         entityType: item.entityType,
         entityId: item.entityId,
@@ -2510,8 +2599,8 @@ export class ChatsService implements OnModuleInit {
       return null;
     }
 
-    const message = await this.prisma.chatMessage.findUnique({
-      where: { id: messageId },
+    const message = await this.prisma.chatMessage.findFirst({
+      where: await chatMessageSourceWhere(this.prisma, currentUser, { id: messageId }),
       include: {
         chatRoom: true,
         author: {
@@ -2696,8 +2785,9 @@ export class ChatsService implements OnModuleInit {
   private async hasActiveParticipant(
     roomId: string,
     userId: string,
+    database: Prisma.TransactionClient = this.prisma,
   ): Promise<boolean> {
-    const participant = await this.prisma.chatRoomParticipant.findUnique({
+    const participant = await database.chatRoomParticipant.findUnique({
       where: {
         chatRoomId_userId: {
           chatRoomId: roomId,
@@ -2743,8 +2833,9 @@ export class ChatsService implements OnModuleInit {
     roomId: string,
     userId: string,
     shouldUnhide: boolean,
+    database: Prisma.TransactionClient = this.prisma,
   ): Promise<void> {
-    await this.prisma.chatRoomParticipant.upsert({
+    await database.chatRoomParticipant.upsert({
       where: {
         chatRoomId_userId: {
           chatRoomId: roomId,
@@ -2780,8 +2871,8 @@ export class ChatsService implements OnModuleInit {
     });
   }
 
-  private async hasActiveObjectAssignment(userId: string): Promise<boolean> {
-    const count = await this.prisma.objectAssignment.count({
+  private async hasActiveObjectAssignment(userId: string, database: Prisma.TransactionClient = this.prisma): Promise<boolean> {
+    const count = await database.objectAssignment.count({
       where: {
         userId,
         isActive: true,
@@ -2793,8 +2884,9 @@ export class ChatsService implements OnModuleInit {
 
   private async hasActiveOneTimeOrderManagerAssignment(
     userId: string,
+    database: Prisma.TransactionClient = this.prisma,
   ): Promise<boolean> {
-    const count = await this.prisma.oneTimeOrderAssignment.count({
+    const count = await database.oneTimeOrderAssignment.count({
       where: {
         userId,
         isActive: true,
@@ -2863,11 +2955,11 @@ export class ChatsService implements OnModuleInit {
     );
   }
 
-  private async findActiveUser(userId: string): Promise<{
+  private async findActiveUser(userId: string, database: Prisma.TransactionClient = this.prisma): Promise<{
     id: string;
     fullName: string;
   } | null> {
-    return this.prisma.user.findFirst({
+    return database.user.findFirst({
       where: {
         id: userId,
         isActive: true,
@@ -2880,12 +2972,12 @@ export class ChatsService implements OnModuleInit {
     });
   }
 
-  private async assertActiveUsersExist(userIds: string[]): Promise<void> {
+  private async assertActiveUsersExist(userIds: string[], database: Prisma.TransactionClient = this.prisma): Promise<void> {
     if (userIds.length === 0) {
       return;
     }
 
-    const existingUsers = await this.prisma.user.findMany({
+    const existingUsers = await database.user.findMany({
       where: {
         id: {
           in: userIds,

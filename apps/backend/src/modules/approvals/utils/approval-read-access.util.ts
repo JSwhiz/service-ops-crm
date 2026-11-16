@@ -113,6 +113,7 @@ function adjustmentEmployeeIds(row: {
   beforeSnapshot: unknown;
 }): string[] {
   const payload = jsonObject(row.payload);
+  const snapshot = jsonObject(row.beforeSnapshot);
   const before = Array.isArray(row.beforeSnapshot)
     ? row.beforeSnapshot
     : [row.beforeSnapshot];
@@ -122,13 +123,17 @@ function adjustmentEmployeeIds(row: {
         row.employeeId,
         payload.employeeId,
         payload.replacementEmployeeId,
+        ...(Array.isArray(payload.employeeIds) ? payload.employeeIds : []),
+        ...(Array.isArray(payload.holidayEmployeeIds) ? payload.holidayEmployeeIds : []),
         ...before.map((item) => jsonObject(item).employeeId),
+        ...(Array.isArray(snapshot.facts) ? snapshot.facts.map((item) => jsonObject(item).employeeId) : []),
+        ...(Array.isArray(snapshot.holidays) ? snapshot.holidays.map((item) => jsonObject(item).employeeId) : []),
       ].filter((id): id is string => typeof id === "string" && id.length > 0),
     ),
   ];
 }
 
-async function employeeReadSources(prisma: PrismaService, ids: string[]) {
+async function employeeReadSources(prisma: Prisma.TransactionClient, ids: string[]) {
   if (!ids.length)
     return { complete: true, parents: [] as ResourceAccessTarget[] };
   // A malformed historical source must not cause an unbounded lookup or drop denies.
@@ -153,7 +158,7 @@ async function employeeReadSources(prisma: PrismaService, ids: string[]) {
  * source grant is required: OQ-153 permits independent approval reading, while
  * each actual source/ancestor's explicit read denial still wins. */
 export async function approvalSourceReadContext(
-  prisma: PrismaService,
+  prisma: Prisma.TransactionClient,
   request: ApprovalReadReference,
 ): Promise<AccessContext> {
   let source = await resourceAccessTarget(

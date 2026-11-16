@@ -1,7 +1,12 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import { useAccessRevision } from '@/shared/auth/use-access-revision';
+import { useOpenAccessRefresh } from '@/shared/auth/use-open-access-refresh';
+import { AccessSnapshotBoundary } from '@/shared/auth/access-snapshot-boundary';
+import { getAccessGeneration, isAccessGenerationCurrent } from '@/shared/auth/access-generation';
+import { ApiError } from '@/shared/api/fetcher';
 import {
   getRubberMatAggregate, getRubberMatQuantityHistory, setRubberMatQuantity,
   matMoney, matSizeLabel, type RubberMatAggregate, type RubberMatQuantityChange,
@@ -15,38 +20,84 @@ export function ObjectRubberMatsPanel({ objectId }: { objectId: string }): React
 }
 
 function RubberMatWorkspace({ objectId }: { objectId: string }): React.JSX.Element {
+  const accessRevision = useAccessRevision();
+  const accessGeneration = getAccessGeneration();
+  const [loadedAccessRevision, setLoadedAccessRevision] = useState<string | null>(null);
   const [data, setData] = useState<RubberMatAggregate | null>(null);
   const [drafts, setDrafts] = useState<Record<string, { value: string; version: number }>>({});
-  const [history, setHistory] = useState<RubberMatQuantityChange[] | null>(null);
+  const [history, setHistory] = useState<{ accessRevision: string; changes: RubberMatQuantityChange[] } | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [revision, setRevision] = useState(0);
+  const panelRef = useRef<HTMLDivElement>(null);
+  useOpenAccessRefresh(data !== null, panelRef);
 
   useEffect(() => {
     let active = true;
+    setLoadError(null);
+    setHistory(null);
     void getRubberMatAggregate(objectId).then((result) => {
-      if (active) setData(result);
-    }).catch((caught: unknown) => { if (active) setError(caught instanceof Error ? caught.message : 'Не удалось загрузить ковры'); });
+      if (active && isAccessGenerationCurrent(accessGeneration)) { setData(result); setLoadedAccessRevision(accessRevision); }
+    }).catch((caught: unknown) => {
+      if (active && isAccessGenerationCurrent(accessGeneration)) setLoadError(caught instanceof Error ? caught.message : 'Не удалось загрузить ковры');
+    });
     return () => { active = false; };
-  }, [objectId, revision]);
+  }, [objectId, revision, accessRevision, accessGeneration]);
+
+  const accessCurrent = loadedAccessRevision === accessRevision && !loadError && data !== null;
 
   const save = async (sizeId: string): Promise<void> => {
-    if (!drafts[sizeId]) return;
+    const item = data?.items.find((entry) => entry.id === sizeId);
+    if (busy || !accessCurrent || !data?.canManage || !isAccessGenerationCurrent(accessGeneration) || !drafts[sizeId] || !item || drafts[sizeId].version !== item.quantityVersion) return;
     const { value, version } = drafts[sizeId];
     if (!value || !/^\d+$/.test(value) || !Number.isSafeInteger(Number(value))) { setError('Введите целое неотрицательное количество'); return; }
     setBusy(true); setError(null);
     try {
       await setRubberMatQuantity(objectId, sizeId, { version, quantity: Number(value) });
-      const [result, changes] = await Promise.all([getRubberMatAggregate(objectId), history ? getRubberMatQuantityHistory(objectId) : Promise.resolve(null)]);
-      setData(result); setDrafts((previous) => { const next = { ...previous }; delete next[sizeId]; return next; }); setHistory(changes);
-    } catch (caught) { setError(caught instanceof Error ? caught.message : 'Не удалось сохранить количество'); }
+      if (!isAccessGenerationCurrent(accessGeneration)) return;
+      setLoadedAccessRevision(null);
+      const result = await getRubberMatAggregate(objectId);
+      if (!isAccessGenerationCurrent(accessGeneration)) return;
+      setData(result); setLoadedAccessRevision(accessRevision);
+      setDrafts((previous) => {
+        if (previous[sizeId]?.value !== value || previous[sizeId]?.version !== version) return previous;
+        const next = { ...previous }; delete next[sizeId]; return next;
+      });
+      setHistory(null);
+      if (history && result.canReadHistory) {
+        const changes = await getRubberMatQuantityHistory(objectId);
+        if (isAccessGenerationCurrent(accessGeneration)) setHistory({ accessRevision, changes });
+      }
+    } catch (caught) {
+      if (isAccessGenerationCurrent(accessGeneration)) {
+        setError(caught instanceof Error ? caught.message : 'Не удалось сохранить количество');
+        if (caught instanceof ApiError && caught.statusCode === 403) { setLoadedAccessRevision(null); setRevision((value) => value + 1); }
+      }
+    }
     finally { setBusy(false); }
   };
 
-  return <div className={styles.panel}>
+  const loadHistory = async (): Promise<void> => {
+    if (busy || !accessCurrent || !data?.canReadHistory || !isAccessGenerationCurrent(accessGeneration)) return;
+    setBusy(true); setError(null);
+    try {
+      const changes = await getRubberMatQuantityHistory(objectId);
+      if (isAccessGenerationCurrent(accessGeneration)) setHistory({ accessRevision, changes });
+    } catch (caught) {
+      if (isAccessGenerationCurrent(accessGeneration)) {
+        setHistory(null); setError(caught instanceof Error ? caught.message : 'Не удалось загрузить историю');
+        if (caught instanceof ApiError && caught.statusCode === 403) { setLoadedAccessRevision(null); setRevision((value) => value + 1); }
+      }
+    } finally { setBusy(false); }
+  };
+
+  return <div className={styles.panel} ref={panelRef}>
     <p>Количество ковров по размеру. <Link href="/rubber-mats">Каталог размеров и стоимости замены</Link></p>
-    {error ? <Alert tone="danger" role="alert">{error} <Button disabled={busy} onClick={() => { setError(null); setRevision((v) => v + 1); }}>Обновить данные</Button></Alert> : null}
-    {!data ? error ? null : <p role="status">Загружаем учёт ковров…</p> : <>
+    {loadError || error ? <Alert tone="danger" role="alert">{loadError ?? error} <Button disabled={busy} onClick={() => { setError(null); setLoadError(null); setRevision((v) => v + 1); }}>Обновить данные</Button></Alert> : null}
+    {!accessCurrent && !loadError ? <p role="status">Проверяем доступ к учёту ковров…</p> : null}
+    <AccessSnapshotBoundary blocked={!accessCurrent}>
+    {data ? <>
       <p>Стоимость замены: {data.totalReplacementCost === null ? 'Не определена — у части ковров не указана цена.' : matMoney(data.totalReplacementCost)}{data.totalReplacementCost === null ? ' Известная часть: ' + matMoney(data.knownReplacementCost) + '.' : ''}</p>
       <DataTable label="Количество ковров по размерам">
         <thead><tr><th>Размер</th><th>Стоимость замены за ковёр</th><th>Количество</th><th>Изменить</th></tr></thead>
@@ -59,17 +110,13 @@ function RubberMatWorkspace({ objectId }: { objectId: string }): React.JSX.Eleme
           </form> : 'Только просмотр'}</td>
         </tr>)}</tbody>
       </DataTable>
-      <Button disabled={busy} onClick={async () => {
-        setBusy(true); setError(null);
-        try { setHistory(await getRubberMatQuantityHistory(objectId)); }
-        catch (caught) { setError(caught instanceof Error ? caught.message : 'Не удалось загрузить историю'); }
-        finally { setBusy(false); }
-      }}>История количества</Button>
-      {history ? <ol className={styles.history}>{history.length === 0 ? <li>Изменений пока нет.</li> : history.map((change) => <li key={change.id}>
+      {data.canReadHistory ? <Button disabled={busy} onClick={() => { void loadHistory(); }}>История количества</Button> : null}
+      {data.canReadHistory && history?.accessRevision === accessRevision ? <ol className={styles.history}>{history.changes.length === 0 ? <li>Изменений пока нет.</li> : history.changes.map((change) => <li key={change.id}>
         <strong>{matSizeLabel(change)}: {change.beforeQuantity} → {change.afterQuantity}</strong>
         <span>{new Date(change.occurredAt).toLocaleString('ru-RU')} · {change.actorName ?? 'Перенос прежних записей'}</span>
         <span>Цена на момент изменения: {matMoney(change.replacementCostSnapshot)}</span>
       </li>)}</ol> : null}
-    </>}
+    </> : null}
+    </AccessSnapshotBoundary>
   </div>;
 }

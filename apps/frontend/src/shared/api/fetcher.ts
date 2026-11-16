@@ -1,6 +1,8 @@
 import { appConfig } from '@/shared/config/app-config';
 import { refreshSession } from '@/shared/auth/auth-session';
-import { getAccessGeneration, isAccessGenerationCurrent } from '@/shared/auth/access-generation';
+import { getAccessGeneration, getAccessSessionGeneration, isAccessGenerationCurrent } from '@/shared/auth/access-generation';
+
+import type { SavedWithoutAccess } from './saved-without-access';
 
 interface FetcherOptions extends RequestInit {
   skipAuthRetry?: boolean;
@@ -102,6 +104,7 @@ function buildApiError(
           extractedMessage,
           status,
           extractCodeFromParsedBody(parsed),
+          status === 409 ? { cause: parsed } : undefined,
         );
       }
     } catch {
@@ -146,9 +149,28 @@ async function executeRequest(
   });
 }
 
-export async function fetcher<T>(
+export function fetcher<T>(path: string, options: FetcherOptions = {}): Promise<T> {
+  return executeFetcher<T>(path, options);
+}
+
+export function postCommittedWrite<T>(
   path: string,
-  options: FetcherOptions = {},
+  options: Omit<FetcherOptions, 'method'>,
+): Promise<T | SavedWithoutAccess> {
+  return committedWrite<T>(path, { ...options, method: 'POST' });
+}
+
+export function committedWrite<T>(
+  path: string,
+  options: Omit<FetcherOptions, 'method'> & { method: 'POST' | 'PUT' | 'PATCH' | 'DELETE' },
+): Promise<T | SavedWithoutAccess> {
+  return executeFetcher<T | SavedWithoutAccess>(path, options, { outcome: 'saved_without_access' });
+}
+
+async function executeFetcher<T>(
+  path: string,
+  options: FetcherOptions,
+  staleSuccess?: T,
 ): Promise<T> {
   const {
     headers,
@@ -160,6 +182,12 @@ export async function fetcher<T>(
 
   const resolvedMethod = method ?? 'GET';
   const accessGeneration = getAccessGeneration();
+  const accessSession = getAccessSessionGeneration();
+  // A known committed write can be acknowledged within the same account even
+  // when its body is obsolete. Never carry the acknowledgement across logout.
+  const canAcknowledgeWithoutDetails = (): boolean =>
+    staleSuccess !== undefined && !isAccessGenerationCurrent(accessGeneration) &&
+    getAccessSessionGeneration() === accessSession;
   const assertCurrentAccess = (): void => {
     if (!path.startsWith('/auth/') && !isAccessGenerationCurrent(accessGeneration)) {
       // Never replay writes: the server may already have applied the mutation.
@@ -191,6 +219,8 @@ export async function fetcher<T>(
     );
 
     if (response.status === 401 && !skipAuthRetry) {
+      // Do not refresh an old account's cookies after its request was invalidated.
+      assertCurrentAccess();
       const refreshed = await refreshSession();
 
       if (refreshed) {
@@ -211,7 +241,16 @@ export async function fetcher<T>(
       throw buildApiError(response.status, rawBody);
     }
 
-    const rawBody = await response.text();
+    if (staleSuccess !== undefined && canAcknowledgeWithoutDetails()) {
+      void response.body?.cancel().catch(() => undefined);
+      return staleSuccess;
+    }
+
+    const rawBody = await response.text().catch((error: unknown) => {
+      if (canAcknowledgeWithoutDetails()) return '';
+      throw error;
+    });
+    if (staleSuccess !== undefined && canAcknowledgeWithoutDetails()) return staleSuccess;
     assertCurrentAccess();
 
     if (!rawBody.trim()) {

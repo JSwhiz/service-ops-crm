@@ -2,7 +2,6 @@ import {
   Body,
   Controller,
   Delete,
-  ForbiddenException,
   Get,
   HttpCode,
   Param,
@@ -12,15 +11,17 @@ import {
   UseGuards,
 } from '@nestjs/common';
 
+import type { SavedWithoutAccess } from '../../common/access/project-committed-write';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
+import { DeleteInventoryItemQueryDto } from './dto/delete-inventory-item-query.dto';
 import { CreateInventoryItemDto } from './dto/create-inventory-item.dto';
 import { CreateInventoryMovementDto } from './dto/create-inventory-movement.dto';
 import { InventoryItemResponseDto } from './dto/inventory-item-response.dto';
 import { InventoryItemListResponseDto } from './dto/inventory-item-list-response.dto';
 import { InventoryMovementListResponseDto } from './dto/inventory-movement-list-response.dto';
-import { InventoryMovementResponseDto } from './dto/inventory-movement-response.dto';
+import type { InventoryMovementWriteResult } from './dto/inventory-movement-response.dto';
 import { InventoryReportSummaryDto } from './dto/inventory-report-summary.dto';
 import { ListInventoryItemsQueryDto } from './dto/list-inventory-items-query.dto';
 import { ListInventoryMovementsQueryDto } from './dto/list-inventory-movements-query.dto';
@@ -28,7 +29,6 @@ import { UpdateInventoryItemDto } from './dto/update-inventory-item.dto';
 import { RestoreInventoryItemDto } from './dto/restore-inventory-item.dto';
 import { InventoryService } from './inventory.service';
 import { CorrectInventoryMovementDto } from './dto/correct-inventory-movement.dto';
-import { canViewInventoryReports } from './utils/inventory-access.util';
 
 interface CurrentAuthUser {
   id: string;
@@ -69,7 +69,7 @@ export class InventoryController {
   createItem(
     @CurrentUser() user: CurrentAuthUser,
     @Body() payload: CreateInventoryItemDto,
-  ): Promise<InventoryItemResponseDto> {
+  ): Promise<InventoryItemResponseDto | SavedWithoutAccess> {
     return this.inventoryService.createItem(user, payload);
   }
 
@@ -78,7 +78,7 @@ export class InventoryController {
     @CurrentUser() user: CurrentAuthUser,
     @Param('id') id: string,
     @Body() payload: UpdateInventoryItemDto,
-  ): Promise<InventoryItemResponseDto> {
+  ): Promise<InventoryItemResponseDto | SavedWithoutAccess> {
     return this.inventoryService.updateItem(user, id, payload);
   }
 
@@ -86,8 +86,9 @@ export class InventoryController {
   deleteItem(
     @CurrentUser() user: CurrentAuthUser,
     @Param('id') id: string,
-  ): Promise<{ id: string; mode: 'hard' | 'soft' }> {
-    return this.inventoryService.deleteItem(user, id);
+    @Query() query: DeleteInventoryItemQueryDto,
+  ): Promise<{ id: string; mode: 'hard' | 'soft' } | SavedWithoutAccess> {
+    return this.inventoryService.deleteItem(user, id, query.expectedVersion);
   }
 
   @Post('items/:id/restore')
@@ -95,7 +96,7 @@ export class InventoryController {
     @CurrentUser() user: CurrentAuthUser,
     @Param('id') id: string,
     @Body() payload: RestoreInventoryItemDto,
-  ): Promise<InventoryItemResponseDto> {
+  ): Promise<InventoryItemResponseDto | SavedWithoutAccess> {
     return this.inventoryService.restoreItem(user, id, payload.expectedVersion);
   }
 
@@ -104,7 +105,6 @@ export class InventoryController {
     @CurrentUser() user: CurrentAuthUser,
     @Query() query: ListInventoryMovementsQueryDto,
   ): Promise<InventoryMovementListResponseDto> {
-    this.assertInventoryHistoryVisible(user);
     return this.inventoryService.listMovements(user, query);
   }
 
@@ -112,7 +112,6 @@ export class InventoryController {
   getReportSummary(
     @CurrentUser() user: CurrentAuthUser,
   ): Promise<InventoryReportSummaryDto> {
-    this.assertInventoryHistoryVisible(user);
     return this.inventoryService.getReportSummary(user);
   }
 
@@ -120,7 +119,7 @@ export class InventoryController {
   createMovement(
     @CurrentUser() user: CurrentAuthUser,
     @Body() payload: CreateInventoryMovementDto,
-  ): Promise<InventoryMovementResponseDto> {
+  ): Promise<InventoryMovementWriteResult> {
     return this.inventoryService.createMovement(user, payload);
   }
 
@@ -129,7 +128,7 @@ export class InventoryController {
   resolveMissingPhotoApproval(
     @CurrentUser() user: CurrentAuthUser,
     @Param('id') id: string,
-  ): Promise<InventoryMovementResponseDto> {
+  ): Promise<InventoryMovementWriteResult> {
     return this.inventoryService.resolveMissingPhotoApproval(user, id);
   }
 
@@ -147,9 +146,4 @@ export class InventoryController {
     return this.inventoryService.listOneTimeOrderReferenceOptions(user);
   }
 
-  private assertInventoryHistoryVisible(user: CurrentAuthUser): void {
-    if (!canViewInventoryReports(user.roleCodes ?? [user.roleCode])) {
-      throw new ForbiddenException('Inventory movement history access denied');
-    }
-  }
 }

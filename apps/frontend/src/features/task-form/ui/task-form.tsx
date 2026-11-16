@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 import type { ServiceObject } from '@/entities/object/model/object.types';
 import type { OneTimeOrderListItem } from '@/entities/one-time-order/model/one-time-order.types';
@@ -19,10 +19,12 @@ import {
   TASK_PRIORITY_OPTIONS,
 } from '@/shared/lib/task-presentation';
 import { DatePicker } from '@/shared/ui/date-picker/date-picker';
+import { AccessSnapshotBoundary } from '@/shared/auth/access-snapshot-boundary';
 import { Select } from '@/shared/ui/searchable-select/select';
-import { Button } from '@/shared/ui/foundation';
+import { Alert, Button } from '@/shared/ui/foundation';
 import { MediaActionPicker } from '@/shared/ui/media-entry/media-action-picker';
 import { PendingMediaList } from '@/shared/ui/media-entry/pending-media-list';
+import { useConfirm } from '@/shared/ui/overlays';
 import taskStyles from '@/entities/task/ui/task-ui.module.css';
 import createStyles from './task-form.module.css';
 
@@ -63,6 +65,7 @@ export function TaskForm({
   visibilityUsers,
   initialValue,
   isEdit = false,
+  canUploadFiles = false,
   onTargetsChange,
   onSubmit,
   onCancel,
@@ -74,6 +77,7 @@ export function TaskForm({
   visibilityUsers: SystemUserOption[];
   initialValue?: Partial<TaskFormInitialValue>;
   isEdit?: boolean;
+  canUploadFiles?: boolean;
   onTargetsChange: (objectId: string, oneTimeOrderId: string) => void;
   onSubmit: (payload: CreateTaskPayload, files: File[]) => Promise<void>;
   onCancel?: () => void;
@@ -93,11 +97,26 @@ export function TaskForm({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [localFiles, setLocalFiles] = useState<File[]>([]);
+  const [confirmTargetChange, targetChangeDialog] = useConfirm();
+  const [isChangingTarget, setIsChangingTarget] = useState(false);
+  const targetChangePending = useRef(false);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
   const form = draft?.value ?? localForm;
+  const formRef = useRef(form);
+  formRef.current = form;
   const setForm = draft?.setValue ?? setLocalForm;
   const pendingFiles = draft?.files ?? localFiles;
   const setPendingFiles = draft?.setFiles ?? setLocalFiles;
   const submitLock = useRef(false);
+  const uploadPermissionRef = useRef(canUploadFiles);
+  uploadPermissionRef.current = canUploadFiles;
+  const attachmentTarget = `${form.objectId}:${form.oneTimeOrderId}`;
+  const attachmentTargetRef = useRef(attachmentTarget);
+  attachmentTargetRef.current = attachmentTarget;
 
   const filteredUsers = useMemo(() => {
     const query = assigneeSearch.trim().toLocaleLowerCase('ru-RU');
@@ -120,12 +139,32 @@ export function TaskForm({
     );
   }, [visibilitySearch, visibilityUsers]);
 
-  const setTarget = (
+  const setTarget = async (
     field: 'objectId' | 'oneTimeOrderId',
     value: string,
-  ): void => {
+  ): Promise<void> => {
+    if (formRef.current[field] === value || targetChangePending.current || submitLock.current || completed || externalPending) return;
+    const previousTarget = attachmentTargetRef.current;
+    if (pendingFiles.length > 0) {
+      targetChangePending.current = true;
+      setIsChangingTarget(true);
+      try {
+        const confirmed = await confirmTargetChange({
+          title: 'Изменить цель задачи и убрать выбранные файлы?',
+          consequence: 'Выбранные вложения относятся к текущему объекту или заказу. При смене цели они будут убраны из личного черновика. Чтобы сохранить их и текущую цель, отмените действие.',
+          confirmLabel: 'Убрать файлы и изменить цель',
+          tone: 'danger',
+        });
+        if (!confirmed || !mounted.current || attachmentTargetRef.current !== previousTarget) return;
+        setPendingFiles([]);
+      } finally {
+        targetChangePending.current = false;
+        if (mounted.current) setIsChangingTarget(false);
+      }
+    }
+    if (!mounted.current || attachmentTargetRef.current !== previousTarget) return;
     const next = {
-      ...form,
+      ...formRef.current,
       [field]: value,
       visibleUserIds: [],
     };
@@ -153,8 +192,13 @@ export function TaskForm({
     event: React.FormEvent<HTMLFormElement>,
   ): Promise<void> => {
     event.preventDefault();
-    if (submitLock.current || completed || externalPending) return;
+    if (submitLock.current || targetChangePending.current || completed || externalPending) return;
     setError(null);
+
+    if (!isEdit && pendingFiles.length > 0 && !canUploadFiles) {
+      setError('Загрузка файлов недоступна. Вложения сохранены в личном черновике: дождитесь восстановления права или уберите их перед созданием задачи без вложений.');
+      return;
+    }
 
     if (!isEdit && form.assigneeUserIds.length === 0) {
       setError('Выберите минимум одного исполнителя.');
@@ -200,7 +244,8 @@ export function TaskForm({
 
   return (
     <form id={formId} className={taskStyles.taskForm} aria-busy={isSubmitting} onSubmit={(event) => void submit(event)}>
-      <fieldset className={createStyles.body} disabled={!isEdit && (isSubmitting || completed || externalPending)}>
+      {targetChangeDialog}
+      <fieldset className={createStyles.body} disabled={isChangingTarget || (!isEdit && (isSubmitting || completed || externalPending))}>
       <div className={taskStyles.taskFormGrid}>
         <label className={`${taskStyles.taskField} ${taskStyles.taskFieldWide}`}>
           <span>Название *</span>
@@ -266,7 +311,7 @@ export function TaskForm({
           <span>Объект (необязательно)</span>
           <Select
             value={form.objectId}
-            onChange={(event) => setTarget('objectId', event.target.value)}
+            onChange={(event) => void setTarget('objectId', event.target.value)}
           >
             <option value="">Без объекта</option>
             {objects.map((object) => (
@@ -282,7 +327,7 @@ export function TaskForm({
           <Select
             value={form.oneTimeOrderId}
             onChange={(event) =>
-              setTarget('oneTimeOrderId', event.target.value)
+              void setTarget('oneTimeOrderId', event.target.value)
             }
           >
             <option value="">Без разового заказа</option>
@@ -419,7 +464,15 @@ export function TaskForm({
 
       {!isEdit ? <div className={taskStyles.taskField}>
         <span>Вложения к задаче</span>
-        <MediaActionPicker compactMenu disabled={isSubmitting} onPick={async (file) => setPendingFiles((current) => [...current, file])} />
+        <AccessSnapshotBoundary key={attachmentTarget} blocked={!canUploadFiles}>
+        <MediaActionPicker compactMenu disabled={isSubmitting || isChangingTarget || !canUploadFiles} onPick={async (file) => {
+          if (!uploadPermissionRef.current) throw new Error('Прикрепление файлов сейчас недоступно.');
+          if (targetChangePending.current) throw new Error('Дождитесь решения о смене цели задачи.');
+          if (attachmentTargetRef.current !== attachmentTarget) throw new Error('Цель задачи изменилась. Выберите файлы для новой цели заново.');
+          setPendingFiles((current) => [...current, file]);
+        }} />
+        </AccessSnapshotBoundary>
+        {!canUploadFiles ? <Alert tone="info">Новые вложения недоступны. Задачу без вложений можно создать. {pendingFiles.length > 0 ? 'Выбранные файлы сохранены только в личном черновике; уберите их явно или дождитесь восстановления права на загрузку.' : ''}</Alert> : null}
         <PendingMediaList files={pendingFiles} onRemove={(index) => setPendingFiles((current) => current.filter((_, fileIndex) => fileIndex !== index))} emptyText="Вложений пока нет." />
       </div> : null}
       {error ? (

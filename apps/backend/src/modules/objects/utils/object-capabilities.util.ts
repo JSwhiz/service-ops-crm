@@ -9,6 +9,7 @@ import {
 } from './object-access.util';
 import { canManageEmployeeAssignments } from '../../employees/utils/employee-hr-access.util';
 import { hasDelegatedObjectAction, ObjectDelegatedAction } from '../../user-substitutions/object-delegation.context';
+import { getAccessAction } from '../../users-access/access-action-catalog';
 import { AccessSubject, decideAccess } from '../../users-access/utils/access-policy.util';
 
 interface ObjectCapabilityAssignment {
@@ -41,6 +42,10 @@ export function buildObjectCapabilities(params: {
   canManageResponsibles: boolean;
   canManageManagers: boolean;
   canCreateTask: boolean;
+  canCreateArrivalPhoto: boolean;
+  canEditDailyReport: boolean;
+  canSubmitDailyReport: boolean;
+  canCreateComment: boolean;
   canViewBasicProfile: boolean;
   canViewOperationalSections: boolean;
   canViewReportsHistory: boolean;
@@ -52,6 +57,8 @@ export function buildObjectCapabilities(params: {
   const context = { resourceType: 'object', resourceId: params.objectId, ownerUserId: params.createdByUserId,
     assignedUserIds: params.assignments.map(a => a.userId) };
   const delegated = (coarse: ObjectDelegatedAction, leaf: string) => hasDelegatedObjectAction(params.currentUserId, params.objectId, coarse, false, leaf, context);
+  const operationalLegacy = (leaf: string) => hasOwnOperationalScope ||
+    (getAccessAction(leaf)?.delegation === 'object_only' && delegated('operate', leaf));
   const ownManagement = canManageObjectResponsibles(params.roleCodes);
   const canManageResponsibles = ownManagement || delegated('assign', 'objects.responsibles.manage');
   const canEdit =
@@ -89,6 +96,10 @@ export function buildObjectCapabilities(params: {
     canRestore: ownManagement || delegated('status', 'objects.restore'),
     canManageResponsibles,
     canManageManagers: ownManagement || delegated('assign', 'objects.managers.manage'),
+    canCreateArrivalPhoto: operationalLegacy('objects.arrival.create'),
+    canEditDailyReport: operationalLegacy('objects.reports.update'),
+    canSubmitDailyReport: operationalLegacy('objects.reports.submit'),
+    canCreateComment: operationalLegacy('objects.comments.create'),
     canCreateTask:
       hasOperationalScope,
     canViewBasicProfile:
@@ -104,6 +115,8 @@ export function buildObjectCapabilities(params: {
   };
   const subject = params.subject ?? { id: params.currentUserId, roleCodes: params.roleCodes, permissionCodes: params.permissionCodes };
   const mapping: Partial<Record<keyof typeof legacy, string>> = {
+    canCreateArrivalPhoto: 'objects.arrival.create', canEditDailyReport: 'objects.reports.update',
+    canSubmitDailyReport: 'objects.reports.submit', canCreateComment: 'objects.comments.create',
     canEdit: 'objects.update', canEditDailyRate: 'objects.rates.manage', canViewCompensationRates: 'objects.rates.read',
     canManageCompensationRates: 'objects.rates.manage', canChangeStatus: 'objects.status', canManageResponsibles: 'objects.responsibles.manage',
     canReadMaterials: 'objects.materials.read', canManageMaterials: 'objects.materials.manage',
@@ -115,7 +128,10 @@ export function buildObjectCapabilities(params: {
   };
   for (const [key, action] of Object.entries(mapping)) {
     const capability = key as keyof typeof legacy;
-    legacy[capability] = decideAccess(subject, action, legacy[capability], context);
+    legacy[capability] = decideAccess(subject, action, legacy[capability],
+      ['canCreateArrivalPhoto', 'canEditDailyReport', 'canSubmitDailyReport', 'canCreateComment'].includes(key)
+        ? { ...context, parents: [{ actionCode: 'objects.read', context }] }
+        : context);
   }
   legacy.canCreateTask = legacy.canCreateTask && decideAccess(subject, 'objects.read', true, context);
   legacy.canRestore &&= params.objectStatus === 'archived';

@@ -1,21 +1,24 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import { AccessSnapshotBoundary } from '@/shared/auth/access-snapshot-boundary';
 
 import type { AccountabilityExpenseItem } from '@/entities/accountability/model/accountability.types';
 import { AttachmentPreviewList } from '@/shared/ui/media-entry/attachment-preview-list';
 import { MediaActionPicker } from '@/shared/ui/media-entry/media-action-picker';
 import { PendingMediaList } from '@/shared/ui/media-entry/pending-media-list';
-import { Button, Stack, Surface } from '@/shared/ui/foundation';
+import { Alert, Button, Stack, Surface } from '@/shared/ui/foundation';
 
 export function AccountabilityExpenseForm({
   initialExpense,
-  canCreate,
+  canSave,
+  canSubmit,
   onSave,
   onCancelEdit,
 }: {
   initialExpense?: AccountabilityExpenseItem | null;
-  canCreate: boolean;
+  canSave: boolean;
+  canSubmit: boolean;
   onSave: (payload: {
     expenseId?: string;
     amount: number;
@@ -43,11 +46,8 @@ export function AccountabilityExpenseForm({
     setPendingFiles([]);
   }, [initialExpense]);
 
-  if (!canCreate && !initialExpense) {
-    return null;
-  }
-
   const handleSave = async (submitAfterSave: boolean): Promise<void> => {
+    if (!canSave || (submitAfterSave && !canSubmit) || isSubmitting) return;
     const normalizedAmount = Number(amount);
     const normalizedDescription = description.trim();
 
@@ -74,12 +74,22 @@ export function AccountabilityExpenseForm({
         setDescription('');
         setPendingFiles([]);
       }
+    } catch {
+      // The account page displays the refusal. Keep this draft and its files
+      // without turning an expected save refusal into an unhandled rejection.
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  return (
+  return (<>
+    {!canSave && (initialExpense || amount || description || pendingFiles.length > 0) ? (
+      <Alert tone="warning" role="status">Сохранение расхода недоступно. Черновик и выбранные файлы сохранены. После восстановления права отправьте его вручную.</Alert>
+    ) : null}
+    {canSave && !canSubmit && (initialExpense || amount || description || pendingFiles.length > 0) ? (
+      <Alert tone="info" role="status">Отправка расхода на проверку недоступна. Вы можете сохранить черновик.</Alert>
+    ) : null}
+    <AccessSnapshotBoundary key={initialExpense?.id ?? 'new'} blocked={!canSave}>
     <Surface padding="md" style={{ display: 'grid', gap: 16 }}>
       <div className="ui-section-header">
         <div>
@@ -134,7 +144,7 @@ export function AccountabilityExpenseForm({
             : 'Фото и документы расхода'}
         </div>
         <MediaActionPicker
-          disabled={isSubmitting}
+          disabled={isSubmitting || !canSave}
           onPick={async (file) => {
             setPendingFiles((prev) => [...prev, file]);
           }}
@@ -152,7 +162,7 @@ export function AccountabilityExpenseForm({
 
       <div className="ui-inline">
         <Button
-          disabled={isSubmitting}
+          disabled={isSubmitting || !canSave}
           onClick={() => {
             void handleSave(false);
           }}
@@ -160,7 +170,7 @@ export function AccountabilityExpenseForm({
           {isSubmitting ? 'Сохраняем...' : 'Сохранить черновик'}
         </Button>
         <Button
-          disabled={isSubmitting}
+          disabled={isSubmitting || !canSave || !canSubmit}
           onClick={() => {
             void handleSave(true);
           }}
@@ -174,5 +184,7 @@ export function AccountabilityExpenseForm({
         ) : null}
       </div>
     </Surface>
+    </AccessSnapshotBoundary>
+    </>
   );
 }

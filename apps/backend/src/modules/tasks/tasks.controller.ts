@@ -26,6 +26,7 @@ import { TaskHistoryEventResponseDto } from './dto/task-history-response.dto';
 import { TaskCompletionListResponseDto } from './dto/task-completion-response.dto';
 import {
   TaskListResponseDto,
+  type TaskMutationResponse,
   TaskResponseDto,
 } from './dto/task-response.dto';
 import { UpdateTaskStatusDto } from './dto/update-task-status.dto';
@@ -66,7 +67,7 @@ export class TasksController {
   createTask(
     @CurrentUser() user: CurrentAuthUser,
     @Body() payload: CreateTaskDto,
-  ): Promise<TaskResponseDto> {
+  ): Promise<TaskMutationResponse> {
     return this.tasksService.createTask(user, payload);
   }
 
@@ -84,7 +85,7 @@ export class TasksController {
     @CurrentUser() user: CurrentAuthUser,
     @Param('id') id: string,
     @Body() payload: UpdateTaskDto,
-  ): Promise<TaskResponseDto> {
+  ): Promise<TaskMutationResponse> {
     return this.tasksService.updateTask(user, id, payload);
   }
 
@@ -93,7 +94,7 @@ export class TasksController {
     @CurrentUser() user: CurrentAuthUser,
     @Param('id') id: string,
     @Body() payload: SubmitTaskResultDto,
-  ): Promise<TaskResponseDto> {
+  ): Promise<TaskMutationResponse> {
     return this.tasksService.submitResult(user, id, payload);
   }
 
@@ -102,7 +103,7 @@ export class TasksController {
     @CurrentUser() user: CurrentAuthUser,
     @Param('id') id: string,
     @Body() payload: AddTaskAssigneesDto,
-  ): Promise<TaskResponseDto> {
+  ): Promise<TaskMutationResponse> {
     return this.tasksService.addAssignees(user, id, payload);
   }
 
@@ -111,7 +112,7 @@ export class TasksController {
     @CurrentUser() user: CurrentAuthUser,
     @Param('id') id: string,
     @Param('userId') userId: string,
-  ): Promise<TaskResponseDto> {
+  ): Promise<TaskMutationResponse> {
     return this.tasksService.removeAssignee(user, id, userId);
   }
 
@@ -119,7 +120,7 @@ export class TasksController {
   createCompletionDraft(
     @CurrentUser() user: CurrentAuthUser,
     @Param('id') id: string,
-  ): Promise<{ id: string; workCycle: number }> {
+  ): ReturnType<TasksService['createCompletionDraft']> {
     return this.tasksService.createCompletionDraft(user, id);
   }
 
@@ -128,7 +129,7 @@ export class TasksController {
     @CurrentUser() user: CurrentAuthUser,
     @Param('id') id: string,
     @Body() payload: CompleteTaskAssignmentDto,
-  ): Promise<TaskResponseDto> {
+  ): Promise<TaskMutationResponse> {
     return this.tasksService.completeMyAssignment(user, id, payload);
   }
 
@@ -136,7 +137,7 @@ export class TasksController {
   undoMyCompletion(
     @CurrentUser() user: CurrentAuthUser,
     @Param('id') id: string,
-  ): Promise<TaskResponseDto> {
+  ): Promise<TaskMutationResponse> {
     return this.tasksService.undoMyCompletion(user, id);
   }
 
@@ -144,7 +145,7 @@ export class TasksController {
   confirmTask(
     @CurrentUser() user: CurrentAuthUser,
     @Param('id') id: string,
-  ): Promise<TaskResponseDto> {
+  ): Promise<TaskMutationResponse> {
     return this.tasksService.confirmTask(user, id);
   }
 
@@ -152,7 +153,7 @@ export class TasksController {
   completeTaskNow(
     @CurrentUser() user: CurrentAuthUser,
     @Param('id') id: string,
-  ): Promise<TaskResponseDto> {
+  ): Promise<TaskMutationResponse> {
     return this.tasksService.completeTaskNow(user, id);
   }
 
@@ -161,7 +162,7 @@ export class TasksController {
     @CurrentUser() user: CurrentAuthUser,
     @Param('id') id: string,
     @Body() payload: TaskReasonDto,
-  ): Promise<TaskResponseDto> {
+  ): Promise<TaskMutationResponse> {
     return this.tasksService.returnTaskToWork(user, id, payload);
   }
 
@@ -170,7 +171,7 @@ export class TasksController {
     @CurrentUser() user: CurrentAuthUser,
     @Param('id') id: string,
     @Body() payload: TaskReasonDto,
-  ): Promise<TaskResponseDto> {
+  ): Promise<TaskMutationResponse> {
     return this.tasksService.reopenTask(user, id, payload);
   }
 
@@ -179,7 +180,7 @@ export class TasksController {
     @CurrentUser() user: CurrentAuthUser,
     @Param('id') id: string,
     @Body() payload: TaskReasonDto,
-  ): Promise<TaskResponseDto> {
+  ): Promise<TaskMutationResponse> {
     return this.tasksService.cancelTask(user, id, payload);
   }
 

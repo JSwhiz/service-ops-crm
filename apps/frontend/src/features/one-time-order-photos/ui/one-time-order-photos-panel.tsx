@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useContext, useEffect, useRef, useState } from 'react';
+import { getAccessGeneration, isAccessGenerationCurrent } from '@/shared/auth/access-generation';
 
 import type { OneTimeOrderPhotoItem } from '@/entities/one-time-order/model/one-time-order.types';
 import { getUserDisplayName } from '@/shared/lib/display-name';
@@ -10,6 +11,7 @@ import {
 } from '@/shared/lib/media-categories';
 import { AttachmentPreviewList } from '@/shared/ui/media-entry/attachment-preview-list';
 import { MediaActionPicker } from '@/shared/ui/media-entry/media-action-picker';
+import { AccessSnapshotBlockedContext, AccessSnapshotBoundary } from '@/shared/auth/access-snapshot-boundary';
 import { PendingMediaList } from '@/shared/ui/media-entry/pending-media-list';
 import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-select';
 import { ReasonDialog, useConfirm } from '@/shared/ui/overlays';
@@ -45,6 +47,20 @@ export function OneTimeOrderPhotosPanel({
   const [error, setError] = useState<string | null>(null);
   const activeItems = items.filter((item) => !item.deletedAt);
   const deletedItems = items.filter((item) => !!item.deletedAt);
+  const snapshotBlocked = useContext(AccessSnapshotBlockedContext);
+  const photoContext = useRef({ items, snapshotBlocked });
+  photoContext.current = { items, snapshotBlocked };
+  const [deleteIntent, setDeleteIntent] = useState<(() => boolean) | null>(null);
+  const deleteIntentRef = useRef(deleteIntent);
+  deleteIntentRef.current = deleteIntent;
+  const cancelDelete = (): void => {
+    deleteIntentRef.current = null;
+    setDeleteIntent(null); setPhotoToDelete(null);
+  };
+  useEffect(() => {
+    if (deleteIntent && !deleteIntent()) cancelDelete();
+  }, [deleteIntent, items, snapshotBlocked]);
+  useEffect(() => () => { photoContext.current = { ...photoContext.current, snapshotBlocked: true }; }, []);
 
   return (
     <>
@@ -59,10 +75,11 @@ export function OneTimeOrderPhotosPanel({
         {canCreate && !isFormOpen ? <Button onClick={() => setIsFormOpen(true)}>Добавить фото</Button> : null}
       </div>
 
-      {canCreate && isFormOpen ? (
+      {isFormOpen ? <AccessSnapshotBoundary blocked={!canCreate}>
         <form
           onSubmit={async (event) => {
             event.preventDefault();
+            if (!canCreate || isSubmitting) return;
 
             if (pendingFiles.length === 0) {
               return;
@@ -110,7 +127,7 @@ export function OneTimeOrderPhotosPanel({
           <Stack gap="sm">
             <div className="ui-text-muted">Фото</div>
             <MediaActionPicker
-              disabled={isSubmitting}
+              disabled={isSubmitting || !canCreate}
               compactMenu
               compactLabel="Добавить фото к заказу"
               allowGenericFile={false}
@@ -151,7 +168,7 @@ export function OneTimeOrderPhotosPanel({
             })()}>Отменить</Button>
           </div>
         </form>
-      ) : null}
+      </AccessSnapshotBoundary> : null}
 
       {activeItems.length === 0 ? (
         <div className="ui-text-muted">Фотографии заказа пока не загружены.</div>
@@ -182,7 +199,13 @@ export function OneTimeOrderPhotosPanel({
                   label: `Удалить запись с фото (${item.attachments.length})`,
                   tone: 'danger',
                   disabled: busyPhotoId === item.id,
-                  onSelect: () => { setPhotoToDelete(item.id); setDeleteReason(''); },
+                  onSelect: () => {
+                    const generation = getAccessGeneration();
+                    const isCurrent = (): boolean => isAccessGenerationCurrent(generation) && !photoContext.current.snapshotBlocked &&
+                      photoContext.current.items.some((row) => row.id === item.id && row.oneTimeOrderId === item.oneTimeOrderId && row.updatedAt === item.updatedAt && !row.deletedAt && row.capabilities.canDelete);
+                    if (!isCurrent()) return;
+                    setDeleteIntent(() => isCurrent); setPhotoToDelete(item.id); setDeleteReason('');
+                  },
                 }]} /> : null}
               </div>
               <div className="ui-text-muted">
@@ -254,8 +277,8 @@ export function OneTimeOrderPhotosPanel({
       ) : null}
     </Surface>
     <ReasonDialog
-      open={photoToDelete !== null}
-      onOpenChange={(open) => { if (!open) setPhotoToDelete(null); }}
+      open={photoToDelete !== null && deleteIntent?.() === true}
+      onOpenChange={(open) => { if (!open) cancelDelete(); }}
       title="Удалить фото из заказа?"
       description="Запись со всеми её фотографиями будет перемещена в удалённые материалы. Её можно будет восстановить из этой карточки."
       reason={deleteReason}
@@ -265,13 +288,14 @@ export function OneTimeOrderPhotosPanel({
       confirmLabel="Удалить фото"
       pending={busyPhotoId === photoToDelete}
       onConfirm={(reason) => {
-        if (!photoToDelete) return;
+        const isCurrent = (): boolean => deleteIntentRef.current === deleteIntent && deleteIntent?.() === true;
+        if (!photoToDelete || !isCurrent() || busyPhotoId) return;
         const targetId = photoToDelete;
         setError(null);
         setBusyPhotoId(targetId);
         void onDelete(targetId, reason.trim() || undefined)
-          .then(() => setPhotoToDelete(null))
-          .catch(() => setError('Не удалось удалить фото заказа.'))
+          .then(() => { if (isCurrent()) cancelDelete(); })
+          .catch(() => { if (isCurrent()) setError('Не удалось удалить фото заказа.'); })
           .finally(() => setBusyPhotoId(null));
       }}
     />

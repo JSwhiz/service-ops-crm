@@ -2,7 +2,13 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { getObjectById } from '@/entities/object/api/object-client';
+import { useAccessRevision } from '@/shared/auth/use-access-revision';
+import { useAuth } from '@/shared/auth/use-auth';
+import { captureObjectWriteFence, objectSavedWithoutAccess } from '@/features/object-shared-ui/object-write-fence';
+import { isSavedWithoutAccess } from '@/shared/api/saved-without-access';
+import { AccessSnapshotBoundary } from '@/shared/auth/access-snapshot-boundary';
 import { getObjectEquipment } from '@/entities/equipment/api/equipment-client';
 import { getObjectInventory } from '@/entities/inventory/api/inventory-client';
 import { createObjectComment, getTodayArrivalPhoto, getTodayDailyReport, getTodayObjectAttendance, listObjectDailyReports, upsertObjectAttendance, upsertTodayDailyReport, type ObjectAttendanceToday } from '@/entities/object/api/object-operations-client';
@@ -21,11 +27,34 @@ import styles from './object-preview-drawer.module.css';
 function stamp(date: string): string { return new Date(date).toLocaleString('ru-RU', { timeZone: 'Europe/Moscow' }); }
 
 export function ObjectPreviewDrawer({ item, onClose }: { item: ServiceObject | null; onClose: () => void }): React.JSX.Element | null {
-  return item ? <ObjectPreviewContent key={item.id} item={item} onClose={onClose} /> : null;
+  const { user } = useAuth();
+  return item ? <ObjectPreviewContent key={`${user?.id}:${item.id}`} item={item} onClose={onClose} /> : null;
 }
 
-function ObjectPreviewContent({ item, onClose }: { item: ServiceObject; onClose: () => void }): React.JSX.Element {
+function ObjectPreviewContent({ item: initialItem, onClose }: { item: ServiceObject; onClose: () => void }): React.JSX.Element {
   const router = useRouter();
+  const accessRevision = useAccessRevision();
+  const { user, capabilitiesRefreshError, refreshUser } = useAuth();
+  const surfaceMounted = useRef(true);
+  useEffect(() => { surfaceMounted.current = true; return () => { surfaceMounted.current = false; }; }, []);
+  const [writeAcknowledged, setWriteAcknowledged] = useState(false);
+  const [checkingWrite, setCheckingWrite] = useState(false);
+  const [item, setItem] = useState(initialItem);
+  const [loadedRevision, setLoadedRevision] = useState<string | null>(null);
+  const [coreDenied, setCoreDenied] = useState(false);
+  const latest = useRef({ accessRevision, objectId: initialItem.id, capabilitiesRefreshError, userId: user?.id });
+  latest.current = { accessRevision, objectId: initialItem.id, capabilitiesRefreshError, userId: user?.id };
+  useEffect(() => {
+    let active = true;
+    const identity = user?.id;
+    const targetId = initialItem.id;
+    const fence = captureObjectWriteFence(() => surfaceMounted.current && latest.current.objectId === targetId && latest.current.userId === identity);
+    if (capabilitiesRefreshError) return () => { active = false; };
+    void getObjectById(targetId).then((fresh) => {
+      if (active && fence.current() && fresh.id === targetId && latest.current.accessRevision === accessRevision && !latest.current.capabilitiesRefreshError) { setItem(fresh); setLoadedRevision(accessRevision); setCoreDenied(false); }
+    }).catch(() => { if (active && fence.current()) setCoreDenied(true); });
+    return () => { active = false; };
+  }, [initialItem.id, accessRevision, capabilitiesRefreshError, user?.id]);
   const [confirmDiscard, discardDialog] = useConfirm();
   const [reportEditState, setReportEditState] = useState({ dirty: false, busy: false });
   const [attendance, setAttendance] = useState<ObjectAttendanceToday | null>(null);
@@ -40,6 +69,8 @@ function ObjectPreviewContent({ item, onClose }: { item: ServiceObject; onClose:
   const [savingComment, setSavingComment] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [readErrors, setReadErrors] = useState<string[]>([]);
+  const [loadedOperationsRevision, setLoadedOperationsRevision] = useState<string | null>(null);
+  const accessBlocked = writeAcknowledged || !!capabilitiesRefreshError || coreDenied || loadedRevision !== accessRevision || loadedOperationsRevision !== accessRevision || item.id !== initialItem.id;
   const canOperate = item.capabilities.canViewOperationalSections;
   const canReadReports = canOperate || !!item.capabilities.canViewReportsHistory;
   const canAttend = canOperate && item.capabilities.canOperateAttendance !== false;
@@ -60,7 +91,11 @@ function ObjectPreviewContent({ item, onClose }: { item: ServiceObject; onClose:
 
   useEffect(() => {
     let cancelled = false;
+    const identity = user?.id;
+    const requestId = item.id;
+    const fence = captureObjectWriteFence(() => surfaceMounted.current && latest.current.objectId === requestId && latest.current.userId === identity);
     const errors: string[] = [];
+    setLoadedOperationsRevision(null); setLoading(true);
     const read = async <T,>(request: Promise<T>, label: string, fallback: T): Promise<T> => request.catch(() => { errors.push(label); return fallback; });
     void Promise.all([
       canAttend ? read<ObjectAttendanceToday | null>(getTodayObjectAttendance(item.id), 'Присутствие', null) : null,
@@ -71,27 +106,44 @@ function ObjectPreviewContent({ item, onClose }: { item: ServiceObject; onClose:
       canOperate ? getObjectInventory(item.id).catch(() => { errors.push('Расходники'); return null; }) : null,
       !canOperate && canReadReports ? read(listObjectDailyReports(item.id), 'История отчётов', []) : [],
     ]).then(([nextAttendance, nextReport, nextArrival, nextTasks, equipment, inventory, history]) => {
-      if (cancelled) return;
+      if (cancelled || !fence.current() || latest.current.capabilitiesRefreshError) return;
       setAttendance(nextAttendance); setReport(nextReport); setArrival(nextArrival); setTasks(nextTasks);
       setEquipmentCount(equipment?.units.length ?? null); setInventoryMovementCount(inventory?.movements.length ?? null);
-      setReports(history); setReadErrors(errors); setLoading(false);
+      setReports(history); setReadErrors(errors); setLoadedOperationsRevision(accessRevision); setLoading(false);
     });
     return () => { cancelled = true; };
-  }, [item.id, canOperate, canReadReports, canAttend]);
+  }, [item.id, canOperate, canReadReports, canAttend, accessRevision, loadedRevision]);
 
-  const refreshAttendance = async (): Promise<void> => { setAttendance(await getTodayObjectAttendance(item.id)); };
+  const previewOperation = () => {
+    const targetId = item.id;
+    const identity = user?.id;
+    const fence = captureObjectWriteFence(() => surfaceMounted.current && latest.current.objectId === targetId && latest.current.userId === identity);
+    const current = () => fence.current() && !latest.current.capabilitiesRefreshError;
+    const acknowledge = () => { if (fence.sameTarget()) { setWriteAcknowledged(true); void refreshUser({ force: true }).catch(() => undefined); } return objectSavedWithoutAccess; };
+    return { targetId, fence, current, acknowledge };
+  };
+  const refreshAttendance = async (): Promise<void> => {
+    const operation = previewOperation();
+    if (!operation.current()) return;
+    const fresh = await getTodayObjectAttendance(operation.targetId);
+    if (operation.current()) setAttendance(fresh);
+  };
   const saveComment = async (): Promise<void> => {
-    if (!commentDraft.trim()) return;
+    if (!commentDraft.trim() || savingComment || accessBlocked || item.capabilities.canCreateComment !== true) return;
+    const operation = previewOperation();
     setSavingComment(true); setMessage(null);
-    try { await createObjectComment(item.id, { content: commentDraft.trim() }); setCommentDraft(''); setMessage('Комментарий добавлен.'); }
-    catch { setMessage('Не удалось добавить комментарий.'); }
-    finally { setSavingComment(false); }
+    try {
+      const result = await createObjectComment(operation.targetId, { content: commentDraft.trim() });
+      if (isSavedWithoutAccess(result) || !operation.current() || result.objectId !== operation.targetId) { operation.acknowledge(); return; }
+      setCommentDraft(''); setMessage('Комментарий добавлен.');
+    } catch { if (operation.current()) setMessage('Не удалось добавить комментарий.'); }
+    finally { if (operation.fence.sameTarget()) setSavingComment(false); }
   };
   const openTasks = tasks.filter((task) => !['completed', 'cancelled'].includes(task.status));
   const overdueTasks = openTasks.filter((task) => task.isOverdue);
   const initialIds = attendance?.employeeIds.length ? attendance.employeeIds : attendance?.suggestedEmployeeIds ?? [];
 
-  return <>{discardDialog}<Drawer open busy={busy} onOpenChange={(open) => { if (!open) void mayLeave().then((allowed) => { if (allowed) onClose(); }); }} title={item.name}
+  return <>{discardDialog}<Drawer open busy={busy} onOpenChange={(open) => { if (!open) void mayLeave().then((allowed) => { if (allowed) onClose(); }); }} title={accessBlocked ? 'Проверка доступа к объекту' : item.name}
     onClickCapture={(event) => {
       // Preserve modifier/new-tab link behaviour. Guard only navigation that
       // would unmount this drawer and discard its local edits.
@@ -103,9 +155,27 @@ function ObjectPreviewContent({ item, onClose }: { item: ServiceObject; onClose:
       event.stopPropagation();
       void mayLeave().then((allowed) => { if (allowed) router.push(href); });
     }}
-    description={[item.internalName, item.address].filter(Boolean).join(' · ')}
+    description={accessBlocked ? 'Черновики сохранены до подтверждения доступа.' : [item.internalName, item.address].filter(Boolean).join(' · ')}
     footer={<div className={styles.footer}><Link className={styles.primaryAction} href={`/objects/${item.id}`}>Открыть объект</Link>
-      {item.capabilities.canEdit || item.capabilities.canManageCompensationRates ? <Link className={styles.actionButton} href={`/objects/${item.id}/edit`}>Редактировать</Link> : null}</div>}>
+      {!accessBlocked && (item.capabilities.canEdit || item.capabilities.canManageCompensationRates) ? <Link className={styles.actionButton} href={`/objects/${item.id}/edit`}>Редактировать</Link> : null}</div>}>
+    {writeAcknowledged ? <div className={styles.notice} role="status">Запись сохранена без доступных подробностей. Черновики сохранены; повтор не отправлялся.
+      <Button pending={checkingWrite} disabled={checkingWrite} onClick={async () => {
+        const targetId = item.id; const identity = user?.id;
+        setCheckingWrite(true);
+        try {
+          await refreshUser({ force: true });
+          const fence = captureObjectWriteFence(() => surfaceMounted.current && latest.current.objectId === targetId && latest.current.userId === identity);
+          const freshCore = await getObjectById(targetId);
+          if (!fence.current() || latest.current.capabilitiesRefreshError) return;
+          const freshReport = await getTodayDailyReport(targetId);
+          if (!fence.current() || (freshReport && freshReport.objectId !== targetId)) return;
+          setItem(freshCore); setReport(freshReport); setLoadedRevision(latest.current.accessRevision); setWriteAcknowledged(false);
+        } catch { /* Keep the truthful receipt and private draft; do not resend. */ }
+        finally { if (surfaceMounted.current && latest.current.objectId === targetId && latest.current.userId === identity) setCheckingWrite(false); }
+      }}>Проверить сохранённые данные</Button>
+    </div> : null}
+    {accessBlocked ? <div className={styles.notice}>Доступ к объекту проверяется. Черновики сохранены.</div> : null}
+    <AccessSnapshotBoundary blocked={accessBlocked}>
     <section className={styles.section}>
       <h3 className={styles.sectionTitle}>Ответственные</h3>
       <div className={styles.peopleRow}><span className={styles.label}>Ответственный</span><span className={styles.value}>{item.responsible ? <PersonName person={item.responsible} /> : 'Не назначен'}</span></div>
@@ -132,14 +202,25 @@ function ObjectPreviewContent({ item, onClose }: { item: ServiceObject; onClose:
           canEditRates={item.capabilities.canEditDailyRate} canAddExtraShift={item.capabilities.canAddExtraShift ?? false} operationDate={attendance.operationDate}
           onSave={async (payload) => { const result = await upsertObjectAttendance(item.id, payload); if ('adjustmentId' in result) return result; await refreshAttendance(); }} />
       </section> : null}
-      {!loading && !readErrors.includes('Отчёт') ? <section className={styles.section}><ObjectDailyReportPanel item={report} onEditStateChange={setReportEditState} onAttachmentsUpdated={async () => { const refreshed = await getTodayDailyReport(item.id); setReport(refreshed); return refreshed; }} onSave={async (payload) => {
-        const saved = await upsertTodayDailyReport(item.id, { content: payload.content, expectedRevision: report?.revision ?? 0 });
-        setReport(saved);
-        const refreshed = await getTodayDailyReport(item.id);
-        setReport(refreshed);
-        if (!refreshed) throw new Error('Черновик сохранён, но не удалось перечитать отчёт. Обновите данные перед продолжением.');
-        return refreshed;
-      }} /></section> : null}
+      {!loading && !readErrors.includes('Отчёт') ? <section className={styles.section}><ObjectDailyReportPanel objectId={item.id} item={report} canSave={item.capabilities.canEditDailyReport === true} canSubmit={item.capabilities.canSubmitDailyReport === true} onEditStateChange={setReportEditState}
+        onSavedWithoutAccess={() => { previewOperation().acknowledge(); }}
+        onAttachmentsUpdated={async () => {
+          const operation = previewOperation();
+          if (!operation.current()) return null;
+          const fresh = await getTodayDailyReport(operation.targetId);
+          if (!operation.current() || (fresh && fresh.objectId !== operation.targetId)) return null;
+          setReport(fresh); return fresh;
+        }} onSave={async (payload) => {
+          const operation = previewOperation();
+          if (!operation.current()) throw new Error('Доступ изменился. Черновик сохранён.');
+          const saved = await upsertTodayDailyReport(operation.targetId, { content: payload.content, expectedRevision: report?.revision ?? 0 });
+          if (isSavedWithoutAccess(saved) || !operation.current() || saved.objectId !== operation.targetId) return operation.acknowledge();
+          try {
+            const fresh = await getTodayDailyReport(operation.targetId);
+            if (!operation.current() || !fresh || fresh.objectId !== operation.targetId) return operation.acknowledge();
+            setReport(fresh); return fresh;
+          } catch { return operation.acknowledge(); }
+        }} /></section> : null}
       <section className={styles.section}>
         <h3 className={styles.sectionTitle}>Фото прибытия</h3>
         {arrival ? <><div className={styles.meta}>{arrival.createdBy.fullName} · {stamp(arrival.updatedAt)}</div>
@@ -154,8 +235,8 @@ function ObjectPreviewContent({ item, onClose }: { item: ServiceObject; onClose:
         <Link href={`/objects/${item.id}#tasks`}>Все задачи объекта</Link>
       </section>
       <section className={styles.section}><h3 className={styles.sectionTitle}>Оперативный комментарий</h3>
-        <label><span className={styles.label}>Комментарий</span><textarea className={styles.textarea} disabled={savingComment} value={commentDraft} onChange={(event) => setCommentDraft(event.target.value)} /></label>
-        <Button disabled={savingComment || !commentDraft.trim()} onClick={() => void saveComment()}>{savingComment ? 'Добавляю…' : 'Добавить комментарий'}</Button>
+        <label><span className={styles.label}>Комментарий</span><textarea className={styles.textarea} disabled={savingComment || accessBlocked || item.capabilities.canCreateComment !== true} value={commentDraft} onChange={(event) => setCommentDraft(event.target.value)} /></label>
+        <Button disabled={savingComment || accessBlocked || item.capabilities.canCreateComment !== true || !commentDraft.trim()} onClick={() => void saveComment()}>{savingComment ? 'Добавляю…' : 'Добавить комментарий'}</Button>
       </section>
       <section className={styles.section}><h3 className={styles.sectionTitle}>Ресурсы</h3>
         <div>Оборудование: {equipmentCount ?? '—'} · Движения расходников: {inventoryMovementCount ?? '—'}</div>
@@ -168,5 +249,6 @@ function ObjectPreviewContent({ item, onClose }: { item: ServiceObject; onClose:
       <Link href={`/objects/${item.id}#history`}>История объекта</Link>
     </section> : <div className={styles.notice}>Операционные данные скрыты текущими правами доступа.</div>}
     {message ? <div className={styles.notice} role="status">{message}</div> : null}
+    </AccessSnapshotBoundary>
   </Drawer></>;
 }

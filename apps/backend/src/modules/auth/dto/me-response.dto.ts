@@ -25,6 +25,15 @@ export class MeResponseDto {
     canAccessVisitPlans: boolean;
     canAccessUserSubstitutions: boolean;
     canAccessDashboard: boolean;
+    canUploadFile: boolean;
+    canViewLeadershipDashboard: boolean;
+    canViewManagerDashboard: boolean;
+    canViewHrDashboard: boolean;
+    canViewOperationsDashboard: boolean;
+    canReadSpecificationCatalog: boolean;
+    canCreateSpecificationCatalog: boolean;
+    canUpdateSpecificationCatalog: boolean;
+    canArchiveSpecificationCatalog: boolean;
     canManageUserAccess: boolean;
     canAccessCounterparties: boolean;
     canManageCounterparties: boolean;
@@ -39,6 +48,7 @@ export class MeResponseDto {
     canResolveAccountabilityApproval: boolean;
     canResolveTimesheetApproval: boolean;
     canCreateObject: boolean;
+    canCreateObjectBudget: boolean;
     canAccessOneTimeOrders: boolean;
     canCreateOneTimeOrder: boolean;
     canViewAllOneTimeOrderReviews: boolean;
@@ -59,6 +69,7 @@ export class MeResponseDto {
     canViewOwnAccountability: boolean;
     canIssueAccountabilityFunds: boolean;
     canReviewAccountability: boolean;
+    canDiscoverAccountabilityReview: boolean;
     canApproveAccountabilityClosure: boolean;
     canRecordExternalReceipt: boolean;
     canAccessInventory: boolean;
@@ -72,8 +83,11 @@ export class MeResponseDto {
     canWriteoffInventory: boolean;
     canAdjustInventory: boolean;
     canViewInventoryReports: boolean;
+    canViewInventoryMovements: boolean;
     canResolveInventoryMissingPhotoApproval: boolean;
     canAccessEquipment: boolean;
+    canReadEquipmentCatalog: boolean;
+    canDeleteEquipmentCatalog: boolean;
     canManageEquipmentCatalog: boolean;
     canDeleteEquipmentUnit: boolean;
     canAssignEquipmentToObject: boolean;

@@ -1,6 +1,7 @@
 import { PrismaClient } from "@prisma/client";
 import { randomBytes, scrypt as nodeScrypt } from "node:crypto";
 import { promisify } from "node:util";
+import { chooseDemoTaskId, LEGACY_DEMO_TASK_ID } from "./seed-task-identity";
 
 const prisma = new PrismaClient();
 const scrypt = promisify(nodeScrypt);
@@ -15,10 +16,6 @@ async function hashPassword(password: string): Promise<string> {
 function startOfToday(): Date {
   const now = new Date();
   return new Date(now.getFullYear(), now.getMonth(), now.getDate());
-}
-
-function daysInMonth(year: number, month: number): number {
-  return new Date(year, month, 0).getDate();
 }
 
 async function main(): Promise<void> {
@@ -1028,8 +1025,15 @@ async function main(): Promise<void> {
     },
   });
 
+  // Existing demo IDs are not repaired automatically. Looking up the legacy
+  // identity before upsert prevents a duplicate task when re-seeding old demos.
+  const existingLegacyTask = await prisma.task.findUnique({
+    where: { id: LEGACY_DEMO_TASK_ID },
+    select: { id: true },
+  });
+  const taskOneSeedId = chooseDemoTaskId(existingLegacyTask?.id);
   const taskOne = await prisma.task.upsert({
-    where: { id: "33333333-3333-3333-3333-333333333333" },
+    where: { id: taskOneSeedId },
     update: {
       title: "Проверить состояние входной зоны",
       description: "Осмотреть входную зону и сообщить о замечаниях.",
@@ -1039,7 +1043,7 @@ async function main(): Promise<void> {
       createdByUserId: director.id,
     },
     create: {
-      id: "33333333-3333-3333-3333-333333333333",
+      id: taskOneSeedId,
       title: "Проверить состояние входной зоны",
       description: "Осмотреть входную зону и сообщить о замечаниях.",
       priority: "important_not_urgent",

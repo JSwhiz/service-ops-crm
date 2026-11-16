@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
+import { setTimeout as delay } from 'node:timers/promises';
 import test from 'node:test';
 
 import { PrismaClient } from '@prisma/client';
 
 import type { AccessChange, AccessRule } from '../src/modules/users-access/types/access-policy.type';
+import { AccessAdminService } from '../src/modules/users-access/access-admin.service';
 
 import { loginAndGetCookieHeader } from './helpers/auth';
 import { createTestApp } from './helpers/create-test-app';
@@ -293,6 +295,39 @@ test('ACL admin HTTP: preview/save ownership, validation, baseline, versions and
     assert.equal(response.status, 200);
     const effective = await response.json() as { sources: { userPermissions: Array<{ code: string; effect: string }> } };
     assert.ok(effective.sources.userPermissions.some((entry) => entry.code === 'candidates.denied' && entry.effect === 'deny'));
+  });
+
+  await t.test('slow preview and save exceed the old five-second limit, reuse baseline once and apply exactly once', async () => {
+    const target = await makeUser('slow-access-transaction');
+    const body = await payload(target.id, [change('allow')]);
+    const service = app.get(AccessAdminService) as unknown as {
+      baseline: (...args: unknown[]) => Promise<unknown>;
+    };
+    const original = service.baseline;
+    let baselineCalls = 0;
+    service.baseline = async function (...args) {
+      baselineCalls++;
+      const result = await original.apply(this, args);
+      await delay(5200);
+      return result;
+    };
+    try {
+      const checked = await preview(target.id, body);
+      assert.equal(baselineCalls, 1, 'Preview must hash and display the same baseline');
+      assert.deepEqual(await snapshot(target.id), { version: 0, rules: [], auditCount: 0 });
+      const saved = await request(endpoint(target.id, '/save'), founder.cookie, saveBody(body, checked));
+      assert.equal(saved.status, 201, await saved.clone().text());
+      assert.equal(baselineCalls, 2, 'Save must read its baseline only once too');
+      const state = await snapshot(target.id);
+      assert.equal(state.version, 1);
+      assert.equal(state.rules.length, 1);
+      assert.equal(state.auditCount, 1);
+      const repeated = await request(endpoint(target.id, '/save'), founder.cookie, saveBody(body, checked));
+      assert.equal(repeated.status, 409);
+      assert.deepEqual(await snapshot(target.id), state);
+    } finally {
+      service.baseline = original;
+    }
   });
 
   // Last: deliberately leaves only two usable founders in this file's isolated schema.

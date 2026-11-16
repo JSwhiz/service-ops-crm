@@ -464,6 +464,10 @@ const unsupportedStandaloneActions: Readonly<Record<string, string>> = {
 
 // Target-scoped warehouse actions use their target identity, never inventory item identity.
 for (const action of actions) {
+  // Accounts belong to Users; no approved account-assignment relationship exists.
+  // Keep allowedScopes unchanged for stored rules and historical runtime behavior.
+  if (action.module === "accountability" && action.resourceType === "user")
+    action.managementScopes = ["own", "selected", "all"];
   // Chat rules select rooms. Message authorship/edit windows remain independent
   // invariants; room ownership must never be advertised as own-message scope.
   if (action.module === "chat")
@@ -522,6 +526,14 @@ for (const action of actions) {
       "immutable_posted_history",
       "historical_period_rules",
     ];
+  if (action.code === "objects.compensation.correct_past") {
+    action.description =
+      "Подтвердить или отклонить прошлое исправление может только другой действующий пользователь руководящего круга. Автор может отменить свою заявку. Персональное разрешение не отменяет эти ограничения.";
+    action.invariants = [
+      ...action.invariants,
+      "past_date_requires_other_leadership_approval",
+    ];
+  }
   if (action.module === "inventory")
     action.invariants = [
       ...action.invariants,

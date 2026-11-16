@@ -78,6 +78,12 @@ export interface OneTimeOrderCapabilities {
   canReadPhotos: boolean;
   canReadSpecification: boolean;
   canReadEmployees: boolean;
+  canManageEmployees: boolean;
+  canEditEmployeePayment: boolean;
+  canReadAttendance: boolean;
+  canEditAttendance: boolean;
+  canReadTimesheet: boolean;
+  canExportTimesheet: boolean;
   canReadInventory: boolean;
   canReadEquipment: boolean;
   canReadHistory: boolean;
@@ -104,6 +110,8 @@ export interface OneTimeOrderCapabilities {
   canManageManagers: boolean;
   canManageSpecification: boolean;
   canEditSpecification: boolean;
+  canCommentSpecification: boolean;
+  canDetachSpecificationFiles: boolean;
   canUploadPhotos: boolean;
   canDeletePhotos: boolean;
   canRestorePhotos: boolean;
@@ -244,15 +252,31 @@ export function buildOneTimeOrderCapabilities(params: {
   const canReadPayouts = canReadFinance && readLeaf('one_time_orders.payouts.read');
   const open = !['completed', 'cancelled'].includes(params.order.status);
   const canReadEmployees = readLeaf('one_time_orders.employees.read');
+  const canReadAttendance = readLeaf('one_time_orders.attendance.read');
+  const canReadTimesheet = readLeaf('one_time_orders.timesheet.read');
+  // Match workforce service authority; an unrelated order-update grant is not a workforce grant.
+  const workforceWrite = (action: string): boolean => canReadOrder && decideAccess(subject, action, canEditOperationalFields, context);
+  // These endpoints share assignment/lifecycle invariants, not the execute leaf.
+  // A grant can never manufacture membership or reopen a closed work cycle.
+  const specificationExecutionAllowed = canReadOrder && isActiveManager && open;
   const ownAccountContext = { resourceType: 'user', resourceId: params.currentUserId, ownerUserId: params.currentUserId };
   return {
     ...legacy,
+    canManageSpecification: specificationExecutionAllowed && legacy.canManageSpecification,
+    canCommentSpecification: specificationExecutionAllowed && decideAccess(subject, 'one_time_orders.specification.comments', true, context),
+    canDetachSpecificationFiles: specificationExecutionAllowed && decideAccess(subject, 'one_time_orders.specification.detach', true, context),
     canReadFinance,
     canReadComments: readLeaf('one_time_orders.comments.read'),
     canReadReports: readLeaf('one_time_orders.reports.read'),
     canReadPhotos: readLeaf('one_time_orders.photos.read'),
     canReadSpecification: readLeaf('one_time_orders.specification.read'),
     canReadEmployees,
+    canManageEmployees: canReadEmployees && workforceWrite('one_time_orders.employees.manage'),
+    canEditEmployeePayment: canReadEmployees && workforceWrite('one_time_orders.employees.payment.edit'),
+    canReadAttendance,
+    canEditAttendance: canReadAttendance && workforceWrite('one_time_orders.attendance.edit'),
+    canReadTimesheet,
+    canExportTimesheet: canReadTimesheet && readLeaf('one_time_orders.timesheet.export'),
     // Scoped order inventory does not depend on global catalog-read permission.
     canReadInventory: readLeaf('one_time_orders.inventory.read') && !hasModuleDeny(subject, 'inventory.access', context),
     canReadEquipment: readLeaf('one_time_orders.equipment.read') && !hasModuleDeny(subject, 'equipment.read', context),

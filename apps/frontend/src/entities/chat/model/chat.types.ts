@@ -16,9 +16,13 @@ export interface ChatRoom {
   participantCount: number;
   capabilities: {
     canWrite: boolean;
+    canSearch: boolean;
+    canReadReceipts: boolean;
+    canForwardToRoom: boolean;
     canManage: boolean;
     canManageMembers: boolean;
     canHide: boolean;
+    canUnhide?: boolean;
     canLeave: boolean;
     canCloseGlobally: boolean;
   };

@@ -15,6 +15,7 @@ export class RevokeUserSubstitutionDto {
 }
 
 export class SubstitutionOptionsQueryDto {
+  @IsOptional() @IsString() @MaxLength(100) principalSearch?: string;
   @IsOptional() @IsUUID() principalUserId?: string;
   @IsOptional() @IsString() @MaxLength(100) userSearch?: string;
   @IsOptional() @IsString() @MaxLength(100) objectSearch?: string;

@@ -136,9 +136,9 @@ test('user calendar shares free/busy, keeps reasons private and enforces own wri
       method: 'PATCH', headers: { Cookie: cookie, 'Content-Type': 'application/json' },
       body: JSON.stringify({ startDate: isoDate(21) }),
     });
-    assert.equal(update.status, 404);
+    assert.equal(update.status, 403);
     const remove = await fetch(`${baseUrl}/api/v1/user-absences/${created.id}`, { method: 'DELETE', headers: { Cookie: cookie } });
-    assert.equal(remove.status, 404);
+    assert.equal(remove.status, 403);
   }
 
   const directory = await fetch(`${baseUrl}/api/v1/user-absences/users`, { headers: { Cookie: managerCookie } });
@@ -160,7 +160,7 @@ test('user calendar shares free/busy, keeps reasons private and enforces own wri
     headers: { Cookie: deputyDirectorCookie, 'Content-Type': 'application/json' },
     body: JSON.stringify({ comment: 'Should not overwrite private reason' }),
   });
-  assert.equal(directorCommentEdit.status, 404);
+  assert.equal(directorCommentEdit.status, 403);
 
   const managerOwnListResponse = await fetch(`${baseUrl}/api/v1/user-absences`, {
     method: 'GET',

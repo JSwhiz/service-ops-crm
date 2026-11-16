@@ -17,6 +17,14 @@ interface ScopeResult {
 // These are deny-only ancestors in the actual timesheet SQL adapter. Registering
 // them here neither aliases positive grants nor replaces that adapter's read scope.
 function summaryDenyParents(actionCode: string): readonly string[] {
+  // Match the account write adapters' deny-only read ancestor. This does not
+  // turn a positive read grant into a prerequisite for an independent write.
+  if ([
+    "accountability.issue_cash", "accountability.external_receipt", "accountability.correct_receipt",
+    "accountability.expenses.create", "accountability.expenses.update", "accountability.expenses.submit",
+    "accountability.expenses.approve", "accountability.expenses.reject",
+    "accountability.closure.request", "accountability.closure.approve", "accountability.closure.reject",
+  ].includes(actionCode)) return ["accountability.read"];
   if (!actionCode.startsWith("timesheet.") || actionCode === "timesheet.access")
     return [];
   return [

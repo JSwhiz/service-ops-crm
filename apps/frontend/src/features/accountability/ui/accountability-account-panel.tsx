@@ -81,6 +81,9 @@ export function AccountabilityAccountPanel({
   const [dateTo, setDateTo] = useState('');
   const [periodFilterActive, setPeriodFilterActive] = useState(false);
   const latestClosure = view.closures[0] ?? null;
+  const liveEditingExpense = editingExpense
+    ? view.expenses.find((expense) => expense.id === editingExpense.id)
+    : null;
 
   const orderIds = useMemo(
     () =>
@@ -378,7 +381,8 @@ export function AccountabilityAccountPanel({
       {isOwnView ? (
         <AccountabilityExpenseForm
           initialExpense={editingExpense}
-          canCreate={view.capabilities.canCreateExpense || Boolean(editingExpense)}
+          canSave={editingExpense ? Boolean(liveEditingExpense?.capabilities.canEdit) : view.capabilities.canCreateExpense}
+          canSubmit={editingExpense ? Boolean(liveEditingExpense?.capabilities.canSubmit) : view.capabilities.canSubmitExpense}
           onSave={async (payload) => {
             await onSaveExpense(payload);
             setEditingExpense(null);

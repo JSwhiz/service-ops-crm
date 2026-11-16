@@ -274,6 +274,7 @@
 /* Задачи — moved from globals.css; classes are local to this module. */
 
 .taskPageHeading {
+  min-width: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -316,6 +317,10 @@
   align-items: start;
 }
 
+.taskDetailGrid > * {
+  min-width: 0;
+}
+
 .taskAssigneeList {
   margin-top: 14px;
 }
@@ -324,6 +329,26 @@
   min-width: 0;
   padding-block: var(--ui-space-4);
   border-top: 1px solid var(--ui-border);
+}
+
+.taskAssigneeRow :global(.ui-section-header),
+.taskCompletionPanel :global(.ui-section-header) {
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.taskAssigneeRow :global(.ui-section-header) > div,
+.taskCompletionPanel :global(.ui-section-header) > div {
+  min-width: 0;
+  flex: 1 1 12rem;
+}
+
+.taskAssigneeRow :global(.ui-section-header) > button,
+.taskCompletionPanel :global(.ui-section-header) > button,
+.taskPageHeading :global(.ui-inline) > button {
+  max-width: 100%;
+  white-space: normal;
+  flex-shrink: 0;
 }
 
 .taskAssigneeRow strong {
@@ -336,6 +361,8 @@
 }
 
 .taskAssigneeResult {
+  min-width: 0;
+  overflow-wrap: anywhere;
   display: grid;
   gap: 12px;
   margin-top: 12px;
@@ -444,7 +471,7 @@
 
 @media (max-width: 800px) {
   .taskDetailGrid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 

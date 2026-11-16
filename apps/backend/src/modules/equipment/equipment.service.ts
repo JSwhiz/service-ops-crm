@@ -10,6 +10,8 @@ import type { AccessSubject } from '../users-access/types/access-policy.type';
 import { decideAccess, hasModuleDeny } from '../users-access/utils/access-policy.util';
 import { equipmentContext, equipmentMovementAction, equipmentMovementPolicyWhere, equipmentPolicyWhere } from './utils/equipment-policy.util';
 import { resourceAccessTarget } from '../../common/access/resource-access-context';
+import { lockActorAccessRevision } from '../../common/access/lock-actor-access-revision';
+import { projectCommittedWrite, type SavedWithoutAccess } from '../../common/access/project-committed-write';
 
 import {
   EQUIPMENT_MOVEMENT_APPROVAL_SOURCE_ENTITY_TYPE,
@@ -22,7 +24,8 @@ import {
 } from '../objects/utils/object-access.util';
 import { canViewOneTimeOrderByScope } from '../one-time-orders/utils/one-time-order-access.util';
 import { PrismaService } from '../prisma/prisma.service';
-import { delegatedObjectIds, delegatedObjectScopes, hasDelegatedObjectAction } from '../user-substitutions/object-delegation.context';
+import { delegatedObjectIds, delegatedObjectScopes, hasDelegatedObjectAction, objectDelegationContext, type ObjectDelegationGrant } from '../user-substitutions/object-delegation.context';
+import { resolveObjectDelegationGrants } from '../user-substitutions/resolve-object-delegation-grants.util';
 
 import { CreateEquipmentCatalogItemDto } from './dto/create-equipment-catalog-item.dto';
 import { CreateEquipmentMovementDto } from './dto/create-equipment-movement.dto';
@@ -38,6 +41,7 @@ import {
   EQUIPMENT_MOVEMENT_TYPES,
   EquipmentMovementType,
   EquipmentStatus,
+  EquipmentUnitPolicyFacts,
 } from './types/equipment.type';
 import {
   buildEquipmentGlobalCapabilities,
@@ -97,8 +101,7 @@ type EquipmentCatalogRecord = {
   updatedAt: Date;
 };
 
-type EquipmentUnitRecord = {
-  id: string;
+type EquipmentUnitRecord = EquipmentUnitPolicyFacts & {
   inventoryNumber: string;
   serialNumber: string | null;
   status: string;
@@ -159,11 +162,12 @@ export class EquipmentService {
   async listCatalog(
     currentUser: CurrentAuthUser,
   ): Promise<EquipmentCatalogItemResponseDto[]> {
-    this.assertEquipmentVisible(currentUser);
-    if (!decideAccess(currentUser, 'equipment.catalog.read', canAccessEquipment(this.getRoleCodes(currentUser)))) throw new ForbiddenException('Equipment catalog access denied');
+    const legacyRead = canAccessEquipment(this.getRoleCodes(currentUser));
+    if (!decideAccess(currentUser, 'equipment.catalog.read', legacyRead)) throw new ForbiddenException('Equipment catalog access denied');
 
+    const unitsWhere = equipmentPolicyWhere(currentUser, legacyRead ? {} : { id: { in: [] } });
     const items = await this.prisma.equipmentCatalogItem.findMany({
-      include: { _count: { select: { units: { where: equipmentPolicyWhere(currentUser, {}) } } } },
+      include: { _count: { select: { units: { where: unitsWhere } } } },
       orderBy: [{ isActive: 'desc' }, { category: 'asc' }, { name: 'asc' }],
     });
 
@@ -176,27 +180,31 @@ export class EquipmentService {
   ): Promise<EquipmentCatalogItemResponseDto> {
     this.assertCatalogManageable(currentUser);
 
-    const created = await this.prisma.equipmentCatalogItem.create({
-      data: {
-        category: payload.category.trim(),
-        name: payload.name.trim(),
-        brand: payload.brand?.trim() || null,
-        model: payload.model?.trim() || null,
-        isActive: payload.isActive ?? true,
-        notes: payload.notes?.trim() || null,
-        createdByUserId: currentUser.id,
-      },
-    });
+    const created = await this.prisma.$transaction(async (tx) => {
+      await lockActorAccessRevision(tx, currentUser);
+      const item = await tx.equipmentCatalogItem.create({
+        data: {
+          category: payload.category.trim(),
+          name: payload.name.trim(),
+          brand: payload.brand?.trim() || null,
+          model: payload.model?.trim() || null,
+          isActive: payload.isActive ?? true,
+          notes: payload.notes?.trim() || null,
+          createdByUserId: currentUser.id,
+        },
+      });
 
-    await this.auditService.writeAuditEvent({
-      entityType: 'equipment_catalog_item',
-      entityId: created.id,
-      actorUserId: currentUser.id,
-      action: 'equipment.catalog_item.created',
-      newValues: {
-        category: created.category,
-        name: created.name,
-      },
+      await this.auditService.writeAuditEvent({
+        entityType: 'equipment_catalog_item',
+        entityId: item.id,
+        actorUserId: currentUser.id,
+        action: 'equipment.catalog_item.created',
+        newValues: {
+          category: item.category,
+          name: item.name,
+        },
+      }, tx);
+      return item;
     });
 
     return this.mapCatalogItem(created);
@@ -219,6 +227,7 @@ export class EquipmentService {
         WHERE "id" = ${catalogItemId}
         FOR UPDATE
       `;
+      await lockActorAccessRevision(tx, currentUser);
 
       const item = await tx.equipmentCatalogItem.findUnique({
         where: { id: catalogItemId },
@@ -327,6 +336,7 @@ export class EquipmentService {
         WHERE "id" = ${payload.catalogItemId}
         FOR UPDATE
       `;
+      await lockActorAccessRevision(tx, currentUser);
 
       const catalogItem = await tx.equipmentCatalogItem.findFirst({
         where: { id: payload.catalogItemId, isActive: true },
@@ -348,6 +358,12 @@ export class EquipmentService {
         include: this.unitInclude(),
       });
 
+      // Returning a full unit card requires the same actual read policy as GET.
+      // Check before audit/commit: a rejected create must leave no unit behind.
+      if (!this.canReadUnit(currentUser, unit as EquipmentUnitRecord)) {
+        throw new ForbiddenException('Equipment unit access denied');
+      }
+
       await this.auditService.writeAuditEvent(
         {
           entityType: 'equipment_unit',
@@ -362,6 +378,12 @@ export class EquipmentService {
       );
 
       return unit;
+    }).catch((error: unknown) => {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002' &&
+          Array.isArray(error.meta?.target) && error.meta.target.length === 1 && error.meta.target[0] === 'inventoryNumber') {
+        throw new ConflictException('Оборудование с таким инвентарным номером уже существует.');
+      }
+      throw error;
     });
 
     return this.mapUnit(
@@ -375,9 +397,13 @@ export class EquipmentService {
     currentUser: CurrentAuthUser,
     unitId: string,
   ): Promise<{ id: string; mode: 'hard' }> {
-    if (
-      !decideAccess(currentUser, 'equipment.unit.delete', canDeleteEquipmentUnit(this.getRoleCodes(currentUser), currentUser.permissionCodes), { resourceType: 'equipment_unit', resourceId: unitId })
-    ) {
+    const target = { resourceType: 'equipment_unit', resourceId: unitId };
+    if (hasModuleDeny(currentUser, 'equipment.read', target)) {
+      throw new ForbiddenException('Equipment unit access denied');
+    }
+    // Unit leaves support selected/all only, so authority can be checked by ID
+    // before lookup. Recheck the persisted parent context under the lock below.
+    if (!decideAccess(currentUser, 'equipment.unit.delete', canDeleteEquipmentUnit(this.getRoleCodes(currentUser), currentUser.permissionCodes), target)) {
       throw new ForbiddenException('Equipment unit deletion denied');
     }
 
@@ -388,24 +414,23 @@ export class EquipmentService {
         WHERE "id" = ${unitId}
         FOR UPDATE
       `;
+      await lockActorAccessRevision(tx, currentUser);
 
       const unit = await tx.equipmentUnit.findUnique({
         where: { id: unitId },
-        select: {
-          id: true,
-          catalogItemId: true,
-          inventoryNumber: true,
-          serialNumber: true,
-          status: true,
-          notes: true,
-          currentObjectId: true,
-          currentOneTimeOrderId: true,
-          _count: { select: { movements: true } },
-        },
+        include: this.unitInclude(),
       });
 
       if (!unit) {
         throw new NotFoundException('Equipment unit not found');
+      }
+
+      const context = equipmentContext(unit as EquipmentUnitRecord);
+      if (hasModuleDeny(currentUser, 'equipment.read', context)) {
+        throw new ForbiddenException('Equipment unit access denied');
+      }
+      if (!decideAccess(currentUser, 'equipment.unit.delete', canDeleteEquipmentUnit(this.getRoleCodes(currentUser), currentUser.permissionCodes), context)) {
+        throw new ForbiddenException('Equipment unit deletion denied');
       }
 
       const blockerCodes = [
@@ -451,7 +476,8 @@ export class EquipmentService {
   ): Promise<EquipmentMovementResponseDto[]> {
     const unit = await this.loadUnit(unitId);
 
-    if (!this.canReadUnit(currentUser, unit) || !decideAccess(currentUser, 'equipment.history', true, equipmentContext(unit))) {
+    const context = equipmentContext(unit);
+    if (!this.canReadUnit(currentUser, unit) || !decideAccess(currentUser, 'equipment.history', true, context)) {
       throw new ForbiddenException('Equipment unit access denied');
     }
 
@@ -461,8 +487,11 @@ export class EquipmentService {
         AND: [equipmentMovementPolicyWhere(currentUser)],
         ...(!canAccessEquipment(this.getRoleCodes(currentUser)) ? {
           OR: [
-            { fromObjectId: { in: delegatedObjectIds(currentUser.id, 'view', 'equipment.history', equipmentContext(unit)) } },
-            { toObjectId: { in: delegatedObjectIds(currentUser.id, 'view', 'equipment.history', equipmentContext(unit)) } },
+            ...(decideAccess(currentUser, 'equipment.history', false, context)
+              ? [{ fromObjectId: null, toObjectId: null, fromOneTimeOrderId: null, toOneTimeOrderId: null }]
+              : []),
+            { fromObjectId: { in: delegatedObjectIds(currentUser.id, 'view', 'equipment.history', context) } },
+            { toObjectId: { in: delegatedObjectIds(currentUser.id, 'view', 'equipment.history', context) } },
             ...(unit.currentObject && canViewObjectByScope({ currentUserId: currentUser.id, roleCodes: this.getRoleCodes(currentUser), object: unit.currentObject, ownScopeOnly: true })
               ? [{ fromObjectId: unit.currentObject.id }, { toObjectId: unit.currentObject.id }] : []),
             ...(unit.currentOneTimeOrder && canViewOneTimeOrderByScope({ currentUserId: currentUser.id, roleCodes: this.getRoleCodes(currentUser), permissionCodes: currentUser.permissionCodes, order: unit.currentOneTimeOrder })
@@ -475,7 +504,7 @@ export class EquipmentService {
     })) as EquipmentMovementRecord[];
 
     const attachmentsByMovementId = await this.loadMovementAttachments(
-      movements.map((movement) => movement.id),
+      currentUser, movements,
     );
     const approvalRequestsByMovementId =
       await this.loadPendingApprovalRequestsByMovementIds(
@@ -496,17 +525,19 @@ export class EquipmentService {
     currentUser: CurrentAuthUser,
     unitId: string,
     payload: CreateEquipmentMovementDto,
-  ): Promise<EquipmentMovementResponseDto> {
+  ): Promise<EquipmentMovementResponseDto | SavedWithoutAccess> {
     const movementType = payload.movementType as EquipmentMovementType;
     const policyActionCode = equipmentMovementAction[movementType];
 
-    const created = await this.prisma.$transaction(async (tx) => {
+    const created = await this.runMovementSourceWrite(currentUser, unitId, payload, async (tx) => {
       await tx.$queryRaw`
         SELECT "id"
         FROM "equipment_units"
         WHERE "id" = ${unitId}
         FOR UPDATE
       `;
+
+      await lockActorAccessRevision(tx, currentUser);
 
       const unit = (await tx.equipmentUnit.findUnique({
         where: { id: unitId },
@@ -597,6 +628,32 @@ export class EquipmentService {
           })
         : null;
 
+      await this.auditService.writeAuditEvent({
+        entityType: 'equipment_movement',
+        entityId: movement.id,
+        actorUserId: currentUser.id,
+        action: `equipment.${movementType}`,
+        newValues: {
+          equipmentUnitId: unit.id,
+          status: movement.status,
+          toStatus: normalized.status,
+          toObjectId: normalized.currentObjectId,
+          toOneTimeOrderId: normalized.currentOneTimeOrderId,
+        },
+      }, tx);
+      if (approvalRequest) {
+        await this.auditService.writeAuditEvent({
+          entityType: 'approval_request',
+          entityId: approvalRequest.id,
+          actorUserId: currentUser.id,
+          action: 'approval.request.created',
+          newValues: {
+            approvalType: EQUIPMENT_WRITEOFF_CONFIRMATION_TYPE,
+            sourceEntityType: EQUIPMENT_MOVEMENT_APPROVAL_SOURCE_ENTITY_TYPE,
+            sourceEntityId: movement.id,
+          },
+        }, tx);
+      }
       return {
         movement,
         approvalRequestId: approvalRequest?.id ?? null,
@@ -605,44 +662,73 @@ export class EquipmentService {
       };
     });
 
-    await this.auditService.writeAuditEvent({
-      entityType: 'equipment_movement',
-      entityId: created.movement.id,
-      actorUserId: currentUser.id,
-      action: `equipment.${movementType}`,
-      newValues: {
-        equipmentUnitId: created.unitId,
-        status: created.movement.status,
-        toStatus: created.normalized.status,
-        toObjectId: created.normalized.currentObjectId,
-        toOneTimeOrderId: created.normalized.currentOneTimeOrderId,
-      },
-    });
+    return projectCommittedWrite(this.prisma, currentUser, async () => {
+      const movement = await this.loadMovement(created.movement.id);
+      const approvalRequestByMovementId =
+        await this.loadPendingApprovalRequestsByMovementIds([movement.id]);
 
-    if (created.approvalRequestId) {
-      await this.auditService.writeAuditEvent({
-        entityType: 'approval_request',
-        entityId: created.approvalRequestId,
-        actorUserId: currentUser.id,
-        action: 'approval.request.created',
-        newValues: {
-          approvalType: EQUIPMENT_WRITEOFF_CONFIRMATION_TYPE,
-          sourceEntityType: EQUIPMENT_MOVEMENT_APPROVAL_SOURCE_ENTITY_TYPE,
-          sourceEntityId: created.movement.id,
-        },
+      const projectionGrants = await resolveObjectDelegationGrants(this.prisma, currentUser.id);
+      return objectDelegationContext.run({ actorUserId: currentUser.id, grants: projectionGrants, used: new Map() }, async () => {
+        const unit = await this.loadUnit(created.unitId);
+        if (!this.canReadUnit(currentUser, unit)) throw new ForbiddenException('Equipment access denied');
+        return this.mapMovement(
+        movement,
+        [],
+        approvalRequestByMovementId.get(movement.id) ?? null,
+        currentUser,
+        );
       });
+    });
+  }
+
+  private async runMovementSourceWrite<T>(
+    user: CurrentAuthUser,
+    unitId: string,
+    payload: CreateEquipmentMovementDto,
+    write: (tx: Prisma.TransactionClient) => Promise<T>,
+  ): Promise<T> {
+    const observed = await this.prisma.equipmentUnit.findUnique({
+      where: { id: unitId }, select: { currentObjectId: true, currentOneTimeOrderId: true },
+    });
+    if (!observed) throw new NotFoundException('Equipment unit not found');
+    const objectIds = [...new Set([observed.currentObjectId, payload.toObjectId].filter((id): id is string => !!id))].sort();
+    const parents = [...new Set([
+      ...objectIds.map((id) => `object:${id}`),
+      ...[observed.currentOneTimeOrderId, payload.toOneTimeOrderId].filter((id): id is string => !!id).map((id) => `order:${id}`),
+    ])].sort();
+    const outer = objectDelegationContext.getStore();
+    const original = outer?.actorUserId === user.id ? outer.grants.filter((grant) => objectIds.includes(grant.objectId)) : [];
+    const sourceIds = [...new Set(original.map((grant) => grant.substitutionId))].sort();
+    const principalIds = [...new Set(original.map((grant) => grant.principalUserId))].sort();
+    const used = new Map<string, ObjectDelegationGrant>();
+    const result = await this.prisma.$transaction(async (tx) => {
+      for (const parent of parents) {
+        const [kind, id] = parent.split(':');
+        if (kind === 'object') await tx.$queryRaw`SELECT "id" FROM "objects" WHERE "id" = ${id} FOR SHARE`;
+        else await tx.$queryRaw`SELECT "id" FROM "one_time_orders" WHERE "id" = ${id} FOR SHARE`;
+      }
+      await tx.$queryRaw`SELECT "id" FROM "equipment_units" WHERE "id" = ${unitId} FOR UPDATE`;
+      await lockActorAccessRevision(tx, user);
+      const current = await tx.equipmentUnit.findUnique({ where: { id: unitId }, select: { currentObjectId: true, currentOneTimeOrderId: true } });
+      if (!current) throw new NotFoundException('Equipment unit not found');
+      if (current.currentObjectId !== observed.currentObjectId || current.currentOneTimeOrderId !== observed.currentOneTimeOrderId) {
+        throw new ConflictException('Equipment unit state changed; refresh and retry');
+      }
+      if (principalIds.length) await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "users" WHERE "id" IN (${Prisma.join(principalIds)}) ORDER BY "id" FOR SHARE`);
+      if (sourceIds.length) {
+        await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "user_substitutions" WHERE "id" IN (${Prisma.join(sourceIds)}) ORDER BY "id" FOR SHARE`);
+        await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "user_substitution_objects" WHERE "substitutionId" IN (${Prisma.join(sourceIds)}) ORDER BY "id" FOR SHARE`);
+        await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "object_assignments" WHERE "objectId" IN (${Prisma.join(objectIds)}) AND "isActive" = true ORDER BY "id" FOR SHARE`);
+      }
+      const grants = sourceIds.length ? (await resolveObjectDelegationGrants(tx, user.id)).filter((grant) =>
+        original.some((source) => source.objectId === grant.objectId && source.substitutionId === grant.substitutionId)) : [];
+      return objectDelegationContext.run({ actorUserId: user.id, grants, used }, () => write(tx));
+    });
+    if (outer?.actorUserId === user.id) {
+      for (const [key, grant] of outer.used) if (objectIds.includes(grant.objectId)) outer.used.delete(key);
+      for (const [key, grant] of used) outer.used.set(key, grant);
     }
-
-    const movement = await this.loadMovement(created.movement.id);
-    const approvalRequestByMovementId =
-      await this.loadPendingApprovalRequestsByMovementIds([movement.id]);
-
-    return this.mapMovement(
-      movement,
-      [],
-      approvalRequestByMovementId.get(movement.id) ?? null,
-      currentUser,
-    );
+    return result;
   }
 
   async listObjectEquipment(
@@ -654,6 +740,7 @@ export class EquipmentService {
 
     if (
       !canViewObjectByScope({
+        subject: currentUser,
         currentUserId: currentUser.id,
         roleCodes,
         object,
@@ -687,6 +774,7 @@ export class EquipmentService {
 
     if (
       !canViewOneTimeOrderByScope({
+        subject: currentUser,
         currentUserId: currentUser.id,
         roleCodes,
         permissionCodes: currentUser.permissionCodes,
@@ -925,6 +1013,9 @@ export class EquipmentService {
     delegated: boolean,
   ): void {
     const roleCodes = this.getRoleCodes(currentUser);
+    if (hasModuleDeny(currentUser, 'equipment.read', equipmentContext(unit))) {
+      throw new ForbiddenException('Equipment unit access denied');
+    }
     if (!EQUIPMENT_MOVEMENT_TYPES.includes(movementType)) {
       throw new BadRequestException('Unsupported equipment movement type');
     }
@@ -976,7 +1067,7 @@ export class EquipmentService {
   }
 
   private delegatedReadWhere(user: CurrentAuthUser, object: ObjectScope): Prisma.EquipmentUnitWhereInput {
-    if (canViewObjectByScope({ currentUserId: user.id, roleCodes: this.getRoleCodes(user), object, ownScopeOnly: true })) return {};
+    if (canViewObjectByScope({ subject: user, currentUserId: user.id, roleCodes: this.getRoleCodes(user), object, ownScopeOnly: true })) return {};
     const branches = delegatedObjectScopes(user.id, 'view').filter(grant => grant.objectId === object.id).map(grant => ({ AND: [
       { currentObjectId: object.id }, ...[grant.principalSubject, grant.replacementSubject].filter(subject => subject !== undefined).map(subject => equipmentPolicyWhere(subject, {})),
     ] }));
@@ -1077,8 +1168,10 @@ export class EquipmentService {
   }
 
   private async loadMovementAttachments(
-    movementIds: string[],
+    currentUser: CurrentAuthUser,
+    movements: EquipmentMovementRecord[],
   ): Promise<Map<string, FileResponseDto[]>> {
+    const movementIds = movements.map((movement) => movement.id);
     const result = new Map<string, FileResponseDto[]>();
     if (movementIds.length === 0) {
       return result;
@@ -1098,7 +1191,36 @@ export class EquipmentService {
       orderBy: { createdAt: 'asc' },
     })) as FileAttachmentRecord[];
 
+    const targets = new Map<string, Awaited<ReturnType<typeof resourceAccessTarget>>>();
+    const readableSources = new Map<string, boolean>();
+    const byId = new Map(movements.map((movement) => [movement.id, movement]));
+    const roleCodes = this.getRoleCodes(currentUser);
     for (const attachment of attachments) {
+      if (!targets.has(attachment.entityId)) {
+        targets.set(attachment.entityId, await resourceAccessTarget(this.prisma, 'equipment_movement', attachment.entityId));
+      }
+      const target = targets.get(attachment.entityId);
+      const movement = byId.get(attachment.entityId);
+      if (!target || !movement) continue;
+      if (!readableSources.has(attachment.entityId)) {
+        const canReadObject = (object: ObjectScope | null) => !!object && (
+          object.createdByUserId === currentUser.id ||
+          hasDelegatedObjectAction(currentUser.id, object.id, 'view', true, 'equipment.history', target.context) ||
+          object.assignments.some((assignment) => assignment.userId === currentUser.id)
+        );
+        const canReadOrder = (order: OrderScope | null) => !!order && canViewOneTimeOrderByScope({
+          currentUserId: currentUser.id, roleCodes, permissionCodes: currentUser.permissionCodes, order,
+        });
+        const legacySourceRead = canAccessEquipment(roleCodes) || movement.createdBy.id === currentUser.id ||
+          canReadObject(movement.fromObject) || canReadObject(movement.toObject) ||
+          canReadOrder(movement.fromOneTimeOrder) || canReadOrder(movement.toOneTimeOrder);
+        readableSources.set(attachment.entityId, decideAccess(currentUser, target.actionCode, legacySourceRead, target.context));
+      }
+      if (!decideAccess(currentUser, 'files.read', true, {
+        resourceType: 'file', resourceId: attachment.file.id,
+        ownerUserId: attachment.file.uploadedByUserId ?? undefined,
+        parents: [target], parentAllowed: readableSources.get(attachment.entityId) === true,
+      })) continue;
       const current = result.get(attachment.entityId) ?? [];
       current.push(this.mapFile(attachment.file));
       result.set(attachment.entityId, current);
@@ -1236,6 +1358,7 @@ export class EquipmentService {
         ],
       },
       capabilities: {
+        canOpenCard: this.canReadUnit(currentUser, unit),
         canCreateMovement: ([
           ['equipment.assign_object', capabilities.canAssignEquipmentToObject || delegatedFor('equipment.assign_object')],
           ['equipment.assign_order', capabilities.canAssignEquipmentToOneTimeOrder],

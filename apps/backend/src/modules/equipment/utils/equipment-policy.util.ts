@@ -1,7 +1,7 @@
 import type { Prisma } from '@prisma/client';
 import type { AccessContext, AccessSubject } from '../../users-access/types/access-policy.type';
 import { buildAccessWhere } from '../../users-access/utils/access-policy.util';
-import type { EquipmentMovementType } from '../types/equipment.type';
+import type { EquipmentMovementType, EquipmentUnitPolicyFacts } from '../types/equipment.type';
 
 export const equipmentMovementAction: Record<EquipmentMovementType, string> = {
   issue_to_object: 'equipment.assign_object', issue_to_one_time_order: 'equipment.assign_order', return_to_storage: 'equipment.return',
@@ -9,12 +9,12 @@ export const equipmentMovementAction: Record<EquipmentMovementType, string> = {
 };
 
 interface WorkScope { id: string; createdByUserId: string; assignments: Array<{ userId: string; isActive?: boolean }> }
-export function equipmentContext(unit: { id: string; currentObject?: WorkScope | null; currentOneTimeOrder?: WorkScope | null }): AccessContext {
+export function equipmentContext(unit: EquipmentUnitPolicyFacts & { currentObject?: WorkScope | null; currentOneTimeOrder?: WorkScope | null }): AccessContext {
   const targets = [
     ...(unit.currentObject ? [{ actionCode: 'objects.read', row: unit.currentObject, resourceType: 'object' }] : []),
     ...(unit.currentOneTimeOrder ? [{ actionCode: 'one_time_orders.read', row: unit.currentOneTimeOrder, resourceType: 'one_time_order' }] : []),
   ];
-  return { resourceType: 'equipment_unit', resourceId: unit.id, parents: targets.map(({ actionCode, row, resourceType }) => ({
+  return { resourceType: 'equipment_unit', resourceId: unit.id, ownerUserId: unit.createdByUserId, parents: targets.map(({ actionCode, row, resourceType }) => ({
     actionCode, context: { resourceType, resourceId: row.id, ownerUserId: row.createdByUserId, assignedUserIds: row.assignments.filter(a => a.isActive !== false).map(a => a.userId) },
   })) };
 }

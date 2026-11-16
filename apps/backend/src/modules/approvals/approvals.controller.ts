@@ -9,6 +9,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 
+import type { SavedWithoutAccess } from '../../common/access/project-committed-write';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
@@ -59,7 +60,7 @@ export class ApprovalsController {
     @CurrentUser() user: CurrentAuthUser,
     @Param('id') id: string,
     @Body() payload: ApproveApprovalRequestDto,
-  ): Promise<ApprovalRequestResponseDto> {
+  ): Promise<ApprovalRequestResponseDto | SavedWithoutAccess> {
     return this.approvalsService.approveRequest(user, id, payload);
   }
 
@@ -69,7 +70,7 @@ export class ApprovalsController {
     @CurrentUser() user: CurrentAuthUser,
     @Param('id') id: string,
     @Body() payload: RejectApprovalRequestDto,
-  ): Promise<ApprovalRequestResponseDto> {
+  ): Promise<ApprovalRequestResponseDto | SavedWithoutAccess> {
     return this.approvalsService.rejectRequest(user, id, payload);
   }
 
@@ -79,7 +80,7 @@ export class ApprovalsController {
     @CurrentUser() user: CurrentAuthUser,
     @Param('id') id: string,
     @Body() payload: CancelApprovalRequestDto,
-  ): Promise<ApprovalRequestResponseDto> {
+  ): Promise<ApprovalRequestResponseDto | SavedWithoutAccess> {
     return this.approvalsService.cancelRequest(user, id, payload);
   }
 }

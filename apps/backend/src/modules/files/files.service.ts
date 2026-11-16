@@ -1,3 +1,5 @@
+import { projectCommittedWrite, type SavedWithoutAccess } from '../../common/access/project-committed-write';
+import { isChatMessageSourceAllowed } from '../../common/access/chat-message-source-access';
 import {
   BadRequestException,
   ConflictException,
@@ -8,8 +10,11 @@ import {
   UnsupportedMediaTypeException,
 } from '@nestjs/common';
 import { createHash, randomUUID } from 'node:crypto';
+import type { Prisma } from '@prisma/client';
 import type { ObjectPlanningService } from '../objects/object-planning.service';
 import { ModuleRef } from '@nestjs/core';
+import { loadAccessSubject } from '../../common/access/notification-access';
+import { lockActorAccessRevision } from '../../common/access/lock-actor-access-revision';
 import { isInventoryPhotoDay } from '../inventory/utils/inventory-photo.util';
 import { inventoryTransaction } from '../inventory/utils/inventory-transaction.util';
 
@@ -39,7 +44,8 @@ import {
   hasActiveOneTimeOrderAssignment,
 } from '../one-time-orders/utils/one-time-order-access.util';
 import { PrismaService } from '../prisma/prisma.service';
-import { hasDelegatedObjectAction } from '../user-substitutions/object-delegation.context';
+import { hasDelegatedObjectAction, hasDelegatedTaskAction, objectDelegationContext } from '../user-substitutions/object-delegation.context';
+import { resolveObjectDelegationGrants } from '../user-substitutions/resolve-object-delegation-grants.util';
 import { StorageService } from '../storage/storage.service';
 import { buildTaskAccessWhere } from '../tasks/utils/task-access.util';
 import { taskVisibilityWhere } from '../tasks/utils/task-policy.util';
@@ -108,13 +114,7 @@ export class FilesService {
       throw new BadRequestException('Daily report files must be staged through the report attachment endpoint');
     }
     this.assertValidFieldCode(entityType, body.fieldCode ?? null);
-    await this.assertEntityWritable(currentUser, entityType, body.entityId);
-    const uploadTarget = await resourceAccessTarget(this.prisma, entityType, body.entityId);
-    if (!decideAccess(currentUser, 'files.upload', true, {
-      resourceType: 'file', resourceId: body.uploadId, ownerUserId: currentUser.id,
-      assignedUserIds: uploadTarget?.context.assignedUserIds,
-      parents: uploadTarget ? [uploadTarget] : [],
-    })) throw new ForbiddenException('Загрузка файлов недоступна');
+    await this.assertUploadAllowed(currentUser, entityType, body.entityId, body.uploadId);
 
     // The client reuses this ID after an uncertain response or a partial batch.
     const uploadId = body.uploadId ?? randomUUID();
@@ -122,12 +122,20 @@ export class FilesService {
       where: { id: uploadId }, include: { attachments: true },
     });
     if (previous) {
-      if (previous.deletedAt || previous.uploadedByUserId !== currentUser.id ||
-        !previous.attachments.some((entry) => entry.entityType === entityType &&
-          entry.entityId === body.entityId)) {
-        throw new ConflictException('Upload ID already used');
-      }
-      return mapSafeFileResponse(previous);
+      const subject = await this.freshUploadActor(currentUser, entityType, body.entityId, uploadId);
+      return inventoryTransaction(this.prisma, async (tx) => {
+        await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${uploadId}, 0))::text`;
+        await lockActorAccessRevision(tx, subject);
+        if (await this.lockUploadSource(tx, entityType, body.entityId)) {
+          await this.assertUploadAllowed(subject, entityType, body.entityId, uploadId, tx);
+        }
+        const retained = await tx.file.findUnique({ where: { id: uploadId }, include: { attachments: true } });
+        if (!retained || retained.deletedAt || retained.uploadedByUserId !== currentUser.id ||
+          !retained.attachments.some((entry) => entry.entityType === entityType && entry.entityId === body.entityId)) {
+          throw new ConflictException('Upload ID already used');
+        }
+        return mapSafeFileResponse(retained);
+      });
     }
 
     const originalName = Array.from(body.originalName ?? file.originalname)
@@ -150,8 +158,20 @@ export class FilesService {
       contentLength: file.size,
     });
 
+    const discardAndThrow = async (error: unknown): Promise<never> => {
+      await this.discardUnlinkedUpload(storageResult, uploadId);
+      throw error;
+    };
+    // Read fresh rights after I/O without reserving a transaction connection.
+    // The revision lock below orders any later founder save before this commit.
+    const subject = await this.freshUploadActor(currentUser, entityType, body.entityId, uploadId)
+      .catch(discardAndThrow);
     const uploadResult = await inventoryTransaction(this.prisma, async (tx) => {
       await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${uploadId}, 0))::text`;
+      await lockActorAccessRevision(tx, subject);
+      if (await this.lockUploadSource(tx, entityType, body.entityId)) {
+        await this.assertUploadAllowed(subject, entityType, body.entityId, uploadId, tx);
+      }
       const existing = await tx.file.findUnique({ where: { id: uploadId }, include: { attachments: true } });
       if (existing) {
         if (existing.deletedAt || existing.uploadedByUserId !== currentUser.id ||
@@ -304,8 +324,13 @@ export class FilesService {
         file: createdFile,
         cancelledApprovalRequestIds,
       };
-    });
+    }).catch(discardAndThrow);
 
+    // A concurrent same-ID request may already have committed another object.
+    // Keep its bytes and discard only this attempt's unused storage object.
+    if (uploadResult.file?.objectKey !== storageResult.objectKey) {
+      await this.discardUnlinkedUpload(storageResult, uploadId);
+    }
     if (!uploadResult.file) {
       throw new NotFoundException('Stored file not found after upload');
     }
@@ -341,36 +366,70 @@ export class FilesService {
       return character === '/' || character === '\\' || code < 32 || code === 127 ? '_' : character;
     }).join('').trim().slice(0, 255) || 'photo';
     const payloadHash = createHash('sha256').update(originalName).update('\0').update(verifiedMimeType).update('\0').update(file.buffer).digest('hex');
-    const staged = await this.prisma.$transaction(async (tx) => {
-      await tx.$queryRaw`SELECT "id" FROM "objects" WHERE "id" = ${objectId} FOR UPDATE`;
-      await tx.$queryRaw`SELECT "id" FROM "object_daily_reports" WHERE "id" = ${reportId} FOR UPDATE`;
-      await tx.$queryRaw`SELECT "id" FROM "object_assignments" WHERE "objectId" = ${objectId} FOR SHARE`;
-      await this.assertDailyReportWritable(currentUser, reportId);
-      const replay = await tx.objectDailyReportAttachmentStage.findUnique({
-        where: { reportId_actorUserId_requestId: { reportId, actorUserId: currentUser.id, requestId } }, include: { file: { include: { attachments: true } } },
-      });
-      if (replay) {
-        if (replay.payloadHash !== payloadHash) throw new ConflictException('requestId already used with a different staged file');
-        return replay;
-      }
-      const current = await tx.objectDailyReport.findFirst({ where: { id: reportId, objectId }, include: { object: { select: { status: true, deletedAt: true } } } });
-      if (!current || current.object.deletedAt || ['frozen', 'archived'].includes(current.object.status)) throw new ConflictException('Daily report is no longer editable');
-      const storageResult = await this.storageService.uploadObject({ objectKey: this.buildObjectKey('object_daily_report', originalName), body: file.buffer, contentType: verifiedMimeType, contentLength: file.size });
-      const stored = await tx.file.create({ data: { bucket: storageResult.bucket, objectKey: storageResult.objectKey, originalName, mimeType: verifiedMimeType, sizeBytes: file.size, uploadedByUserId: currentUser.id } });
-      return tx.objectDailyReportAttachmentStage.create({ data: { reportId, objectId, fileId: stored.id, actorUserId: currentUser.id, requestId, payloadHash }, include: { file: { include: { attachments: true } } } });
+    const identity = { reportId_actorUserId_requestId: { reportId, actorUserId: currentUser.id, requestId } };
+    const knownReplay = await this.prisma.objectDailyReportAttachmentStage.findUnique({ where: identity, select: { id: true } });
+    // S3 must not hold a transaction connection or source locks. Each attempt
+    // has its own object key; the request identity still selects one stage.
+    const candidateFileId = randomUUID();
+    const storageResult = knownReplay ? null : await this.storageService.uploadObject({
+      objectKey: this.buildObjectKey('object_daily_report', originalName),
+      body: file.buffer, contentType: verifiedMimeType, contentLength: file.size,
     });
+    let staged: Prisma.ObjectDailyReportAttachmentStageGetPayload<{ include: { file: { include: { attachments: true } } } }>;
+    try {
+      staged = await this.prisma.$transaction(async (tx) => {
+        // Compensation reacquires this exact attempt lock before checking keys.
+        await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${candidateFileId}, 0))::text`;
+        await lockActorAccessRevision(tx, currentUser);
+        await tx.$queryRaw`SELECT "id" FROM "objects" WHERE "id" = ${objectId} FOR UPDATE`;
+        await tx.$queryRaw`SELECT "id" FROM "object_daily_reports" WHERE "id" = ${reportId} FOR UPDATE`;
+        await tx.$queryRaw`SELECT "id" FROM "object_assignments" WHERE "objectId" = ${objectId} FOR SHARE`;
+        const current = await tx.objectDailyReport.findFirst({ where: { id: reportId, objectId }, include: { object: { select: { status: true, deletedAt: true } } } });
+        if (!current || current.object.deletedAt || ['frozen', 'archived'].includes(current.object.status)) throw new ConflictException('Daily report is no longer editable');
+        await this.assertDailyReportWritable(currentUser, reportId, tx);
+        const replay = await tx.objectDailyReportAttachmentStage.findUnique({ where: identity, include: { file: { include: { attachments: true } } } });
+        if (replay) {
+          if (replay.payloadHash !== payloadHash) throw new ConflictException('requestId already used with a different staged file');
+          return replay;
+        }
+        if (!storageResult) throw new ConflictException('Staged request changed. Retry the same requestId.');
+        const stored = await tx.file.create({ data: { id: candidateFileId, bucket: storageResult.bucket, objectKey: storageResult.objectKey, originalName, mimeType: verifiedMimeType, sizeBytes: file.size, uploadedByUserId: currentUser.id } });
+        return tx.objectDailyReportAttachmentStage.create({ data: { reportId, objectId, fileId: stored.id, actorUserId: currentUser.id, requestId, payloadHash }, include: { file: { include: { attachments: true } } } });
+      });
+    } catch (error) {
+      if (!storageResult) throw error;
+      await this.discardUnlinkedUpload(storageResult, candidateFileId);
+      // A failed commit acknowledgement is not evidence of rollback. The same
+      // attempt lock has resolved before cleanup's exact-key check. Only this
+      // attempt's committed stage can turn an uncertain result into success.
+      const committed = await this.prisma.objectDailyReportAttachmentStage.findFirst({
+        where: { reportId, objectId, actorUserId: currentUser.id, requestId, payloadHash, fileId: candidateFileId,
+          file: { bucket: storageResult.bucket, objectKey: storageResult.objectKey } },
+        include: { file: { include: { attachments: true } } },
+      }).catch(() => null);
+      if (!committed) throw error;
+      staged = committed;
+    }
+    if (storageResult && staged.file.id !== candidateFileId) await this.discardUnlinkedUpload(storageResult, candidateFileId);
     await this.filePreviewService.ensurePreview(staged.file).catch((error) => this.logger.warn(`Unable to enqueue preview for staged report file: ${error instanceof Error ? error.message : 'unknown error'}`));
-    return { stagingId: staged.id, file: mapSafeFileResponse(staged.file), createdAt: staged.createdAt };
+    return projectCommittedWrite(this.prisma, currentUser, async () => {
+      await this.assertDailyReportWritable(currentUser, reportId);
+      return { stagingId: staged.id, file: mapSafeFileResponse(staged.file), createdAt: staged.createdAt };
+    });
   }
 
-  async assertDailyReportWritable(currentUser: CurrentAuthUser, reportId: string): Promise<void> {
-    const target = await resourceAccessTarget(this.prisma, 'object_daily_report', reportId);
+  async assertDailyReportWritable(
+    currentUser: CurrentAuthUser,
+    reportId: string,
+    database: Prisma.TransactionClient = this.prisma,
+  ): Promise<void> {
+    const target = await resourceAccessTarget(database, 'object_daily_report', reportId);
     if (!target || hasModuleDeny(currentUser, 'objects.reports.update', target.context) ||
       !decideAccess(currentUser, 'files.upload', true, {
         resourceType: 'file', ownerUserId: currentUser.id,
         assignedUserIds: target.context.assignedUserIds, parents: [target],
       })) throw new ForbiddenException('Изменение вложений отчёта недоступно');
-    if (this.getPermissionCodes(currentUser).includes('objects.hr_reports_view') || !(await this.canWriteDailyReportTarget(currentUser, reportId))) {
+    if (this.getPermissionCodes(currentUser).includes('objects.hr_reports_view') || !(await this.canWriteDailyReportTarget(currentUser, reportId, database))) {
       throw new ForbiddenException('Daily report attachment editing denied');
     }
   }
@@ -409,11 +468,86 @@ export class FilesService {
   async retryPreview(
     currentUser: CurrentAuthUser,
     id: string,
-  ): Promise<FileViewResponseDto> {
+  ): Promise<FileViewResponseDto | SavedWithoutAccess> {
     const file = await this.getReadableFile(currentUser, id, 'files.preview.retry');
-    await this.filePreviewService.retryPreview(file);
+    const originalGrants = [...(objectDelegationContext.getStore()?.used.values() ?? [])];
+    await this.filePreviewService.retryPreview(file, currentUser, async (tx) => {
+      await this.lockPreviewRetrySources(tx, file, originalGrants, currentUser.id);
+      const subject = await loadAccessSubject(tx, currentUser.id);
+      if (!subject?.isActive) throw new ForbiddenException('Повторная подготовка файла недоступна.');
+      const currentGrants = await resolveObjectDelegationGrants(tx, currentUser.id);
+      const grants = currentGrants.filter(grant => originalGrants.some(original =>
+        original.substitutionId === grant.substitutionId && original.objectId === grant.objectId &&
+        original.principalUserId === grant.principalUserId));
+      const freshFile = await tx.file.findFirst({ where: { id, deletedAt: null }, include: { attachments: true } });
+      if (!freshFile) throw new ForbiddenException('Файл больше недоступен.');
+      // A new attachment/source cannot authorize a request sent for the old one.
+      const attachments = freshFile.attachments.filter(attachment => file.attachments.some(original => original.id === attachment.id));
+      await objectDelegationContext.run({ actorUserId: currentUser.id, grants, used: new Map() }, () =>
+        this.assertFileReadable({ ...currentUser, ...subject, roleCode: subject.roleCodes?.[0] ?? '', roleCodes: [...(subject.roleCodes ?? [])], permissionCodes: [...(subject.permissionCodes ?? [])] }, attachments, freshFile, 'files.preview.retry'));
+    });
 
-    return this.getViewById(currentUser, id);
+    return projectCommittedWrite(this.prisma, currentUser, () => this.getViewById(currentUser, id));
+  }
+
+  private async lockPreviewRetrySources(
+    tx: Prisma.TransactionClient,
+    file: Awaited<ReturnType<FilesService['getReadableFile']>>,
+    grants: NonNullable<ReturnType<typeof objectDelegationContext.getStore>>['grants'],
+    actorUserId: string,
+  ): Promise<void> {
+    await tx.$queryRaw`SELECT "id" FROM "files" WHERE "id" = ${file.id} FOR SHARE`;
+    await tx.$queryRaw`SELECT "id" FROM "file_attachments" WHERE "fileId" = ${file.id} ORDER BY "id" FOR SHARE`;
+    const directTables: Record<FileAttachmentEntityType, string> = {
+      object: 'objects', object_arrival_photo: 'object_arrival_photos', object_daily_report: 'object_daily_reports', object_comment: 'object_comments',
+      one_time_order: 'one_time_orders', one_time_order_comment: 'one_time_order_comments', one_time_order_daily_report: 'one_time_order_daily_reports',
+      one_time_order_photo: 'one_time_order_photos', one_time_order_specification_item: 'one_time_order_specification_items',
+      task: 'tasks', task_assignee_completion: 'task_assignee_completions', inventory_movement: 'inventory_movements',
+      equipment_movement: 'equipment_movements', accountability_expense: 'accountability_expenses', accountability_funding: 'accountability_fundings', chat_message: 'chat_messages',
+    };
+    const locks = new Map<string, { table: string; field: string; id: string }>();
+    const add = (table: string, field: string, id: string) => locks.set(`${table}:${field}:${id}`, { table, field, id });
+    const collect = (context: AccessContext): void => {
+      const id = context.resourceId;
+      if (id) {
+        const tables: Record<string, string> = { object: 'objects', one_time_order: 'one_time_orders', task: 'tasks', chat_room: 'chat_rooms', equipment_unit: 'equipment_units', inventory_item: 'inventory_items', user: 'users' };
+        if (context.resourceType && tables[context.resourceType]) add(tables[context.resourceType], 'id', id);
+        if (context.resourceType === 'object') add('object_assignments', 'objectId', id);
+        if (context.resourceType === 'one_time_order') add('one_time_order_assignments', 'oneTimeOrderId', id);
+        if (context.resourceType === 'chat_room') add('chat_room_participants', 'chatRoomId', id);
+        if (context.resourceType === 'task') { add('task_assignees', 'taskId', id); add('task_visibility_users', 'taskId', id); }
+      }
+      for (const parent of context.parents ?? []) if (parent.context) collect(parent.context);
+    };
+    // Freeze child-to-parent links before resolving their current ancestors.
+    for (const attachment of [...file.attachments].sort((a, b) => a.entityId.localeCompare(b.entityId))) {
+      const type = this.parseEntityType(attachment.entityType);
+      await tx.$queryRawUnsafe(`SELECT "id" FROM "${directTables[type]}" WHERE "id" = $1 FOR SHARE`, attachment.entityId);
+      const target = await resourceAccessTarget(tx, type, attachment.entityId);
+      if (target) collect(target.context);
+    }
+    for (const grant of grants) {
+      add('users', 'id', grant.principalUserId);
+      add('user_substitutions', 'id', grant.substitutionId);
+      add('user_substitution_objects', 'substitutionId', grant.substitutionId);
+      add('object_assignments', 'objectId', grant.objectId);
+    }
+    if (file.attachments.some(attachment => attachment.entityType === 'accountability_expense')) {
+      // Standalone own expenses can inherit legacy access from an assignment
+      // elsewhere or a historical receipt, not from this expense's order link.
+      // Preserve an actual eligibility witness until the retry commits.
+      await tx.$queryRaw`SELECT "id" FROM "one_time_order_assignments"
+        WHERE "userId" = ${actorUserId} AND "assignmentRoleCode" = 'one_time_manager' AND "isActive" = true
+        ORDER BY "id" LIMIT 1 FOR SHARE`;
+      await tx.$queryRaw`SELECT f."id" FROM "accountability_fundings" f
+        JOIN "accountability_accounts" a ON a."id" = f."accountabilityAccountId"
+        WHERE a."userId" = ${actorUserId} AND f."fundingType" = 'one_time_order_receipt'
+        ORDER BY f."id" LIMIT 1 FOR SHARE OF f, a`;
+    }
+    // Identifiers come only from the static tables above, values are bound.
+    for (const lock of [...locks.values()].sort((a, b) => `${a.table}:${a.id}`.localeCompare(`${b.table}:${b.id}`))) {
+      await tx.$queryRawUnsafe(`SELECT "id" FROM "${lock.table}" WHERE "${lock.field}" = $1 ORDER BY "id" FOR SHARE`, lock.id);
+    }
   }
 
   async getThumbnailById(
@@ -438,6 +572,7 @@ export class FilesService {
     const storedObject = await this.storageService.downloadObject(
       derivative.objectKey,
     );
+    await this.assertCurrentPreviewRead(currentUser, id);
 
     return {
       body: storedObject.body,
@@ -464,6 +599,7 @@ export class FilesService {
       file.mimeType === 'application/pdf'
     ) {
       const storedObject = await this.storageService.downloadObject(file.objectKey);
+      await this.assertCurrentPreviewRead(currentUser, id);
       return {
         body: storedObject.body,
         mimeType: file.mimeType,
@@ -475,6 +611,7 @@ export class FilesService {
 
     if (INLINE_TEXT_MIME_TYPES.has(file.mimeType)) {
       const storedObject = await this.storageService.downloadObject(file.objectKey);
+      await this.assertCurrentPreviewRead(currentUser, id);
       const maximumPreviewBytes = 512 * 1024;
       const body = storedObject.body.subarray(0, maximumPreviewBytes);
       return {
@@ -499,6 +636,7 @@ export class FilesService {
       const storedObject = await this.storageService.downloadObject(
         derivative.objectKey,
       );
+      await this.assertCurrentPreviewRead(currentUser, id);
       return {
         body: storedObject.body,
         mimeType: 'application/pdf',
@@ -572,6 +710,26 @@ export class FilesService {
     );
   }
 
+  private async assertCurrentPreviewRead(currentUser: CurrentAuthUser, id: string): Promise<void> {
+    await this.assertCurrentFileRead(currentUser, id, 'files.preview');
+  }
+
+  private async assertCurrentFileRead(currentUser: CurrentAuthUser, id: string, actionCode: string): Promise<void> {
+    // Actor revisions do not change when a principal revokes a substitution.
+    // Refresh both authorities after storage I/O without changing write attribution.
+    const subject = await loadAccessSubject(this.prisma, currentUser.id);
+    if (!subject?.isActive) throw new ForbiddenException('File access denied');
+    const grants = await resolveObjectDelegationGrants(this.prisma, currentUser.id);
+    await objectDelegationContext.run({ actorUserId: currentUser.id, grants, used: new Map() }, () => this.getReadableFile({
+      ...currentUser,
+      ...subject,
+      isActive: subject.isActive,
+      roleCode: subject.roleCodes?.[0] ?? '',
+      roleCodes: [...(subject.roleCodes ?? [])],
+      permissionCodes: [...(subject.permissionCodes ?? [])],
+    }, id, actionCode));
+  }
+
   async getContentById(
     currentUser: CurrentAuthUser,
     id: string,
@@ -581,27 +739,11 @@ export class FilesService {
     sizeBytes: number;
     originalName: string;
   }> {
-    const file = await this.prisma.file.findFirst({
-      where: {
-        id,
-        deletedAt: null,
-      },
-      include: {
-        attachments: {
-          orderBy: {
-            createdAt: 'asc',
-          },
-        },
-      },
-    });
-
-    if (!file) {
-      throw new NotFoundException('File not found');
-    }
-
-    await this.assertFileReadable(currentUser, file.attachments, file, 'files.download');
-
+    const file = await this.getReadableFile(currentUser, id, 'files.download');
     const storedObject = await this.storageService.downloadObject(file.objectKey);
+
+    // Storage may have taken long enough for the actor or the source access to change.
+    await this.assertCurrentFileRead(currentUser, id, 'files.download');
 
     return {
       body: storedObject.body,
@@ -835,12 +977,89 @@ export class FilesService {
     }
   }
 
+  private async freshUploadActor(
+    currentUser: CurrentAuthUser,
+    entityType: FileAttachmentEntityType,
+    entityId: string,
+    uploadId: string,
+  ): Promise<CurrentAuthUser> {
+    const subject = await loadAccessSubject(this.prisma, currentUser.id);
+    if (!subject?.isActive) throw new ForbiddenException('Загрузка файлов недоступна');
+    const actor: CurrentAuthUser = {
+      ...subject,
+      roleCode: subject.roleCodes?.[0] ?? '',
+      roleCodes: [...(subject.roleCodes ?? [])],
+      permissionCodes: [...(subject.permissionCodes ?? [])],
+    };
+    await this.assertUploadAllowed(actor, entityType, entityId, uploadId);
+    return actor;
+  }
+
+  private async assertUploadAllowed(
+    currentUser: CurrentAuthUser,
+    entityType: FileAttachmentEntityType,
+    entityId: string,
+    uploadId?: string,
+    database: Prisma.TransactionClient = this.prisma,
+  ): Promise<void> {
+    await this.assertEntityWritable(currentUser, entityType, entityId, database);
+    const target = await resourceAccessTarget(database, entityType, entityId);
+    if (!decideAccess(currentUser, 'files.upload', true, {
+      resourceType: 'file', resourceId: uploadId, ownerUserId: currentUser.id,
+      assignedUserIds: target?.context.assignedUserIds,
+      parents: target ? [target] : [],
+    })) throw new ForbiddenException('Загрузка файлов недоступна');
+  }
+
+  private async lockUploadSource(
+    tx: Prisma.TransactionClient, entityType: FileAttachmentEntityType, entityId: string,
+  ): Promise<boolean> {
+    // Only these three newly integrated bridges are synchronized here. Preserve
+    // the inventory/specification lifecycle and lock order in their own branches.
+    const source = entityType === 'object_comment'
+      ? { child: 'object_comments', parent: 'objects', field: 'objectId', assignments: 'object_assignments' }
+      : entityType === 'object_arrival_photo'
+        ? { child: 'object_arrival_photos', parent: 'objects', field: 'objectId', assignments: 'object_assignments' }
+        : entityType === 'one_time_order_photo'
+          ? { child: 'one_time_order_photos', parent: 'one_time_orders', field: 'oneTimeOrderId', assignments: 'one_time_order_assignments' }
+          : null;
+    if (!source) return false;
+    const target = await resourceAccessTarget(tx, entityType, entityId);
+    const parentId = target?.context.resourceId;
+    if (!parentId) throw new ForbiddenException('File upload denied for selected entity');
+    // Table/column identifiers above are a closed server-side map; IDs are bound.
+    await tx.$queryRawUnsafe(`SELECT "id" FROM "${source.parent}" WHERE "id" = $1 FOR SHARE`, parentId);
+    const child = await tx.$queryRawUnsafe<Array<{ id: string }>>(
+      `SELECT "id" FROM "${source.child}" WHERE "id" = $1 AND "${source.field}" = $2 FOR SHARE`, entityId, parentId,
+    );
+    if (!child.length) throw new ForbiddenException('File upload denied for selected entity');
+    await tx.$queryRawUnsafe(`SELECT "id" FROM "${source.assignments}" WHERE "${source.field}" = $1 FOR SHARE`, parentId);
+    return true;
+  }
+
+  private async discardUnlinkedUpload(upload: { bucket: string; objectKey: string }, uploadId: string): Promise<void> {
+    try {
+      // Reacquire the SAME upload lock: an uncertain earlier transaction must
+      // resolve before this READ COMMITTED metadata check and exact-key delete.
+      await inventoryTransaction(this.prisma, async (tx) => {
+        await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${uploadId}, 0))::text`;
+        const stored = await tx.file.findFirst({
+          where: { bucket: upload.bucket, objectKey: upload.objectKey }, select: { id: true },
+        });
+        if (!stored) await this.storageService.deleteObject(upload.objectKey);
+      });
+    } catch (error: unknown) {
+      this.logger.error(`Could not discard unlinked upload ${upload.objectKey}`, error);
+    }
+  }
+
   private async assertEntityWritable(
     currentUser: CurrentAuthUser,
     entityType: FileAttachmentEntityType,
     entityId: string,
+    database: Prisma.TransactionClient = this.prisma,
   ): Promise<void> {
-    if (!(await this.canWriteEntity(currentUser, entityType, entityId))) {
+    if (!(await this.canWriteEntity(currentUser, entityType, entityId, database))) {
       throw new ForbiddenException('File upload denied for selected entity');
     }
   }
@@ -939,13 +1158,17 @@ export class FilesService {
     currentUser: CurrentAuthUser,
     entityType: FileAttachmentEntityType,
     entityId: string,
+    database: Prisma.TransactionClient = this.prisma,
   ): Promise<boolean> {
-    const target = await resourceAccessTarget(this.prisma, entityType, entityId);
+    const target = await resourceAccessTarget(database, entityType, entityId);
     if (!target) return false;
-    if (target.context.resourceType === 'object' && (!target.context.resourceId || !(await this.prisma.object.findFirst({
+    if (target.context.resourceType === 'object' && (!target.context.resourceId || !(await database.object.findFirst({
       where: { id: target.context.resourceId, deletedAt: null }, select: { id: true },
     })))) return false;
     if (target && hasModuleDeny(currentUser, target.actionCode, target.context)) return false;
+    // tasks.update uses the Task DTO's active-assignee context, not the wider
+    // file-discovery visibilityUsers context resolved above for parent reads.
+    if (entityType === 'task') return this.canWriteTask(currentUser, entityId, database);
     const writeActions: Partial<Record<FileAttachmentEntityType, string>> = {
       object: 'objects.materials.manage', object_arrival_photo: 'objects.arrival.create',
       object_comment: 'objects.comments.create', object_daily_report: 'objects.reports.update',
@@ -957,13 +1180,27 @@ export class FilesService {
     };
     const actionCode = writeActions[entityType];
     if (target && actionCode && hasModuleDeny(currentUser, actionCode, target.context)) return false;
-    return this.canWriteEntityLegacy(currentUser, entityType, entityId);
+    if (actionCode && (entityType === 'object_comment' || entityType === 'object_arrival_photo')) {
+      // These uploads inherit the same object-operation write decision as the
+      // parent JSON action. A read bridge alone must not discard a scoped grant.
+      const objectId = target.context.resourceType === 'object' ? target.context.resourceId : undefined;
+      if (!objectId) return false;
+      const parent = await resourceAccessTarget(database, 'object', objectId);
+      if (!parent) return false;
+      const parentAllowed = decideAccess(currentUser, 'objects.read',
+        await this.canReadObject(currentUser, objectId, 'objects.read', database), parent.context);
+      return decideAccess(currentUser, actionCode,
+        await this.canWriteEntityLegacy(currentUser, entityType, entityId, database),
+        { ...target.context, parentAllowed });
+    }
+    return this.canWriteEntityLegacy(currentUser, entityType, entityId, database);
   }
 
   private async canWriteEntityLegacy(
     currentUser: CurrentAuthUser,
     entityType: FileAttachmentEntityType,
     entityId: string,
+    database: Prisma.TransactionClient = this.prisma,
   ): Promise<boolean> {
     switch (entityType) {
       case 'object':
@@ -974,9 +1211,10 @@ export class FilesService {
           currentUser,
           entityType === 'object_arrival_photo' ? 'objectArrivalPhoto' : 'objectComment',
           entityId,
+          database,
         );
       case 'object_daily_report':
-        return this.canWriteDailyReportTarget(currentUser, entityId);
+        return this.canWriteDailyReportTarget(currentUser, entityId, database);
       case 'one_time_order_comment':
         return this.canAccessOneTimeOrderScopedEntity(
           currentUser,
@@ -992,7 +1230,7 @@ export class FilesService {
           'write',
         );
       case 'one_time_order_photo':
-        return this.canAccessOneTimeOrderPhoto(currentUser, entityId, 'write');
+        return this.canAccessOneTimeOrderPhoto(currentUser, entityId, 'write', database);
       case 'one_time_order_specification_item':
         return this.canAccessOneTimeOrderSpecificationItem(
           currentUser,
@@ -1000,7 +1238,7 @@ export class FilesService {
           'write',
         );
       case 'task':
-        return this.canAccessTask(currentUser, entityId);
+        return this.canWriteTask(currentUser, entityId, database);
       case 'task_assignee_completion':
         return this.canAccessTaskCompletion(currentUser, entityId, 'write');
       case 'one_time_order':
@@ -1022,8 +1260,9 @@ export class FilesService {
     currentUser: CurrentAuthUser,
     objectId: string,
     policyActionCode = 'objects.read',
+    database: Prisma.TransactionClient = this.prisma,
   ): Promise<boolean> {
-    const object = await this.prisma.object.findFirst({
+    const object = await database.object.findFirst({
       where: {
         id: objectId,
         deletedAt: null,
@@ -1058,8 +1297,8 @@ export class FilesService {
     );
   }
 
-  private async canWriteDailyReportTarget(currentUser: CurrentAuthUser, reportId: string): Promise<boolean> {
-    const report = await this.prisma.objectDailyReport.findUnique({
+  private async canWriteDailyReportTarget(currentUser: CurrentAuthUser, reportId: string, database: Prisma.TransactionClient = this.prisma): Promise<boolean> {
+    const report = await database.objectDailyReport.findUnique({
       where: { id: reportId },
       select: { objectId: true, object: { select: { createdByUserId: true, status: true, deletedAt: true, assignments: { where: { isActive: true }, select: { userId: true } } } } },
     });
@@ -1109,8 +1348,9 @@ export class FilesService {
     currentUser: CurrentAuthUser,
     modelName: 'objectArrivalPhoto' | 'objectDailyReport' | 'objectComment',
     entityId: string,
+    database: Prisma.TransactionClient = this.prisma,
   ): Promise<boolean> {
-    const model = (this.prisma as {
+    const model = (database as {
       objectArrivalPhoto: {
         findFirst(args: unknown): Promise<{ objectId: string } | null>;
       };
@@ -1137,7 +1377,7 @@ export class FilesService {
 
     const actionCode = modelName === 'objectDailyReport' ? 'objects.reports.read'
       : modelName === 'objectComment' ? 'objects.comments.read' : 'objects.arrival.read';
-    return this.canReadObject(currentUser, item.objectId, actionCode);
+    return this.canReadObject(currentUser, item.objectId, actionCode, database);
   }
 
   private async canAccessTask(
@@ -1162,6 +1402,37 @@ export class FilesService {
     }
 
     return true;
+  }
+
+  private async canWriteTask(
+    currentUser: CurrentAuthUser,
+    taskId: string,
+    database: Prisma.TransactionClient = this.prisma,
+  ): Promise<boolean> {
+    // Match TaskResponseDto.canEdit, retaining the existing task/parent read
+    // circle. All source reads use the caller's transaction when supplied.
+    const task = await database.task.findFirst({
+      where: { AND: [
+        { id: taskId },
+        taskVisibilityWhere(currentUser, buildTaskAccessWhere({
+          currentUserId: currentUser.id,
+          roleCodes: this.getRoleCodes(currentUser),
+        })),
+      ] },
+      select: {
+        id: true, status: true, createdByUserId: true,
+        objectId: true, oneTimeOrderId: true,
+        assignees: { where: { isActive: true }, select: { userId: true, isActive: true } },
+      },
+    });
+    if (!task || ['completed', 'cancelled', 'closed'].includes(task.status)) return false;
+    const legacy = task.createdByUserId === currentUser.id ||
+      hasDelegatedTaskAction(currentUser.id, task, 'creator', false, 'tasks.update');
+    return decideAccess(currentUser, 'tasks.update', legacy, {
+      resourceType: 'task', resourceId: task.id,
+      ownerUserId: task.createdByUserId,
+      assignedUserIds: task.assignees.map(assignee => assignee.userId),
+    });
   }
 
   private async canAccessTaskCompletion(
@@ -1493,8 +1764,9 @@ export class FilesService {
     currentUser: CurrentAuthUser,
     entityId: string,
     mode: 'read' | 'write',
+    database: Prisma.TransactionClient = this.prisma,
   ): Promise<boolean> {
-    const photo = await this.prisma.oneTimeOrderPhoto.findFirst({
+    const photo = await database.oneTimeOrderPhoto.findFirst({
       where: { id: entityId },
       select: {
         oneTimeOrderId: true,
@@ -1510,11 +1782,23 @@ export class FilesService {
       return false;
     }
 
-    return this.canAccessOneTimeOrder(
-      currentUser,
-      photo.oneTimeOrderId,
-      mode,
-    );
+    if (mode === 'read') {
+      return this.canAccessOneTimeOrder(currentUser, photo.oneTimeOrderId, mode);
+    }
+    const order = await database.oneTimeOrder.findUnique({
+      where: { id: photo.oneTimeOrderId },
+      select: {
+        id: true, createdByUserId: true,
+        assignments: { where: { isActive: true }, select: {
+          userId: true, assignmentRoleCode: true, isActive: true,
+        } },
+      },
+    });
+    return !!order && canEditOneTimeOrderByScope({
+      subject: currentUser, actionCode: 'one_time_orders.photos.create',
+      currentUserId: currentUser.id, roleCodes: this.getRoleCodes(currentUser),
+      permissionCodes: this.getPermissionCodes(currentUser), order,
+    });
   }
 
   private async canAccessOneTimeOrderScopedEntity(
@@ -1576,16 +1860,27 @@ export class FilesService {
     }
 
     const isOwner = expense.accountabilityAccount.userId === currentUser.id;
-    const ownerCanAccess =
-      isOwner &&
-      (await this.canCurrentUserViewOwnAccountability(currentUser));
+    const legacyOwnerAccess = isOwner && await this.canCurrentUserViewOwnAccountability(currentUser);
+    const context: AccessContext = {
+      resourceType: 'user', resourceId: expense.accountabilityAccount.userId,
+      ownerUserId: expense.accountabilityAccount.userId,
+    };
+    const ownerCanAccess = isOwner && decideAccess(
+      currentUser, 'accountability.read', legacyOwnerAccess, context,
+    );
 
     if (mode === 'write') {
       return (
         ownerCanAccess &&
         expense.createdByUserId === currentUser.id &&
         expense.accountabilityAccount.status === 'active' &&
-        expense.status === 'draft'
+        expense.status === 'draft' &&
+        !hasModuleDeny(currentUser, 'accountability.expenses.update', context) &&
+        // A newly created own draft accepts its creator's personal create
+        // grant; editing an existing own draft may instead use update. A read
+        // grant alone never manufactures write authority or account ownership.
+        (decideAccess(currentUser, 'accountability.expenses.create', legacyOwnerAccess, context) ||
+          decideAccess(currentUser, 'accountability.expenses.update', legacyOwnerAccess, context))
       );
     }
 
@@ -1674,6 +1969,12 @@ export class FilesService {
     }
 
     if (message.deletedAt || message.chatRoom.deletedAt) {
+      return false;
+    }
+
+    // Physical attachments inherit the same explicit source-deny boundary as
+    // the retained system message. A file grant cannot bypass its hidden source.
+    if (mode === 'read' && !await isChatMessageSourceAllowed(this.prisma, currentUser, message)) {
       return false;
     }
 

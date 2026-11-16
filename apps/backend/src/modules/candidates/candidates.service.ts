@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Candidate, CandidateManagerAssignment, Prisma } from '@prisma/client';
+import { lockActorAccessRevision } from '../../common/access/lock-actor-access-revision';
 import type { AccessSubject } from '../users-access/types/access-policy.type';
 import { buildAccessWhere, decideAccess, hasModuleDeny } from '../users-access/utils/access-policy.util';
 
@@ -181,6 +182,7 @@ export class CandidatesService {
     }
 
     const candidate = await this.prisma.$transaction(async (tx) => {
+      await lockActorAccessRevision(tx, currentUser);
       if (payload.objectId) {
         await this.assertCandidateObjectAvailable(tx, currentUser, payload.objectId);
       }
@@ -202,6 +204,10 @@ export class CandidatesService {
         },
       });
 
+      if (!candidateActionAllowed(currentUser, 'candidates.view', {
+        resourceType: 'candidate', resourceId: created.id, ownerUserId: created.createdByUserId,
+        assignedUserIds: selections.map(selection => selection.managerUserId),
+      })) throw new ForbiddenException('Created candidate access denied');
       await this.auditService.writeAuditEvent({
         entityType: 'candidate',
         entityId: created.id,
@@ -276,6 +282,12 @@ export class CandidatesService {
       }
 
       return created;
+    }, {
+      // Creating a candidate also persists assignments, SLA, audit and the
+      // notification outbox. Keep that work atomic with a bounded budget;
+      // never replay a timed-out create automatically.
+      maxWait: 5_000,
+      timeout: 15_000,
     });
 
     return this.getById(currentUser, candidate.id);
@@ -285,6 +297,7 @@ export class CandidatesService {
     await this.assertManage(currentUser, 'candidates.update', id);
     await this.prisma.$transaction(async (tx) => {
       const existing = await this.lockCandidate(tx, id);
+      await lockActorAccessRevision(tx, currentUser);
       await this.assertActionScope(currentUser, 'candidates.update', id, tx);
       if (existing.deletedAt) throw new ConflictException('Archived candidate must be restored before editing');
       this.assertVersion(existing, payload.expectedVersion);
@@ -342,6 +355,7 @@ export class CandidatesService {
     await this.assertManage(currentUser, 'candidates.status', id);
     await this.prisma.$transaction(async (tx) => {
       const existing = await this.lockCandidate(tx, id);
+      await lockActorAccessRevision(tx, currentUser);
       await this.assertActionScope(currentUser, 'candidates.status', id, tx);
       if (existing.deletedAt) throw new ConflictException('Archived candidate must be restored before changing status');
       this.assertVersion(existing, payload.expectedVersion);
@@ -416,6 +430,7 @@ export class CandidatesService {
     }
     await this.prisma.$transaction(async (tx) => {
       const candidate = await this.lockCandidate(tx, id);
+      await lockActorAccessRevision(tx, currentUser);
       await this.assertActionScope(currentUser, 'candidates.assignments.manage', id, tx);
       this.assertVersion(candidate, payload.expectedVersion);
       if (candidate.deletedAt || ['accepted', 'rejected'].includes(candidate.status)) throw new ConflictException('Кандидат закрыт или находится в архиве. Обновите карточку.');
@@ -461,6 +476,7 @@ export class CandidatesService {
     if (!decideAccess(currentUser, 'employees.create', canCreateEmployee(this.permissions(currentUser)))) throw new ForbiddenException('Employee creation denied');
     await this.prisma.$transaction(async (tx) => {
       const candidate = await this.lockCandidate(tx, id);
+      await lockActorAccessRevision(tx, currentUser);
       await this.assertActionScope(currentUser, 'candidates.convert_employee', id, tx);
       // A retried request must return the previously created employee, never create a duplicate.
       if (candidate.employeeId) return;
@@ -486,6 +502,7 @@ export class CandidatesService {
     await this.assertActionScope(currentUser, 'candidates.respond', id);
     await this.prisma.$transaction(async (tx) => {
       const candidate = await this.lockCandidate(tx, id);
+      await lockActorAccessRevision(tx, currentUser);
       await this.assertActionScope(currentUser, 'candidates.respond', id, tx);
       const activeManagers = await tx.candidateManagerAssignment.findMany({ where: { candidateId: id, endedAt: null }, select: { managerUserId: true } });
       const manage = candidateManagementAllowed(currentUser, { resourceType: 'candidate', resourceId: id, ownerUserId: candidate.createdByUserId, assignedUserIds: activeManagers.map(assignment => assignment.managerUserId) });
@@ -559,6 +576,7 @@ export class CandidatesService {
     await this.assertManage(currentUser, archived ? 'candidates.archive' : 'candidates.restore', id);
     await this.prisma.$transaction(async (tx) => {
       const existing = await this.lockCandidate(tx, id);
+      await lockActorAccessRevision(tx, currentUser);
       await this.assertActionScope(currentUser, archived ? 'candidates.archive' : 'candidates.restore', id, tx);
       this.assertVersion(existing, payload.expectedVersion);
       if (Boolean(existing.deletedAt) === archived) return;

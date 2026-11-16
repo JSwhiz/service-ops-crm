@@ -5,7 +5,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 import { CreateOrderInventoryIssueDto } from './dto/create-order-inventory-issue.dto';
 import { OrderInventoryResponseDto } from './dto/order-inventory-response.dto';
-import { OrderInventoryIssueResponseDto } from './dto/order-inventory-issue-response.dto';
+import type { OrderInventoryIssueResult } from './dto/order-inventory-issue-response.dto';
 import { ScopedOneTimeInventoryService } from './scoped-one-time-inventory.service';
 
 interface CurrentAuthUser {
@@ -38,7 +38,7 @@ export class ScopedOneTimeInventoryController {
     @CurrentUser() user: CurrentAuthUser,
     @Param('orderId') orderId: string,
     @Body() payload: CreateOrderInventoryIssueDto,
-  ): Promise<OrderInventoryIssueResponseDto> {
+  ): Promise<OrderInventoryIssueResult> {
     return this.scopedOneTimeInventoryService.issueToOrder(
       user,
       orderId,

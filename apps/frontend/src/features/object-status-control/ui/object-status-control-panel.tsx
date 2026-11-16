@@ -1,8 +1,12 @@
 'use client';
 
 import Link from 'next/link';
-import React, { useMemo, useState } from 'react';
+import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
 
+import { captureObjectWriteFence } from '@/features/object-shared-ui/object-write-fence';
+import { AccessSnapshotBlockedContext } from '@/shared/auth/access-snapshot-boundary';
+import { isSavedWithoutAccess, type SavedWithoutAccess } from '@/shared/api/saved-without-access';
+import { ApiError } from '@/shared/api/fetcher';
 import styles from '@/features/object-shared-ui/object-surfaces.module.css';
 import { MediaActionIcon } from '@/shared/ui/app-shell/media-action-icon';
 import { StatusBadge, Surface } from '@/shared/ui/foundation';
@@ -10,13 +14,14 @@ import { StatusBadge, Surface } from '@/shared/ui/foundation';
 type ObjectStatusCode = 'active' | 'frozen' | 'archived';
 
 interface ObjectStatusControlPanelProps {
+  objectId: string;
   currentStatus: string;
   canChangeStatus?: boolean;
   canFreeze?: boolean;
   canArchive?: boolean;
   canRestore?: boolean;
   approvalsHref?: string;
-  onChangeStatus: (status: ObjectStatusCode) => Promise<void>;
+  onChangeStatus: (status: ObjectStatusCode) => Promise<void | SavedWithoutAccess>;
 }
 
 function getStatusLabel(status: string): string {
@@ -37,6 +42,7 @@ function getTransitionLabel(status: ObjectStatusCode): string {
 }
 
 export function ObjectStatusControlPanel({
+  objectId,
   currentStatus,
   canChangeStatus = true,
   canFreeze,
@@ -45,6 +51,11 @@ export function ObjectStatusControlPanel({
   approvalsHref,
   onChangeStatus,
 }: ObjectStatusControlPanelProps): React.JSX.Element {
+  const mounted = useRef(true), currentObjectId = useRef(objectId), busy = useRef(false);
+  currentObjectId.current = objectId;
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  const blocked = useContext(AccessSnapshotBlockedContext), currentBlocked = useRef(blocked); currentBlocked.current = blocked;
+  const [acknowledged, setAcknowledged] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -58,20 +69,28 @@ export function ObjectStatusControlPanel({
 
   const handleChangeStatus = async (statusCode: ObjectStatusCode): Promise<void> => {
     if (isSubmitting || !availableTransitions.includes(statusCode)) return;
+    if (busy.current || currentBlocked.current || acknowledged) return;
+    const targetId = objectId;
+    const fence = captureObjectWriteFence(() => mounted.current && currentObjectId.current === targetId);
+    busy.current = true;
     setError(null);
     setSuccess(null);
     setIsSubmitting(true);
     try {
-      await onChangeStatus(statusCode);
+      const result = await onChangeStatus(statusCode);
+      if (!fence.sameTarget()) return;
+      if ((result && isSavedWithoutAccess(result)) || !fence.current() || currentBlocked.current) {
+        setAcknowledged(true); setSuccess('Запрос сохранён. Подробности сейчас недоступны; повтор не отправлялся.'); return;
+      }
       setSuccess('Изменение статуса отправлено на согласование.');
     } catch (caughtError) {
-      setError(
-        caughtError instanceof Error && caughtError.message.trim()
-          ? caughtError.message
-          : 'Не удалось изменить статус объекта.',
-      );
+      if (!fence.sameTarget()) return;
+      setError(caughtError instanceof ApiError && [403, 404].includes(caughtError.statusCode)
+        ? 'Запрос на изменение статуса недоступен текущим правам.'
+        : 'Результат запроса не подтверждён. Проверьте согласования перед повтором.');
     } finally {
-      setIsSubmitting(false);
+      busy.current = false;
+      if (fence.sameTarget()) setIsSubmitting(false);
     }
   };
 
@@ -86,7 +105,7 @@ export function ObjectStatusControlPanel({
               key={statusCode}
               className={statusCode === 'frozen' || statusCode === 'archived' ? 'object-status-control__action' : undefined}
               type="button"
-              disabled={isSubmitting}
+              disabled={blocked || acknowledged || isSubmitting}
               onClick={() => void handleChangeStatus(statusCode)}
             >
               {statusCode === 'frozen' ? <MediaActionIcon name="freeze" /> : statusCode === 'archived' ? <MediaActionIcon name="archive" /> : null}
@@ -100,7 +119,7 @@ export function ObjectStatusControlPanel({
       {success ? (
         <div className={styles.success}>
           <span>{success}</span>
-          {approvalsHref ? <Link className={styles.buttonLike} href={approvalsHref}>Открыть согласование</Link> : null}
+          {approvalsHref && !acknowledged ? <Link className={styles.buttonLike} href={approvalsHref}>Открыть согласование</Link> : null}
         </div>
       ) : null}
     </Surface>

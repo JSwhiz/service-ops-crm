@@ -14,8 +14,10 @@ import {
   savePlanReport,
   type PlanHistory,
   type VisitPlan,
+  type VisitPlanMutationResponse,
   type VisitPlanDay,
 } from "@/entities/visit-plan/api/visit-plan-client";
+import { isSavedWithoutAccess } from '@/shared/api/saved-without-access';
 import { ApiError } from "@/shared/api/fetcher";
 import {
   Alert,
@@ -58,6 +60,7 @@ const visitEntryMutationError = (error: unknown) =>
 export default function VisitPlansPage(): React.JSX.Element {
   const [date, setDate] = useState(today);
   const [managerId, setManagerId] = useState("");
+  const [savedWithoutAccess, setSavedWithoutAccess] = useState(false);
   const [data, setData] = useState<VisitPlanDay | null>(null);
   const [managers, setManagers] = useState<
     Array<{ id: string; fullName: string }>
@@ -103,6 +106,7 @@ export default function VisitPlansPage(): React.JSX.Element {
   }, []);
 
   const load = useCallback(async () => {
+    if (savedWithoutAccess) return;
     const sequence = ++request.current;
     setLoading(true);
     setError(null);
@@ -132,7 +136,7 @@ export default function VisitPlansPage(): React.JSX.Element {
     } finally {
       if (sequence === request.current) setLoading(false);
     }
-  }, [date, managerId, reportDirty, accessRevision]);
+  }, [date, managerId, reportDirty, accessRevision, savedWithoutAccess]);
   // Changing a text draft must not trigger a refetch.
   const loadRef = useRef(load);
   loadRef.current = load;
@@ -141,7 +145,7 @@ export default function VisitPlansPage(): React.JSX.Element {
     return () => {
       request.current += 1;
     };
-  }, [date, managerId, accessRevision]);
+  }, [date, managerId, accessRevision, savedWithoutAccess]);
 
   const select = (nextDate: string, nextManager: string) => {
     setReportDirty(false);
@@ -159,7 +163,7 @@ export default function VisitPlansPage(): React.JSX.Element {
   };
 
   const mutate = async (
-    action: () => Promise<VisitPlan>,
+    action: () => Promise<VisitPlanMutationResponse>,
     getErrorMessage: (error: unknown) => string = mutationError,
   ) => {
     if (pending) return;
@@ -167,6 +171,12 @@ export default function VisitPlansPage(): React.JSX.Element {
     setError(null);
     try {
       const plan = await action();
+      if (isSavedWithoutAccess(plan)) {
+        request.current += 1;
+        setData(null); setHistory([]); setReport(''); setReportDirty(false);
+        setClientName(''); setObjectId(''); setSavedWithoutAccess(true);
+        return;
+      }
       setData((current) => (current ? { ...current, plan } : current));
       setHistory(await getPlanHistory(plan.id));
     } catch (failure) {
@@ -179,6 +189,13 @@ export default function VisitPlansPage(): React.JSX.Element {
   const objectOptionsManagerId = managerId || plan?.manager.id || "";
   const currentDate = today();
   const emptyPlanCopy = visitPlanEmptyCopy(date, Boolean(data?.capabilities.canManage), Boolean(managerId));
+  if (savedWithoutAccess) return (
+    <div className={`ui-page ${styles.page}`}>
+      <PageHeader title="План посещений на день" />
+      <Alert tone="success" role="status">Изменение сохранено.</Alert>
+      <Button onClick={() => setSavedWithoutAccess(false)}>Обновить данные</Button>
+    </div>
+  );
   return (
     <div className={`ui-page ${styles.page}`}>
       <PageHeader title="План посещений на день" />

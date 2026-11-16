@@ -16,6 +16,7 @@ import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-selec
 import { TASK_STATUS_OPTIONS } from '@/shared/lib/task-presentation';
 import { getUserDisplayName } from '@/shared/lib/display-name';
 import { usePageSizeParam } from '@/shared/lib/use-page-size-param';
+import { useAuth } from '@/shared/auth/use-auth';
 import { TablePagination } from '@/shared/ui/table-pagination/table-pagination';
 import { Surface } from '@/shared/ui/foundation';
 import { CreateNavigationLink } from '@/shared/create-navigation';
@@ -29,6 +30,8 @@ export default function TasksPage(): React.JSX.Element {
 }
 
 function TasksRegistry(): React.JSX.Element {
+  const { user } = useAuth();
+  const canCreateTask = user?.capabilities?.canCreateTask ?? false;
   const router = useRouter();
   const searchParams = useSearchParams();
   const { pageSize, pageSizeOptions, setPageSize } = usePageSizeParam(20);
@@ -155,7 +158,7 @@ function TasksRegistry(): React.JSX.Element {
         onSearchChange={(value) => updateQuery({ q: value })}
         activeFilters={activeFilters}
         availableFilters={availableFilters}
-        actions={<CreateNavigationLink className="ui-button ui-button--primary" href="/tasks/new"><span className="ui-button__icon" aria-hidden="true"><PlusIcon /></span>Создать задачу</CreateNavigationLink>}
+        actions={canCreateTask ? <CreateNavigationLink className="ui-button ui-button--primary" href="/tasks/new"><span className="ui-button__icon" aria-hidden="true"><PlusIcon /></span>Создать задачу</CreateNavigationLink> : undefined}
       />
       {isLoading ? <Surface padding="md">Загрузка…</Surface> : error ? (
         <Surface padding="md" className={taskStyles.taskError} role="alert">{error}</Surface>

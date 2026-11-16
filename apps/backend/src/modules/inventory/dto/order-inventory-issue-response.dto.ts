@@ -5,3 +5,5 @@ export class OrderInventoryIssueResponseDto extends InventoryMovementResponseDto
   inventoryItemId!: string;
   oneTimeOrderId!: string;
 }
+
+export type OrderInventoryIssueResult = OrderInventoryIssueResponseDto | { outcome: 'saved_without_access' };

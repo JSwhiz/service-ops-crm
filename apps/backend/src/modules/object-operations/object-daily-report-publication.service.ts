@@ -17,6 +17,8 @@ interface DailyReportDeliveryPayload {
   systemEventKey: string;
 }
 
+export type DailyReportTransactionRunner = <T>(write: (tx: Prisma.TransactionClient) => Promise<T>) => Promise<T>;
+
 /** Durable immutable publications; saving a draft never enters this queue. */
 @Injectable()
 export class ObjectDailyReportPublicationService implements OnModuleInit, OnModuleDestroy {
@@ -34,8 +36,8 @@ export class ObjectDailyReportPublicationService implements OnModuleInit, OnModu
 
   onModuleDestroy() { if (this.timer) clearInterval(this.timer); }
 
-  async saveDraft(objectId: string, actorUserId: string, content: string, expectedRevision?: number) {
-    return this.prisma.$transaction(async (tx) => {
+  async saveDraft(objectId: string, actorUserId: string, content: string, expectedRevision?: number, runTransaction: DailyReportTransactionRunner = (write) => this.prisma.$transaction(write)) {
+    return runTransaction(async (tx) => {
       await tx.$queryRaw`SELECT "id" FROM "objects" WHERE "id" = ${objectId} FOR UPDATE`;
       const window = moscowDayWindow();
       const current = await tx.objectDailyReport.findFirst({ where: { objectId, reportDate: window }, orderBy: { updatedAt: 'desc' } });
@@ -50,8 +52,8 @@ export class ObjectDailyReportPublicationService implements OnModuleInit, OnModu
     });
   }
 
-  async submit(objectId: string, actorUserId: string, expectedRevision: number) {
-    const report = await this.prisma.$transaction(async (tx) => {
+  async submit(objectId: string, actorUserId: string, expectedRevision: number, runTransaction: DailyReportTransactionRunner = (write) => this.prisma.$transaction(write)) {
+    const report = await runTransaction(async (tx) => {
       await tx.$queryRaw`SELECT "id" FROM "objects" WHERE "id" = ${objectId} FOR UPDATE`;
       const current = await tx.objectDailyReport.findFirst({
         where: { objectId, reportDate: moscowDayWindow() }, orderBy: { updatedAt: 'desc' }, include: { updatedBy: true },
@@ -71,18 +73,18 @@ export class ObjectDailyReportPublicationService implements OnModuleInit, OnModu
     return report;
   }
 
-  async correctAttachments(objectId: string, reportId: string, actor: CurrentAuthUser, payload: CorrectDailyReportAttachmentsDto) {
+  async correctAttachments(objectId: string, reportId: string, actor: CurrentAuthUser, payload: CorrectDailyReportAttachmentsDto, runTransaction: DailyReportTransactionRunner = (write) => this.prisma.$transaction(write)) {
     const removeIds = [...payload.removeAttachmentIds].sort();
     const addIds = [...payload.addFileIds].sort();
     if (new Set(removeIds).size !== removeIds.length || new Set(addIds).size !== addIds.length) throw new ConflictException('Duplicate attachment IDs are not allowed');
     const reason = payload.reason?.trim() || null;
     const normalized = { expectedRevision: payload.expectedRevision, removeAttachmentIds: removeIds, addFileIds: addIds, reason };
     const payloadHash = createHash('sha256').update(JSON.stringify(normalized)).digest('hex');
-    const saved = await this.prisma.$transaction(async (tx) => {
+    const saved = await runTransaction(async (tx) => {
       await tx.$queryRaw`SELECT "id" FROM "objects" WHERE "id" = ${objectId} FOR UPDATE`;
       await tx.$queryRaw`SELECT "id" FROM "object_daily_reports" WHERE "id" = ${reportId} FOR UPDATE`;
       await tx.$queryRaw`SELECT "id" FROM "object_assignments" WHERE "objectId" = ${objectId} FOR SHARE`;
-      await this.files.assertDailyReportWritable(actor, reportId);
+      await this.files.assertDailyReportWritable(actor, reportId, tx);
       const report = await tx.objectDailyReport.findFirst({ where: { id: reportId, objectId }, include: { object: { select: { status: true, deletedAt: true } } } });
       if (!report) throw new NotFoundException('Daily report not found');
       if (report.object.deletedAt || ['frozen', 'archived'].includes(report.object.status)) throw new ConflictException('Frozen or archived objects cannot be edited');

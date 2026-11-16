@@ -3,6 +3,8 @@
 import Link from 'next/link';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useAccessRevision } from '@/shared/auth/use-access-revision';
+import { useAuth } from '@/shared/auth/use-auth';
+import { getAccessGeneration, isAccessGenerationCurrent } from '@/shared/auth/access-generation';
 import { AccessSnapshotBoundary } from '@/shared/auth/access-snapshot-boundary';
 
 import {
@@ -26,7 +28,7 @@ import {
   getOneTimeOrderStatusLabel,
   ONE_TIME_ORDER_STATUS_OPTIONS,
 } from '@/shared/lib/one-time-order-presentation';
-import { ConfirmDialog, useConfirm } from '@/shared/ui/overlays';
+import { ConfirmDialog } from '@/shared/ui/overlays';
 
 import { CloseIcon } from '@/shared/ui/icons/icons';
 import styles from './one-time-order-preview-drawer.module.css';
@@ -84,11 +86,16 @@ export function OneTimeOrderPreviewDrawer({
   onClose: () => void;
 }): React.JSX.Element | null {
   const accessRevision = useAccessRevision();
-  const scope = `${item?.id ?? ''}:${accessRevision}`;
+  const { capabilitiesRefreshError } = useAuth();
+  const scope = `${item?.id ?? ''}:${accessRevision}:${capabilitiesRefreshError ?? ''}`;
   const [loadedScope, setLoadedScope] = useState<string | null>(null);
   const [accessRetry, setAccessRetry] = useState(0);
   const [details, setDetails] = useState<OneTimeOrderItem | null>(null);
-  const [confirm, confirmDialog] = useConfirm();
+  const [conflictPrompt, setConflictPrompt] = useState<{
+    conflicts: Parameters<typeof ScheduleConflictList>[0]['conflicts'];
+    isCurrent: () => boolean;
+    resolve: (accepted: boolean) => void;
+  } | null>(null);
   const [comments, setComments] = useState<OneTimeOrderCommentItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -110,6 +117,16 @@ export function OneTimeOrderPreviewDrawer({
   const itemGeneration = useRef(0);
   const reviewFormOpenRef = useRef(reviewFormOpen);
   reviewFormOpenRef.current = reviewFormOpen;
+  const liveContext = useRef({ scope, ready: false, details });
+  liveContext.current = { scope, ready: loadedScope === scope && !capabilitiesRefreshError && !loading, details };
+  useEffect(() => {
+    if (conflictPrompt && !conflictPrompt.isCurrent()) {
+      conflictPrompt.resolve(false);
+      setConflictPrompt(null);
+      setSavingStatus(false);
+    }
+  }, [conflictPrompt, scope, details, loading, error]);
+  useEffect(() => () => { liveContext.current = { ...liveContext.current, ready: false }; }, []);
 
   const close = useCallback(() => onClose(), [onClose]);
 
@@ -139,6 +156,7 @@ export function OneTimeOrderPreviewDrawer({
       setSavingStatus(false);
     }
     if (!item) { setLoading(false); return; }
+    if (capabilitiesRefreshError) { setLoadedScope(null); return; }
 
     let cancelled = false;
     setLoading(true);
@@ -204,7 +222,9 @@ export function OneTimeOrderPreviewDrawer({
 
   const captureItemOperation = (): (() => boolean) => {
     const generation = itemGeneration.current;
-    return () => generation === itemGeneration.current && itemRef.current?.id === item.id;
+    const accessGeneration = getAccessGeneration();
+    return () => generation === itemGeneration.current && itemRef.current?.id === item.id &&
+      isAccessGenerationCurrent(accessGeneration) && liveContext.current.ready && liveContext.current.scope === scope;
   };
 
   const saveComment = async (): Promise<void> => {
@@ -284,6 +304,9 @@ export function OneTimeOrderPreviewDrawer({
   const applyStatus = async (): Promise<void> => {
     if (!nextStatus || !canChangeStatus || !order || savingStatus || loadedScope !== scope) return;
     const isCurrentItem = captureItemOperation();
+    const isCurrentStatus = (): boolean => isCurrentItem() && liveContext.current.details?.capabilities.canChangeStatus === true &&
+      liveContext.current.details === order && liveContext.current.details.status === order.status;
+    if (!isCurrentStatus()) return;
     setSavingStatus(true);
     setError(null);
     setNotice(null);
@@ -302,18 +325,14 @@ export function OneTimeOrderPreviewDrawer({
           managerUserIds: order.managers.map((manager) => manager.userId),
           excludeOrderId: order.id,
         });
-        if (!isCurrentItem()) return;
+        if (!isCurrentItem() || !isCurrentStatus()) return;
         if (result.hasConflicts) {
-          const confirmed = await confirm({
-            title: 'Есть конфликты расписания',
-            consequence: <ScheduleConflictList conflicts={result.conflicts} />,
-            confirmLabel: 'Изменить статус',
-          });
-          if (!confirmed || !isCurrentItem()) return;
+          const confirmed = await new Promise<boolean>((resolve) => setConflictPrompt({ conflicts: result.conflicts, isCurrent: isCurrentStatus, resolve }));
+          if (!confirmed || !isCurrentItem() || !isCurrentStatus()) return;
           conflictFingerprint = result.conflictFingerprint;
         }
       }
-      if (!isCurrentItem()) return;
+      if (!isCurrentItem() || !isCurrentStatus()) return;
       const updated = await changeOneTimeOrderStatus(order.id, nextStatus, conflictFingerprint);
       if (!isCurrentItem()) return;
       setDetails(updated);
@@ -330,7 +349,14 @@ export function OneTimeOrderPreviewDrawer({
 
   return (
     <>
-    <AccessSnapshotBoundary blocked={loadedScope !== scope}>{confirmDialog}</AccessSnapshotBoundary>
+    <ConfirmDialog
+      open={conflictPrompt !== null && conflictPrompt.isCurrent()}
+      onOpenChange={(open) => { if (!open) { conflictPrompt?.resolve(false); setConflictPrompt(null); } }}
+      title="Есть конфликты расписания"
+      consequence={conflictPrompt ? <ScheduleConflictList conflicts={conflictPrompt.conflicts} /> : null}
+      confirmLabel="Изменить статус"
+      onConfirm={() => { conflictPrompt?.resolve(conflictPrompt.isCurrent()); setConflictPrompt(null); }}
+    />
     <div className={styles.backdrop} role="presentation" onMouseDown={close}>
       <aside
         className={styles.drawer}

@@ -155,7 +155,6 @@ export class RubberMatsService {
     const objectHistoryScope: Prisma.RubberMatEventWhereInput = {
       rubberMatId: matId,
       OR: [
-        { action: 'registered' },
         { fromObjectId: objectId },
         { toObjectId: objectId },
       ],
@@ -176,10 +175,10 @@ export class RubberMatsService {
       action: event.action,
       fromObjectId: event.fromObjectId === objectId ? event.fromObjectId : null,
       toObjectId: event.toObjectId === objectId ? event.toObjectId : null,
-      fromCondition: event.fromCondition,
-      toCondition: event.toCondition,
-      fromZone: event.fromZone,
-      toZone: event.toZone,
+      fromCondition: event.fromObjectId === objectId ? event.fromCondition : null,
+      toCondition: event.toObjectId === objectId ? event.toCondition : null,
+      fromZone: event.fromObjectId === objectId ? event.fromZone : null,
+      toZone: event.toObjectId === objectId ? event.toZone : null,
       note: event.note,
       occurredAt: event.occurredAt,
       actor: event.actor,

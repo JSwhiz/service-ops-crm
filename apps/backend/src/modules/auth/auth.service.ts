@@ -121,10 +121,12 @@ export class AuthService {
     const safeUser = await this.buildMeResponse(
       this.usersService.sanitizeUser(user),
     );
+    const accessToken = await this.signAccessToken(safeUser);
     const refreshExpiresAt = this.getRefreshExpiresAt();
     const rotatedSession = await this.authSessionsService.rotateSession(
       refreshToken,
       {
+        actor: safeUser,
         expiresAt: refreshExpiresAt,
         meta,
       },
@@ -135,7 +137,7 @@ export class AuthService {
     }
 
     return {
-      accessToken: await this.signAccessToken(safeUser),
+      accessToken,
       refreshToken: rotatedSession.rawToken,
       accessExpiresAt: this.getAccessExpiresAt(),
       refreshExpiresAt,
@@ -143,18 +145,31 @@ export class AuthService {
     };
   }
 
-  async getMe(userId: string): Promise<MeResponseDto> {
+  async assertIssuedSessionCurrent(session: IssuedAuthSession): Promise<void> {
+    if (await this.hasCurrentAccessRevision(session.user)) return;
+    await this.authSessionsService.revokeSessionByRawToken(session.refreshToken);
+    throw new UnauthorizedException("Access changed. Sign in again.");
+  }
+
+  async getMe(userId: string, confirmLogin = false): Promise<MeResponseDto> {
     const user = await this.usersService.findById(userId);
 
     if (!user || !user.isActive) {
       throw new UnauthorizedException("User is not available");
     }
 
-    if (!decideAccess(this.usersService.sanitizeUser(user), 'auth.me', true, {resourceType:'user',resourceId:user.id,ownerUserId:user.id})) {
+    const subject = this.usersService.sanitizeUser(user);
+    const context = { resourceType: "user", resourceId: user.id, ownerUserId: user.id };
+    if (!decideAccess(subject, 'auth.me', true, context) ||
+      (confirmLogin && !decideAccess(subject, 'auth.login', true, context))) {
       throw new UnauthorizedException("User is not available");
     }
 
-    return this.buildMeResponse(this.usersService.sanitizeUser(user));
+    const profile = await this.buildMeResponse(subject);
+    if (!await this.hasCurrentAccessRevision(profile)) {
+      throw new UnauthorizedException("Access changed. Check your permissions again.");
+    }
+    return profile;
   }
 
   async logout(refreshToken?: string): Promise<void> {
@@ -163,6 +178,14 @@ export class AuthService {
     }
 
     await this.authSessionsService.revokeSessionByRawToken(refreshToken);
+  }
+
+  private async hasCurrentAccessRevision(user: MeResponseDto): Promise<boolean> {
+    const actor = await this.prisma.user.findFirst({
+      where: { id: user.id, isActive: true, deletedAt: null },
+      select: { accessVersion: true },
+    });
+    return actor?.accessVersion === user.accessVersion;
   }
 
   private async validatePassword(
@@ -182,14 +205,15 @@ export class AuthService {
   ): Promise<IssuedAuthSession> {
     const accessExpiresAt = this.getAccessExpiresAt();
     const refreshExpiresAt = this.getRefreshExpiresAt();
+    const accessToken = await this.signAccessToken(user);
     const refreshSession = await this.authSessionsService.createSession({
-      userId: user.id,
+      actor: user,
       expiresAt: refreshExpiresAt,
       meta,
     });
 
     return {
-      accessToken: await this.signAccessToken(user),
+      accessToken,
       refreshToken: refreshSession.rawToken,
       accessExpiresAt,
       refreshExpiresAt,

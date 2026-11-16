@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter, useSearchParams } from 'next/navigation';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 import {
   archiveEmployee,
@@ -31,6 +31,9 @@ import { EmployeeScheduleSection } from '@/features/employee-workspace/ui/employ
 import styles from '@/features/employee-workspace/ui/employee-workspace.module.css';
 import { ApiError } from '@/shared/api/fetcher';
 import { useAuth } from '@/shared/auth/use-auth';
+import { useOpenAccessRefresh } from '@/shared/auth/use-open-access-refresh';
+import { useAccessRevision } from '@/shared/auth/use-access-revision';
+import { AccessSnapshotBoundary } from '@/shared/auth/access-snapshot-boundary';
 import { Alert, BackLink, Badge, Button, EmptyState, EntityHeader, FactStrip, IconButton, Skeleton, Surface } from '@/shared/ui/foundation';
 import { ConfirmDialog, ReasonDialog } from '@/shared/ui/overlays';
 import { OverflowMenu, type OverflowMenuItem } from '@/shared/ui/overflow-menu/overflow-menu';
@@ -83,6 +86,7 @@ export default function EmployeeDetailPage({
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user } = useAuth();
+  const accessRevision = useAccessRevision();
   const canAccessEmployeesHr = user?.capabilities?.canAccessEmployeesHr ?? false;
   const requested = normalizeSection(searchParams.get('section'));
 
@@ -91,6 +95,8 @@ export default function EmployeeDetailPage({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState<EmployeeFormValue | null>(null);
+  const [editDocumentBaseline, setEditDocumentBaseline] = useState<Pick<EmployeeFormValue, 'passportReceived' | 'contractReceived'> | undefined>();
+  const [editBaseVersion, setEditBaseVersion] = useState<number | null>(null);
   const [savePending, setSavePending] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [versionConflict, setVersionConflict] = useState(false);
@@ -100,6 +106,31 @@ export default function EmployeeDetailPage({
   const [lifecycleError, setLifecycleError] = useState<string | null>(null);
   const [deleteReason, setDeleteReason] = useState('');
   const [notice, setNotice] = useState<string | null>(null);
+  const [loadedRevision, setLoadedRevision] = useState<string | null>(null);
+  const [loadedParams, setLoadedParams] = useState<typeof params | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
+  const [loadedReloadKey, setLoadedReloadKey] = useState(-1);
+  const itemRef = useRef(item);
+  const editingRef = useRef(isEditing);
+  itemRef.current = item;
+  editingRef.current = isEditing;
+  const fresh = canAccessEmployeesHr && loadedRevision === accessRevision && loadedParams === params && loadedReloadKey === reloadKey && !loadError;
+  useOpenAccessRefresh(item !== null);
+  const previousLifecycleAccess = useRef<{ key: string; revision: string; archive: boolean; restore: boolean } | null>(null);
+  const [revokedLifecycle, setRevokedLifecycle] = useState<{ key: string; archive: boolean; restore: boolean } | null>(null);
+  useEffect(() => {
+    if (!fresh || !item) return;
+    const key = JSON.stringify([user?.id, item.id]);
+    const previous = previousLifecycleAccess.current;
+    if (previous?.key === key && previous.revision !== accessRevision) {
+      setRevokedLifecycle(current => ({ key,
+        archive: !item.capabilities.canArchive && (previous.archive || (current?.key === key && current.archive)),
+        restore: !item.capabilities.canRestore && (previous.restore || (current?.key === key && current.restore)),
+      }));
+    }
+    previousLifecycleAccess.current = { key, revision: accessRevision, archive: item.capabilities.canArchive, restore: item.capabilities.canRestore };
+  }, [fresh, item, user?.id, accessRevision]);
+
 
   const reload = async (id: string): Promise<EmployeeDetail> => {
     const employee = await getEmployeeById(id);
@@ -120,18 +151,24 @@ export default function EmployeeDetailPage({
       .then((employee) => {
         if (cancelled) return;
         setItem(employee);
-        setEditForm(toEmployeeFormValue(employee));
-        if (requested.edit && employee.capabilities.canEdit && !employee.isArchived) setIsEditing(true);
+        setEditForm((current) => editingRef.current && itemRef.current?.id === employee.id && current ? current : toEmployeeFormValue(employee));
+        setLoadedRevision(accessRevision);
+        setLoadedParams(() => params);
+        setLoadedReloadKey(reloadKey);
+        if (requested.edit && employee.capabilities.canEdit && !employee.isArchived && !editingRef.current) { setEditBaseVersion(employee.version); setEditDocumentBaseline(employee); setIsEditing(true); }
       })
-      .catch((error) => {
-        if (!cancelled) setLoadError(errorMessage(error, 'Не удалось загрузить карточку сотрудника.'));
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        setLoadError(error instanceof ApiError && (error.statusCode === 403 || error.statusCode === 404)
+          ? 'Карточка сотрудника недоступна.'
+          : errorMessage(error, 'Не удалось загрузить карточку сотрудника.'));
       })
       .finally(() => {
         if (!cancelled) setIsLoading(false);
       });
     return () => { cancelled = true; };
     // The legacy ?section=edit flag is read once on load.
-  }, [canAccessEmployeesHr, params]);
+  }, [accessRevision, canAccessEmployeesHr, params, reloadKey]);
 
   const isDirty = useMemo(
     () => Boolean(isEditing && item && editForm &&
@@ -155,8 +192,10 @@ export default function EmployeeDetailPage({
   };
 
   const startEditing = (): void => {
-    if (!item) return;
+    if (!item || !fresh || !item.capabilities.canEdit || item.isArchived) return;
     setEditForm(toEmployeeFormValue(item));
+    setEditBaseVersion(item.version);
+    setEditDocumentBaseline(item);
     setSaveError(null);
     setVersionConflict(false);
     setIsEditing(true);
@@ -164,6 +203,7 @@ export default function EmployeeDetailPage({
   };
 
   const runLifecycle = async (action: () => Promise<void>, fallback: string): Promise<void> => {
+    if (!fresh || !item || (lifecycleDialog === 'archive' && !item.capabilities.canArchive) || (lifecycleDialog === 'restore' && !item.capabilities.canRestore) || (lifecycleDialog === 'delete' && !item.capabilities.canDeletePermanently)) return;
     setLifecyclePending(true);
     setLifecycleError(null);
     try {
@@ -183,11 +223,11 @@ export default function EmployeeDetailPage({
     }
   };
 
-  if (!canAccessEmployeesHr) {
+  if (!canAccessEmployeesHr && !item) {
     return <div className={styles.page}><Alert tone="warning">У вас нет доступа к разделу сотрудников.</Alert></div>;
   }
 
-  if (isLoading) {
+  if (isLoading && !item) {
     return (
       <div className={styles.page} aria-busy="true" aria-label="Загрузка">
         <Skeleton width={120} height={14} />
@@ -201,13 +241,13 @@ export default function EmployeeDetailPage({
     );
   }
 
-  if (loadError || !item) {
+  if (!item) {
     return (
       <div className={styles.page}>
         <BackLink href="/employees">Сотрудники</BackLink>
         {loadError ? (
           <Alert tone="danger" title="Карточка не загрузилась"
-            action={<Button size="sm" onClick={() => window.location.reload()}>Повторить</Button>}>
+            action={<Button size="sm" onClick={() => setReloadKey((value) => value + 1)}>Повторить</Button>}>
             {loadError}
           </Alert>
         ) : (
@@ -253,6 +293,8 @@ export default function EmployeeDetailPage({
 
   return (
     <div className={styles.page}>
+      {!fresh ? <Alert tone={loadError || !canAccessEmployeesHr ? 'warning' : 'info'} action={loadError && canAccessEmployeesHr ? <Button size="sm" onClick={() => setReloadKey((value) => value + 1)}>Повторить</Button> : undefined}>{!canAccessEmployeesHr ? 'У вас нет доступа к разделу сотрудников.' : loadError ?? 'Обновляем доступ к карточке сотрудника…'}</Alert> : null}
+      <AccessSnapshotBoundary blocked={!fresh}>
       <BackLink href="/employees">Сотрудники</BackLink>
 
       <div className={styles.headerBlock}>
@@ -290,6 +332,8 @@ export default function EmployeeDetailPage({
         {item.isArchived ? (
           <Alert tone="warning">Карточка в архиве: доступна для просмотра, новые назначения недоступны.</Alert>
         ) : null}
+        {revokedLifecycle?.key === JSON.stringify([user?.id, item.id]) && revokedLifecycle.archive ? <Alert tone="warning" role="status">Архивирование недоступно: нет прав на действие.</Alert> : null}
+        {revokedLifecycle?.key === JSON.stringify([user?.id, item.id]) && revokedLifecycle.restore ? <Alert tone="warning" role="status">Восстановление из архива недоступно: нет прав на действие.</Alert> : null}
         {notice ? <Alert tone="success" role="status">{notice}</Alert> : null}
 
         <FactStrip
@@ -336,18 +380,21 @@ export default function EmployeeDetailPage({
 
       <section role="tabpanel" id="workspace-panel-overview" aria-labelledby="workspace-tab-overview" hidden={activeSection !== 'overview'}>
         {isEditing && editForm ? (
+          <>
+          {!canEdit ? <><Alert tone="warning">Редактирование недоступно. Введённые изменения сохранены в форме до восстановления доступа.</Alert><EmployeeProfileSection item={item} /></> : null}
+          <AccessSnapshotBoundary blocked={!canEdit}>
           <Surface className={styles.formSurface}>
             <form
               onSubmit={async (event) => {
                 event.preventDefault();
-                if (!phoneDraftsValid(editForm.phones)) return;
+                if (!fresh || !canEdit || editBaseVersion === null || savePending || !phoneDraftsValid(editForm.phones)) return;
                 setSavePending(true);
                 setSaveError(null);
                 setVersionConflict(false);
                 try {
                   const updated = await updateEmployee(item.id, {
-                    ...toEmployeeMutationPayload(editForm),
-                    expectedVersion: item.version,
+                    ...toEmployeeMutationPayload(editForm, editDocumentBaseline),
+                    expectedVersion: editBaseVersion,
                   });
                   setItem(updated);
                   setEditForm(toEmployeeFormValue(updated));
@@ -376,9 +423,8 @@ export default function EmployeeDetailPage({
                   className={styles.formAlert}
                   action={versionConflict ? (
                     <Button size="sm" onClick={async () => {
-                      await reload(item.id).catch(() => undefined);
-                      setVersionConflict(false);
-                      setSaveError('Данные обновлены. Проверьте поля и сохраните ещё раз.');
+                      const refreshed = await reload(item.id).catch(() => null);
+                      if (refreshed) { setEditBaseVersion(refreshed.version); setVersionConflict(false); setSaveError('Данные обновлены. Проверьте поля и сохраните ещё раз.'); }
                     }}>Обновить данные</Button>
                   ) : undefined}
                 >
@@ -400,6 +446,8 @@ export default function EmployeeDetailPage({
               </div>
             </form>
           </Surface>
+          </AccessSnapshotBoundary>
+          </>
         ) : (
           <EmployeeProfileSection item={item} />
         )}
@@ -413,6 +461,7 @@ export default function EmployeeDetailPage({
         {activeSection === 'schedule' ? <EmployeeScheduleSection item={item} onItemChange={setItem} /> : null}
       </section>
 
+      <AccessSnapshotBoundary blocked={!caps.canArchive || !item.lifecycleEligibility.archive.eligible}>
       <ConfirmDialog
         open={lifecycleDialog === 'archive'}
         onOpenChange={(open) => { if (!open) setLifecycleDialog(null); }}
@@ -425,7 +474,9 @@ export default function EmployeeDetailPage({
           setItem(await archiveEmployee(item.id, item.version));
         }, 'Не удалось перенести в архив.')}
       />
+      </AccessSnapshotBoundary>
 
+      <AccessSnapshotBoundary blocked={!caps.canRestore}>
       <ConfirmDialog
         open={lifecycleDialog === 'restore'}
         onOpenChange={(open) => { if (!open) setLifecycleDialog(null); }}
@@ -438,7 +489,9 @@ export default function EmployeeDetailPage({
           setItem(await restoreEmployee(item.id, item.version));
         }, 'Не удалось восстановить карточку.')}
       />
+      </AccessSnapshotBoundary>
 
+      <AccessSnapshotBoundary blocked={!caps.canDeletePermanently || !item.lifecycleEligibility.permanentDelete.eligible}>
       <ReasonDialog
         open={lifecycleDialog === 'delete'}
         onOpenChange={(open) => { if (!open) setLifecycleDialog(null); }}
@@ -458,6 +511,8 @@ export default function EmployeeDetailPage({
           }, 'Не удалось удалить карточку.');
         }}
       />
+      </AccessSnapshotBoundary>
+      </AccessSnapshotBoundary>
     </div>
   );
 }

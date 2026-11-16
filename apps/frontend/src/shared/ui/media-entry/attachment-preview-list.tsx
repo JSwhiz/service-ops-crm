@@ -14,6 +14,7 @@ import type {
   FileView,
 } from '@/entities/file/model/file.types';
 import { Button } from '@/shared/ui/foundation';
+import { useAccessRevision } from '@/shared/auth/use-access-revision';
 import { OverflowMenu, type OverflowMenuItem } from '@/shared/ui/overflow-menu/overflow-menu';
 import { FileViewer } from './file-viewer';
 import { formatFileTypeLabel } from './file-viewer-presentation';
@@ -49,6 +50,8 @@ function AttachmentPreviewCard({
   getFileState?: (file: FilePreviewItem) => 'pending-removal' | null | undefined;
   onOpenGallery: (fileId: string) => void;
 }): React.JSX.Element {
+  const accessRevision = useAccessRevision();
+  const [loadedAccessRevision, setLoadedAccessRevision] = useState<string | null>(null);
   const [view, setView] = useState<FileView | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
   const [pollingRun, setPollingRun] = useState(0);
@@ -57,11 +60,17 @@ function AttachmentPreviewCard({
   const actionsTriggerRef = useRef<HTMLButtonElement | null>(null);
   const viewerUrl = buildFileViewerUrl(file.id);
   const downloadUrl = buildFileDownloadUrl(file.id);
+  // Metadata/read access alone is not download or preview-retry permission.
+  // Missing capabilities and failed metadata refreshes fail closed.
+  const currentView = loadedAccessRevision === accessRevision && view?.id === file.id && !loadFailed ? view : null;
+  const canDownload = currentView?.capabilities?.canDownload === true;
+  const canRetryPreview = currentView?.capabilities?.canPreview === true &&
+    currentView.capabilities.canRetryPreview === true;
   const fileState = getFileState?.(file);
   const fileActions: OverflowMenuItem[] = [
     { key: 'open', label: 'Открыть', onSelect: () => onOpenGallery(file.id) },
     ...(getFileActions?.(file) ?? []),
-    { key: 'download', label: 'Скачать', onSelect: () => { window.location.assign(downloadUrl); } },
+    ...(canDownload ? [{ key: 'download', label: 'Скачать', onSelect: () => { window.location.assign(downloadUrl); } }] : []),
   ];
 
   const openContextActions = (event: React.MouseEvent<HTMLElement>): void => {
@@ -93,6 +102,7 @@ function AttachmentPreviewCard({
         }
 
         setView(nextView);
+        setLoadedAccessRevision(accessRevision);
         setLoadFailed(false);
 
         if (
@@ -119,14 +129,15 @@ function AttachmentPreviewCard({
         window.clearTimeout(timeoutId);
       }
     };
-  }, [file.id, pollingRun]);
+  }, [file.id, pollingRun, accessRevision]);
 
   const handleRetry = async (): Promise<void> => {
+    if (!canRetryPreview || isRetrying) return;
     setIsRetrying(true);
     setLoadFailed(false);
 
     try {
-      setView(await retryFilePreview(file.id));
+      await retryFilePreview(file.id);
       setPollingRun((current) => current + 1);
     } catch {
       setLoadFailed(true);
@@ -136,12 +147,22 @@ function AttachmentPreviewCard({
   };
 
   const isImage = view?.previewType === 'image';
-  const thumbnailUrl = view?.thumbnailUrl
-    ? resolveFileApiUrl(view.thumbnailUrl)
+  const thumbnailUrl = currentView?.capabilities?.canPreview === true && currentView.thumbnailUrl
+    ? resolveFileApiUrl(currentView.thumbnailUrl)
     : null;
   const originalInlineUrl = resolveFileApiUrl(
     `/api/v1/files/${file.id}/content`,
   );
+  let statusText = 'Проверяем доступ к файлу…';
+  if (loadFailed) statusText = 'Статус предпросмотра недоступен';
+  else if (currentView) {
+    if (!currentView.capabilities) statusText = 'Доступность действий с файлом не определена';
+    else if (!currentView.capabilities.canPreview) statusText = 'Предпросмотр ограничен настройками доступа';
+    else if (currentView.previewType === 'unsupported') statusText = canDownload ? 'Только скачивание' : 'Предпросмотр этого формата недоступен';
+    else if (currentView.previewStatus === 'pending' || currentView.previewStatus === 'processing') statusText = 'Предпросмотр формируется';
+    else if (currentView.previewStatus === 'failed' || thumbnailFailed && !canDownload) statusText = 'Предпросмотр недоступен';
+    else if (currentView.previewStatus === 'ready') statusText = 'Предпросмотр';
+  }
 
   if (isImage) {
     return (
@@ -160,7 +181,7 @@ function AttachmentPreviewCard({
             }
           }}
         >
-          {thumbnailUrl ? (
+          {thumbnailUrl && (!thumbnailFailed || canDownload) ? (
             <img
               className={fileState === 'pending-removal' ? compactStyles.pendingRemovalImage : undefined}
               width={320}
@@ -173,9 +194,7 @@ function AttachmentPreviewCard({
             />
           ) : (
             <span className={mediaStyles.attachmentPreviewSkeleton}>
-              {view?.previewStatus === 'failed'
-                ? 'Предпросмотр недоступен'
-                : 'Формируется превью…'}
+              {statusText}
             </span>
           )}
         </a>
@@ -185,7 +204,7 @@ function AttachmentPreviewCard({
           <OverflowMenu items={fileActions} triggerLabel={`Действия с файлом: ${file.originalName}`} triggerRef={actionsTriggerRef} />
         </div>
         {fileState === 'pending-removal' ? <span className={compactStyles.fileState} role="status">Ожидает удаления</span> : null}
-        {view?.previewStatus === 'failed' &&
+        {canRetryPreview && view?.previewStatus === 'failed' &&
         view.previewType !== 'unsupported' ? (
           <button
             type="button"
@@ -198,18 +217,6 @@ function AttachmentPreviewCard({
       </div>
     );
   }
-
-  const statusText = loadFailed
-    ? 'Статус предпросмотра недоступен'
-    : view?.previewStatus === 'pending' || view?.previewStatus === 'processing'
-      ? 'Предпросмотр формируется'
-      : view?.previewStatus === 'failed'
-        ? 'Предпросмотр недоступен'
-        : view?.previewType === 'unsupported'
-          ? 'Только скачивание'
-          : view?.previewStatus === 'ready'
-            ? 'Предпросмотр'
-            : 'Проверяем формат…';
 
   return (
     <div className="attachment-file-card" onContextMenu={openContextActions} onKeyDown={openKeyboardActions}>
@@ -237,7 +244,7 @@ function AttachmentPreviewCard({
           Открыть
         </a>
         <OverflowMenu items={fileActions} triggerLabel={`Действия с файлом: ${file.originalName}`} triggerRef={actionsTriggerRef} />
-        {view?.previewStatus === 'failed' &&
+        {canRetryPreview && view?.previewStatus === 'failed' &&
         view.previewType !== 'unsupported' ? (
           <button
             type="button"

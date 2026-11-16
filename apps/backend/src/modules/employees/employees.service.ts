@@ -6,6 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { lockActorAccessRevision } from '../../common/access/lock-actor-access-revision';
 import type { AccessSubject } from '../users-access/types/access-policy.type';
 import { decideAccess, hasModuleDeny } from '../users-access/utils/access-policy.util';
 import { employeeAction, employeeObjectDenyWhere, employeePolicyWhere } from './utils/employee-policy.util';
@@ -456,6 +457,7 @@ export class EmployeesService {
     });
 
     const employeeId = await this.prisma.$transaction(async (tx) => {
+      await lockActorAccessRevision(tx, currentUser);
       const employee = await tx.employee.create({
         data: {
           fullName: payload.fullName,
@@ -475,6 +477,9 @@ export class EmployeesService {
         },
       });
 
+      // The endpoint returns a full Employee card. Reject unreadable creation
+      // inside the transaction, not through the guarded post-commit GET.
+      this.assertViewAccess(currentUser, employee.id);
       await this.auditService.writeAuditEvent(
         {
           entityType: 'employee',
@@ -505,6 +510,11 @@ export class EmployeesService {
         : this.parseBirthDate(payload.birthDate);
 
     await this.prisma.$transaction(async (tx) => {
+      // Use the same employee -> actor -> child-row order as archive/restore.
+      await tx.$queryRaw`
+        SELECT "id" FROM "employees" WHERE "id" = ${employeeId} FOR UPDATE
+      `;
+      await lockActorAccessRevision(tx, currentUser);
       const existing = await tx.employee.findUnique({
         where: { id: employeeId },
       });
@@ -618,6 +628,7 @@ export class EmployeesService {
         WHERE "id" = ${employeeId}
         FOR UPDATE
       `;
+      await lockActorAccessRevision(tx, currentUser);
 
       const existing = await tx.employee.findUnique({
         where: { id: employeeId },
@@ -703,6 +714,7 @@ export class EmployeesService {
         WHERE "id" = ${employeeId}
         FOR UPDATE
       `;
+      await lockActorAccessRevision(tx, currentUser);
 
       const existing = await tx.employee.findUnique({
         where: { id: employeeId },
@@ -787,16 +799,37 @@ export class EmployeesService {
       });
     }
 
-    await this.prisma.employeeAvailabilityWindow.create({
-      data: {
-        employeeId,
-        startDate,
-        endDate,
-        availabilityMode: payload.availabilityMode,
-        availabilityStatus: payload.availabilityStatus,
-        comment: payload.comment?.trim() || null,
-        createdByUserId: currentUser.id,
-      },
+    await this.prisma.$transaction(async (tx) => {
+      // Use the same employee -> actor -> child-row order as archive/restore.
+      await tx.$queryRaw`
+        SELECT "id" FROM "employees" WHERE "id" = ${employeeId} FOR UPDATE
+      `;
+      await lockActorAccessRevision(tx, currentUser);
+      const created = await tx.employeeAvailabilityWindow.create({
+        data: {
+          employeeId,
+          startDate,
+          endDate,
+          availabilityMode: payload.availabilityMode,
+          availabilityStatus: payload.availabilityStatus,
+          comment: payload.comment?.trim() || null,
+          createdByUserId: currentUser.id,
+        },
+      });
+      await this.auditService.writeAuditEvent({
+        entityType: 'employee',
+        entityId: employeeId,
+        actorUserId: currentUser.id,
+        action: 'employee.availability.created',
+        newValues: {
+          availabilityWindowId: created.id,
+          startDate: created.startDate.toISOString(),
+          endDate: created.endDate?.toISOString() ?? null,
+          availabilityMode: created.availabilityMode,
+          availabilityStatus: created.availabilityStatus,
+          comment: created.comment,
+        },
+      }, tx);
     });
 
     return this.getEmployeeById(currentUser, employeeId);
@@ -947,6 +980,7 @@ export class EmployeesService {
       await tx.$queryRaw`
         SELECT "id" FROM "employees" WHERE "id" = ${employeeId} FOR UPDATE
       `;
+      await lockActorAccessRevision(tx, currentUser);
       const [employee, object, existingAssignment] = await Promise.all([
         tx.employee.findFirst({
           where: { id: employeeId, deletedAt: null },
@@ -1028,6 +1062,11 @@ export class EmployeesService {
     const endedAt = new Date();
 
     await this.prisma.$transaction(async (tx) => {
+      // Use the same employee -> actor -> child-row order as archive/restore.
+      await tx.$queryRaw`
+        SELECT "id" FROM "employees" WHERE "id" = ${employeeId} FOR UPDATE
+      `;
+      await lockActorAccessRevision(tx, currentUser);
       const locked = await tx.$queryRaw<Array<{ id: string }>>`
         SELECT "id"
         FROM "object_employee_assignments"
@@ -1100,6 +1139,7 @@ export class EmployeesService {
       await tx.$queryRaw`
         SELECT "id" FROM "employees" WHERE "id" = ${employeeId} FOR UPDATE
       `;
+      await lockActorAccessRevision(tx, currentUser);
       const initialHistory =
         await tx.employeeObjectAssignmentHistory.findFirst({
           where: { id: historyId, employeeId },
@@ -1228,6 +1268,7 @@ export class EmployeesService {
       await tx.$queryRaw`
         SELECT "id" FROM "employees" WHERE "id" = ${employeeId} FOR UPDATE
       `;
+      await lockActorAccessRevision(tx, currentUser);
       const employee = await tx.employee.findUnique({ where: { id: employeeId } });
       if (!employee) throw new NotFoundException('Employee not found');
       if (employee.version !== payload.expectedVersion) {

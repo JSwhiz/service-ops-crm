@@ -1,16 +1,15 @@
 import { ForbiddenException, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import { delegatedObjectIds } from '../user-substitutions/object-delegation.context';
 
 import { buildCandidateAccessWhere, canViewCandidates } from '../candidates/utils/candidate-access.util';
 import { candidatePhoneSearchDigits } from '../candidates/utils/candidate-phone.util';
 import { canViewCounterparties } from '../counterparties/utils/counterparty-access.util';
 import { canViewEmployeesHr } from '../employees/utils/employee-hr-access.util';
 import { canAccessEquipment } from '../equipment/utils/equipment-access.util';
+import { equipmentPolicyWhere } from '../equipment/utils/equipment-policy.util';
 import { canAccessInventory } from '../inventory/utils/inventory-access.util';
 import {
-  hasHrObjectView,
-  hasWideObjectAccess,
+  buildObjectBasicProfileAccessWhere,
 } from '../objects/utils/object-access.util';
 import {
   buildOneTimeOrderAccessWhere,
@@ -288,7 +287,7 @@ export class SearchService {
                 select: { name: true },
                 take: 3,
               },
-              _count: { select: { objects: true } },
+              _count: { select: { objects: { where: access.objectWhere } } },
             },
             orderBy: [{ updatedAt: 'desc' }, { id: 'asc' }],
             take: candidateTake,
@@ -546,7 +545,7 @@ export class SearchService {
               contactName: true,
               contactPhone: true,
               status: true,
-              _count: { select: { objects: true } },
+              _count: { select: { objects: { where: access.objectWhere } } },
             },
           })
         : Promise.resolve([]),
@@ -606,25 +605,12 @@ export class SearchService {
       : [currentUser.roleCode];
     const permissionCodes = currentUser.permissionCodes ?? [];
 
-    const objectWhere: Prisma.ObjectWhereInput =
-      hasWideObjectAccess(roleCodes) || hasHrObjectView(permissionCodes)
-        ? {}
-        : {
-            OR: [
-              { id: { in: delegatedObjectIds(currentUser.id) } },
-              { createdByUserId: currentUser.id },
-              {
-                assignments: {
-                  some: { userId: currentUser.id, isActive: true },
-                },
-              },
-            ],
-          };
+    const objectWhere = buildObjectBasicProfileAccessWhere({ subject: currentUser, roleCodes, permissionCodes });
 
     return {
       roleCodes,
       permissionCodes,
-      objectWhere: this.accessWhere(currentUser, 'objects.read', objectWhere, 'object'),
+      objectWhere,
       candidateWhere: this.accessWhere(currentUser, 'candidates.view', canViewCandidates(permissionCodes) ? buildCandidateAccessWhere(currentUser) : { id: { in: [] } }, 'candidate'),
       taskWhere: taskVisibilityWhere(currentUser, buildTaskAccessWhere({
         currentUserId: currentUser.id,
@@ -638,7 +624,7 @@ export class SearchService {
       employeeWhere: this.accessWhere(currentUser, 'employees.view', canViewEmployeesHr(permissionCodes) ? {} : { id: { in: [] } }, 'employee'),
       counterpartyWhere: this.accessWhere(currentUser, 'counterparties.read', canViewCounterparties(permissionCodes) ? {} : { id: { in: [] } }, 'counterparty'),
       inventoryWhere: this.accessWhere(currentUser, 'inventory.read', canAccessInventory(roleCodes) ? {} : { id: { in: [] } }, 'inventory_item'),
-      equipmentWhere: this.accessWhere(currentUser, 'equipment.read', canAccessEquipment(roleCodes) ? {} : { id: { in: [] } }, 'equipment_unit'),
+      equipmentWhere: equipmentPolicyWhere(currentUser, canAccessEquipment(roleCodes) ? {} : { id: { in: [] } }),
       // All categories are filtered in the database, including scoped grants.
       // A boolean evaluated without a resource would incorrectly hide those grants.
       canSearchOrders: true,

@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { AccessSubject } from '../users-access/types/access-policy.type';
 import { CreateOrderInventoryIssueDto } from './dto/create-order-inventory-issue.dto';
-import { OrderInventoryIssueResponseDto } from './dto/order-inventory-issue-response.dto';
+import type { OrderInventoryIssueResponseDto, OrderInventoryIssueResult } from './dto/order-inventory-issue-response.dto';
 import { OrderInventoryResponseDto } from './dto/order-inventory-response.dto';
 import { InventoryService } from './inventory.service';
 
@@ -26,7 +26,7 @@ export class ScopedOneTimeInventoryService {
     return this.inventoryService.listOneTimeOrderInventory(user, orderId);
   }
 
-  issueToOrder(user: CurrentAuthUser, orderId: string, payload: CreateOrderInventoryIssueDto): Promise<OrderInventoryIssueResponseDto> {
+  issueToOrder(user: CurrentAuthUser, orderId: string, payload: CreateOrderInventoryIssueDto): Promise<OrderInventoryIssueResult> {
     return this.inventoryService.createOneTimeOrderIssueMovement(user, orderId, payload);
   }
 }

@@ -6,6 +6,7 @@ import type { OneTimeOrderDailyReportItem } from '@/entities/one-time-order/mode
 import { getUserDisplayName } from '@/shared/lib/display-name';
 import { AttachmentPreviewList } from '@/shared/ui/media-entry/attachment-preview-list';
 import { MediaActionPicker } from '@/shared/ui/media-entry/media-action-picker';
+import { AccessSnapshotBoundary } from '@/shared/auth/access-snapshot-boundary';
 import { PendingMediaList } from '@/shared/ui/media-entry/pending-media-list';
 import { Alert, Button, Field, Stack, Surface } from '@/shared/ui/foundation';
 import styles from './one-time-order-daily-report-panel.module.css';
@@ -50,7 +51,7 @@ export function OneTimeOrderDailyReportPanel({
         </div>
       )}
 
-      {canEdit ? <form
+      <AccessSnapshotBoundary blocked={!canEdit}><form
         className="ui-stack ui-stack--lg"
         onSubmit={async (event) => {
           event.preventDefault();
@@ -84,7 +85,7 @@ export function OneTimeOrderDailyReportPanel({
           <div className="ui-text-muted">Фото и файлы отчёта</div>
           <MediaActionPicker
             compactMenu
-            disabled={isSubmitting}
+            disabled={isSubmitting || !canEdit}
             onPick={async (file) => {
               setPendingFiles((prev) => [...prev, file]);
             }}
@@ -122,7 +123,8 @@ export function OneTimeOrderDailyReportPanel({
             {item ? 'Обновить отчёт' : 'Сохранить отчёт'}
           </Button>
         </div>
-      </form> : item ? <Stack gap="sm">
+      </form></AccessSnapshotBoundary>
+      {!canEdit && item ? <Stack gap="sm">
         <div className={styles.content}>{item.content || 'Без текста'}</div>
         <AttachmentPreviewList files={item.attachments} emptyText="Вложений у отчёта пока нет." />
       </Stack> : null}

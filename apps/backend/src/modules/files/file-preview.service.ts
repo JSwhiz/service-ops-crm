@@ -5,8 +5,11 @@ import {
   OnModuleInit,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import type { FileDerivative } from '@prisma/client';
+import type { FileDerivative, Prisma } from '@prisma/client';
+import type { AccessSubject } from '../users-access/types/access-policy.type';
+import { lockActorAccessRevision } from '../../common/access/lock-actor-access-revision';
 import { spawn } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import sharp from 'sharp';
@@ -106,22 +109,9 @@ export class FilePreviewService implements OnModuleInit, OnModuleDestroy {
       return null;
     }
 
-    let derivative = await this.prisma.fileDerivative.upsert({
-      where: {
-        fileId_derivativeType: {
-          fileId: file.id,
-          derivativeType,
-        },
-      },
-      update: {},
-      create: {
-        fileId: file.id,
-        derivativeType,
-        status: 'pending',
-      },
-    });
-
-    derivative = await this.recoverStaleDerivative(derivative);
+    const derivative = await this.recoverStaleDerivative(
+      await this.getOrCreateDerivative(file.id, derivativeType),
+    );
 
     if (
       derivative.status === 'pending' &&
@@ -133,52 +123,51 @@ export class FilePreviewService implements OnModuleInit, OnModuleDestroy {
     return derivative;
   }
 
-  async retryPreview(file: PreviewFile): Promise<void> {
+  async retryPreview(
+    file: PreviewFile,
+    actor: AccessSubject,
+    authorize: (tx: Prisma.TransactionClient) => Promise<void>,
+  ): Promise<void> {
     const derivativeType = getDerivativeType(file.mimeType);
+    if (!derivativeType) return;
 
-    if (!derivativeType) {
-      return;
-    }
-
-    const derivative = await this.prisma.fileDerivative.upsert({
-      where: {
-        fileId_derivativeType: {
-          fileId: file.id,
-          derivativeType,
+    const shouldEnqueue = await this.prisma.$transaction(async (tx) => {
+      await lockActorAccessRevision(tx, actor);
+      // Membership, assignments and delegation can change without an actor
+      // revision. Authorize under source locks before even creating a derivative.
+      await authorize(tx);
+      const derivative = await this.getOrCreateDerivative(file.id, derivativeType, tx);
+      await tx.$queryRaw`SELECT "id" FROM "file_derivatives" WHERE "id" = ${derivative.id} FOR UPDATE`;
+      // A worker may have held the derivative row across delegation expiry.
+      // Keep source locks and recheck time-dependent authority before resetting.
+      await authorize(tx);
+      // A pending job is already an accepted retry; fresh processing/ready is
+      // not another retry intent. Compare the captured state before resetting.
+      if (derivative.status !== 'failed' &&
+          !(derivative.status === 'processing' && this.isStale(derivative))) return false;
+      const reset = await tx.fileDerivative.updateMany({
+        where: { id: derivative.id, status: derivative.status, updatedAt: derivative.updatedAt },
+        data: {
+          status: 'pending', errorMessage: null, processingStartedAt: null,
+          attemptCount: 0, lastAttemptAt: null,
         },
-      },
-      update: {},
-      create: {
-        fileId: file.id,
-        derivativeType,
-        status: 'pending',
-      },
+      });
+      return reset.count === 1;
     });
+    if (shouldEnqueue) await this.enqueue({ fileId: file.id, derivativeType });
+  }
 
-    if (
-      derivative.status === 'ready' ||
-      (derivative.status === 'processing' && !this.isStale(derivative))
-    ) {
-      return;
-    }
+  private async getOrCreateDerivative(fileId: string, derivativeType: FileDerivativeType, database: Prisma.TransactionClient = this.prisma): Promise<FileDerivative> {
+    const where = { fileId_derivativeType: { fileId, derivativeType } };
+    const existing = await database.fileDerivative.findUnique({ where });
+    if (existing) return existing;
 
-    const reset = await this.prisma.fileDerivative.updateMany({
-      where: {
-        id: derivative.id,
-        status: { in: ['failed', 'pending', 'processing'] },
-      },
-      data: {
-        status: 'pending',
-        errorMessage: null,
-        processingStartedAt: null,
-        attemptCount: 0,
-        lastAttemptAt: null,
-      },
+    // Concurrent first opens share a single pending row.
+    await database.fileDerivative.createMany({
+      data: { fileId, derivativeType, status: 'pending' },
+      skipDuplicates: true,
     });
-
-    if (reset.count === 1) {
-      await this.enqueue({ fileId: file.id, derivativeType }, true);
-    }
+    return database.fileDerivative.findUniqueOrThrow({ where });
   }
 
   private async recoverPreviewJobs(): Promise<void> {
@@ -252,7 +241,6 @@ export class FilePreviewService implements OnModuleInit, OnModuleDestroy {
           fileId: derivative.fileId,
           derivativeType: derivative.derivativeType as FileDerivativeType,
         },
-        true,
       );
     }
   }
@@ -298,24 +286,22 @@ export class FilePreviewService implements OnModuleInit, OnModuleDestroy {
     return new Date(Date.now() - this.staleThresholdMs);
   }
 
-  private async enqueue(job: PreviewJob, force = false): Promise<void> {
+  private async enqueue(job: PreviewJob): Promise<void> {
     const lockKey = `service-ops:file-preview:queued:${job.fileId}:${job.derivativeType}`;
-
-    if (force) {
-      await this.redisService.getClient().del(lockKey);
-    }
-
-    const locked = await this.redisService
-      .getClient()
-      .set(lockKey, '1', { NX: true, EX: 600 });
-
-    if (locked !== 'OK') {
-      return;
-    }
-
-    await this.redisService
-      .getClient()
-      .rPush(this.queueName, JSON.stringify(job));
+    // Preserve an existing queued winner. Key reservation and list append are
+    // one Redis operation, so a missing reply cannot create an orphan key or
+    // invite a second caller to delete a job that was actually accepted.
+    await this.redisService.getClient().eval(`
+      local queueType = redis.call('TYPE', KEYS[2]).ok
+      if queueType ~= 'none' and queueType ~= 'list' then
+        return redis.error_reply('File preview queue is not a list')
+      end
+      if redis.call('SET', KEYS[1], '1', 'NX', 'EX', 600) then
+        redis.call('RPUSH', KEYS[2], ARGV[1])
+        return 1
+      end
+      return 0
+    `, { keys: [lockKey, this.queueName], arguments: [JSON.stringify(job)] });
   }
 
   private async runWorkerLoop(): Promise<void> {
@@ -343,6 +329,7 @@ export class FilePreviewService implements OnModuleInit, OnModuleDestroy {
     const lockKey = `service-ops:file-preview:queued:${job.fileId}:${job.derivativeType}`;
     await this.redisService.getClient().del(lockKey);
 
+    const processingStartedAt = new Date();
     const claim = await this.prisma.fileDerivative.updateMany({
       where: {
         fileId: job.fileId,
@@ -352,8 +339,8 @@ export class FilePreviewService implements OnModuleInit, OnModuleDestroy {
       data: {
         status: 'processing',
         errorMessage: null,
-        processingStartedAt: new Date(),
-        lastAttemptAt: new Date(),
+        processingStartedAt,
+        lastAttemptAt: processingStartedAt,
         attemptCount: { increment: 1 },
       },
     });
@@ -378,17 +365,17 @@ export class FilePreviewService implements OnModuleInit, OnModuleDestroy {
       }
 
       if (job.derivativeType === IMAGE_THUMBNAIL_DERIVATIVE) {
-        await this.createImageThumbnail(file);
+        await this.createImageThumbnail(file, processingStartedAt);
       } else if (job.derivativeType === PDF_PREVIEW_DERIVATIVE) {
-        await this.createOfficePdf(file);
+        await this.createOfficePdf(file, processingStartedAt);
       }
     } catch (error) {
-      await this.prisma.fileDerivative.update({
+      await this.prisma.fileDerivative.updateMany({
         where: {
-          fileId_derivativeType: {
-            fileId: job.fileId,
-            derivativeType: job.derivativeType,
-          },
+          fileId: job.fileId,
+          derivativeType: job.derivativeType,
+          status: 'processing',
+          processingStartedAt,
         },
         data: {
           status: 'failed',
@@ -399,7 +386,7 @@ export class FilePreviewService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  private async createImageThumbnail(file: PreviewFile): Promise<void> {
+  private async createImageThumbnail(file: PreviewFile, processingStartedAt: Date): Promise<void> {
     const source = await this.storageService.downloadObject(file.objectKey);
     const thumbnailPromise = sharp(source.body, {
       failOn: 'error',
@@ -419,21 +406,8 @@ export class FilePreviewService implements OnModuleInit, OnModuleDestroy {
       20_000,
       'Image thumbnail generation timed out',
     );
-    const objectKey = `derivatives/${file.id}/thumbnail.webp`;
-    await this.storageService.uploadObject({
-      objectKey,
-      body: result.data,
-      contentType: 'image/webp',
-      contentLength: result.data.length,
-    });
-    await this.prisma.fileDerivative.update({
-      where: {
-        fileId_derivativeType: {
-          fileId: file.id,
-          derivativeType: IMAGE_THUMBNAIL_DERIVATIVE,
-        },
-      },
-      data: {
+    const objectKey = `derivatives/${file.id}/${randomUUID()}/thumbnail.webp`;
+    await this.publishDerivative(file.id, IMAGE_THUMBNAIL_DERIVATIVE, processingStartedAt, objectKey, {
         status: 'ready',
         processingStartedAt: null,
         objectKey,
@@ -442,11 +416,10 @@ export class FilePreviewService implements OnModuleInit, OnModuleDestroy {
         width: result.info.width,
         height: result.info.height,
         errorMessage: null,
-      },
-    });
+    }, result.data);
   }
 
-  private async createOfficePdf(file: PreviewFile): Promise<void> {
+  private async createOfficePdf(file: PreviewFile, processingStartedAt: Date): Promise<void> {
     const extension = OFFICE_FILE_EXTENSIONS[file.mimeType];
 
     if (!extension) {
@@ -471,21 +444,8 @@ export class FilePreviewService implements OnModuleInit, OnModuleDestroy {
       }
 
       const pdf = await readFile(join(directory, outputName));
-      const objectKey = `derivatives/${file.id}/preview.pdf`;
-      await this.storageService.uploadObject({
-        objectKey,
-        body: pdf,
-        contentType: 'application/pdf',
-        contentLength: pdf.length,
-      });
-      await this.prisma.fileDerivative.update({
-        where: {
-          fileId_derivativeType: {
-            fileId: file.id,
-            derivativeType: PDF_PREVIEW_DERIVATIVE,
-          },
-        },
-        data: {
+      const objectKey = `derivatives/${file.id}/${randomUUID()}/preview.pdf`;
+      await this.publishDerivative(file.id, PDF_PREVIEW_DERIVATIVE, processingStartedAt, objectKey, {
           status: 'ready',
           processingStartedAt: null,
           objectKey,
@@ -494,11 +454,47 @@ export class FilePreviewService implements OnModuleInit, OnModuleDestroy {
           width: null,
           height: null,
           errorMessage: null,
-        },
-      });
+      }, pdf);
     } finally {
       await rm(directory, { recursive: true, force: true });
     }
+  }
+
+  private async publishDerivative(
+    fileId: string,
+    derivativeType: FileDerivativeType,
+    processingStartedAt: Date,
+    objectKey: string,
+    data: Pick<FileDerivative, 'status' | 'processingStartedAt' | 'objectKey' | 'mimeType' | 'sizeBytes' | 'width' | 'height' | 'errorMessage'> & { mimeType: string },
+    body: Buffer,
+  ): Promise<void> {
+    const lockKey = `file-preview-publication:${fileId}:${derivativeType}`;
+    try {
+      await this.storageService.uploadObject({ objectKey, body, contentType: data.mimeType, contentLength: body.length });
+      const published = await this.prisma.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))::text`;
+        const update = await tx.fileDerivative.updateMany({
+          where: { fileId, derivativeType, status: 'processing', processingStartedAt },
+          data,
+        });
+        return update.count === 1;
+      });
+      if (published) return;
+    } catch (error) {
+      await this.discardUnreferencedDerivative(lockKey, objectKey);
+      throw error;
+    }
+    await this.discardUnreferencedDerivative(lockKey, objectKey);
+  }
+
+  private async discardUnreferencedDerivative(lockKey: string, objectKey: string): Promise<void> {
+    // A unique attempt key cannot overwrite another generation. Reacquire the
+    // publication lock before deciding whether an uncertain commit owns it.
+    await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))::text`;
+      const referenced = await tx.fileDerivative.findFirst({ where: { objectKey }, select: { id: true } });
+      if (!referenced) await this.storageService.deleteObject(objectKey);
+    });
   }
 
   private runLibreOffice(inputPath: string, outputDirectory: string): Promise<void> {

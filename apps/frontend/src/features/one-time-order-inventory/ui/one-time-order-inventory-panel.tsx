@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { AccessSnapshotBoundary } from '@/shared/auth/access-snapshot-boundary';
 
 import type { InventoryMovement, InventoryItem } from '@/entities/inventory/model/inventory.types';
 import { getUserDisplayName } from '@/shared/lib/display-name';
@@ -13,6 +14,7 @@ import { Surface } from '@/shared/ui/foundation';
 import { OneTimeOrderInventoryIssueForm, type OrderInventoryIssueInput } from './one-time-order-inventory-issue-form';
 
 export function OneTimeOrderInventoryPanel({
+  orderId,
   items,
   availableItems,
   canIssue,
@@ -20,10 +22,11 @@ export function OneTimeOrderInventoryPanel({
   onAttachEvidence,
   onRefresh,
 }: {
+  orderId: string;
   items: InventoryMovement[];
   availableItems: InventoryItem[];
   canIssue: boolean;
-  onIssue: (input: OrderInventoryIssueInput) => Promise<string>;
+  onIssue: (input: OrderInventoryIssueInput, hasPendingPhotos: boolean) => Promise<string | null>;
   onAttachEvidence: (movementId: string, files: File[]) => Promise<void>;
   onRefresh: () => Promise<void>;
 }): React.JSX.Element {
@@ -39,7 +42,7 @@ export function OneTimeOrderInventoryPanel({
         <strong>{items.length}</strong>
       </div>
 
-      {canIssue ? <OneTimeOrderInventoryIssueForm availableItems={availableItems} onIssue={onIssue} onAttachEvidence={onAttachEvidence} onRefresh={onRefresh} /> : null}
+      <AccessSnapshotBoundary blocked={!canIssue}><OneTimeOrderInventoryIssueForm orderId={orderId} availableItems={availableItems} onIssue={onIssue} onAttachEvidence={onAttachEvidence} onRefresh={onRefresh} /></AccessSnapshotBoundary>
 
       {items.length === 0 ? (
         <div className="ui-text-muted">Движений расходников по заказу пока нет.</div>

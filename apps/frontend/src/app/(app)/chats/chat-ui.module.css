@@ -659,6 +659,8 @@
   margin-bottom: 0;
 }
 .workspace .roomIdentity {
+  flex: 1 1 0%;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -680,8 +682,18 @@
   max-width: 100%;
 }
 .workspace .roomIdentity :global(.ui-section-subtitle) {
+  overflow: hidden;
+  white-space: nowrap;
   font-size: 12px;
   font-weight: 400;
+}
+.workspace .roomIdentity :global(.ui-section-subtitle) > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.workspace .chatHeaderMain {
+  flex: 1 1 0%;
 }
 .workspace .chatHeaderMain,
 .workspace .chatHeaderMain > div {

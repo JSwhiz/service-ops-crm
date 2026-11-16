@@ -1,4 +1,4 @@
-import { fetcher } from '@/shared/api/fetcher';
+import { fetcher, postCommittedWrite } from '@/shared/api/fetcher';
 import { appConfig } from '@/shared/config/app-config';
 
 import type { AttachedFile, FileView } from '../model/file.types';
@@ -67,10 +67,8 @@ export async function uploadFileBatch(params: {
   return results;
 }
 
-export async function retryFilePreview(fileId: string): Promise<FileView> {
-  return fetcher<FileView>(`/files/${fileId}/preview/retry`, {
-    method: 'POST',
-  });
+export async function retryFilePreview(fileId: string): Promise<void> {
+  await postCommittedWrite<unknown>(`/files/${fileId}/preview/retry`, {});
 }
 
 export function resolveFileApiUrl(path: string): string {

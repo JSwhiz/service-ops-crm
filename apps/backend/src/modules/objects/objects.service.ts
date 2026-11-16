@@ -6,7 +6,13 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { lockActorAccessRevision } from '../../common/access/lock-actor-access-revision';
+import { projectCommittedWrite, type SavedWithoutAccess } from '../../common/access/project-committed-write';
+import { loadAccessSubject } from '../../common/access/notification-access';
+import { objectDelegationContext, type ObjectDelegationGrant } from '../user-substitutions/object-delegation.context';
+import { resolveObjectDelegationGrants } from '../user-substitutions/resolve-object-delegation-grants.util';
 import { decideAccess } from '../users-access/utils/access-policy.util';
+import { canEnterAccessModule } from '../users-access/utils/access-summary.util';
 
 import { ApprovalRequestResponseDto } from '../approvals/dto/approval-request-response.dto';
 import {
@@ -26,6 +32,8 @@ import { getScheduleConfigurationError } from '../timesheets/utils/russian-produ
 
 import { ChangeObjectStatusDto } from './dto/change-object-status.dto';
 import { CreateObjectDto } from './dto/create-object.dto';
+import { ObjectCreateCapabilitiesDto } from './dto/object-create-capabilities.dto';
+import { canManageEmployeeAssignments, canViewEmployeesHr } from '../employees/utils/employee-hr-access.util';
 import { ObjectSetupService } from './object-setup.service';
 import { ObjectSchedulingService } from '../object-scheduling/object-scheduling.service';
 import { ListObjectsQueryDto } from './dto/list-objects-query.dto';
@@ -58,6 +66,7 @@ interface CurrentAuthUser {
   roleCodes?: string[];
   permissionCodes?: string[];
   isActive: boolean;
+  accessVersion?: number;
 }
 
 interface ObjectAssignmentView {
@@ -415,6 +424,45 @@ export class ObjectsService {
     }));
   }
 
+  async creationCapabilities(currentUser: CurrentAuthUser, payload: ObjectCreateCapabilitiesDto) {
+    const roles = this.getRoleCodes(currentUser);
+    const permissions = currentUser.permissionCodes ?? [];
+    const before = { resourceType: 'object', ownerUserId: currentUser.id };
+    const assigned = [...new Set([payload.responsibleUserId ?? currentUser.id, ...payload.managerUserIds.filter(id => id !== currentUser.id)])];
+    const after = { ...before, assignedUserIds: assigned };
+    const base = decideAccess(currentUser, 'objects.create', canCreateObject(roles)) &&
+      decideAccess(currentUser, 'objects.read', true, after) &&
+      (payload.status !== 'archived' || decideAccess(currentUser, 'objects.archive', true, before)) &&
+      (payload.status !== 'frozen' || decideAccess(currentUser, 'objects.freeze', true, before));
+    const rates = base && decideAccess(currentUser, 'objects.rates.manage', canEditObjectDailyRate(roles), before);
+    const setup = ObjectSetupService.capabilities(currentUser, {
+      id: '', createdByUserId: currentUser.id, status: payload.status, assignments: [],
+    });
+    const setupAllowed = base && canCreateObject(roles);
+    const schedWritable = payload.status === 'active';
+    const schedule = base && schedWritable && decideAccess(currentUser, 'objects.schedules.manage', true, after);
+    const contours = rates && schedWritable && decideAccess(currentUser, 'objects.rates.manage', canEditObjectDailyRate(roles), after);
+    // createObject removes the actor from managerUserIds before assignments.
+    const selectPayConditions = base && schedWritable && decideAccess(currentUser, 'objects.pay_conditions.select', canEditObjectDailyRate(roles), after);
+    const eligible = payload.employeeIds.length ? await this.prisma.employee.findMany({
+      where: { id: { in: payload.employeeIds }, deletedAt: null, employmentStatus: 'active' }, select: { id: true },
+    }) : [];
+    const eligibleIds = new Set(eligible.map((employee) => employee.id));
+    const canAssign = canManageEmployeeAssignments(permissions);
+    const employees = Object.fromEntries(payload.employeeIds.map((id) => [id,
+      schedule && eligibleIds.has(id) &&
+      decideAccess(currentUser, 'employees.view', canViewEmployeesHr(permissions), { resourceType: 'employee', resourceId: id }) &&
+      decideAccess(currentUser, 'objects.staffing.manage', canAssign, { resourceType: 'object' }) &&
+      decideAccess(currentUser, 'employees.assignments.manage', canAssign, { resourceType: 'employee', resourceId: id }),
+    ]));
+    return { base, rates, materials: base && decideAccess(currentUser, 'objects.materials.manage', true, before),
+      setup: { core: setupAllowed && setup.canEditCore, contract: setupAllowed && setup.canEditContractAmount,
+        budgets: setupAllowed && setup.canEditBudgets, coefficient: setupAllowed && setup.canEditCoefficient },
+      schedule, contours, selectPayConditions, counterparty: base && canEnterAccessModule(currentUser,
+        'counterparties.access', ['counterparties.objects.link'], canLinkCounterpartyObjects(permissions)),
+      preview: currentUser.isActive && canCreateObject(roles), employees };
+  }
+
   async createObject(
     currentUser: CurrentAuthUser,
     payload: CreateObjectDto,
@@ -586,6 +634,28 @@ export class ObjectsService {
         },
       });
 
+      const initialAssignmentContext = {
+        resourceType: 'object', resourceId: object.id,
+        ownerUserId: object.createdByUserId,
+        assignedUserIds: [responsibleUser.id, ...managerUserIds],
+      };
+      // Initial assignments have a create-time baseline, but explicit denies
+      // still apply to the generated object's actual owner and assignments.
+      if (responsibleUser.id !== currentUser.id &&
+          !decideAccess(currentUser, 'objects.responsibles.manage', true, initialAssignmentContext)) {
+        throw new ForbiddenException('Initial object responsible denied');
+      }
+      if (managerUserIds.length > 0 &&
+          !decideAccess(currentUser, 'objects.managers.manage', true, initialAssignmentContext)) {
+        throw new ForbiddenException('Initial object managers denied');
+      }
+
+      // This endpoint returns a card, not a write-only receipt. A create grant
+      // must not bypass a read/section deny through the generated resource ID.
+      if (!decideAccess(currentUser, 'objects.read', true, initialAssignmentContext)) {
+        throw new ForbiddenException('Created object access denied');
+      }
+
       if (object.counterpartyId) {
         await this.auditService.writeAuditEvent(
           {
@@ -692,6 +762,35 @@ export class ObjectsService {
         dedupeKey: `object:${object.id}:created`,
       }, tx);
 
+      await this.auditService.writeObjectAuditLog({
+        objectId: object.id,
+        actorUserId: currentUser.id,
+        actionCode: 'object.created',
+        payload: {
+          name: object.name,
+          internalName: object.internalName,
+          address: object.address,
+          status: object.status,
+          seasonMode: object.seasonMode,
+          summerWindowCleaning: object.summerWindowCleaning,
+          engineeringRequired: object.engineeringRequired,
+          winterTractorMode: object.winterTractorMode,
+          instructionSteps: object.instructionSteps,
+          paymentType: object.paymentType,
+          dailyRate: object.dailyRate,
+          monthlySalary: object.monthlySalary,
+          summerPaymentType: object.summerPaymentType,
+          summerDailyRate: object.summerDailyRate,
+          summerMonthlySalary: object.summerMonthlySalary,
+          winterPaymentType: object.winterPaymentType,
+          winterDailyRate: object.winterDailyRate,
+          winterMonthlySalary: object.winterMonthlySalary,
+          counterpartyId: object.counterpartyId,
+          managerUserIds,
+          responsibleUserId: responsibleUser.id,
+        } as Prisma.InputJsonObject,
+      }, tx);
+
       return tx.object.findUniqueOrThrow({
         where: { id: object.id },
         include: {
@@ -708,34 +807,7 @@ export class ObjectsService {
       });
     });
 
-    await this.auditService.writeObjectAuditLog({
-      objectId: created.id,
-      actorUserId: currentUser.id,
-      actionCode: 'object.created',
-      payload: {
-        name: created.name,
-        internalName: created.internalName,
-        address: created.address,
-        status: created.status,
-        seasonMode: created.seasonMode,
-        summerWindowCleaning: created.summerWindowCleaning,
-        engineeringRequired: created.engineeringRequired,
-        winterTractorMode: created.winterTractorMode,
-        instructionSteps: created.instructionSteps,
-        paymentType: created.paymentType,
-        dailyRate: created.dailyRate,
-        monthlySalary: created.monthlySalary,
-        summerPaymentType: created.summerPaymentType,
-        summerDailyRate: created.summerDailyRate,
-        summerMonthlySalary: created.summerMonthlySalary,
-        winterPaymentType: created.winterPaymentType,
-        winterDailyRate: created.winterDailyRate,
-        winterMonthlySalary: created.winterMonthlySalary,
-        counterpartyId: created.counterpartyId,
-        managerUserIds,
-        responsibleUserId: responsibleUser.id,
-      } as Prisma.InputJsonObject,
-    });
+
 
     await this.chatsService.createSystemMessage(
       'objects',
@@ -763,7 +835,7 @@ export class ObjectsService {
     currentUser: CurrentAuthUser,
     id: string,
     payload: UpdateObjectDto,
-  ): Promise<ObjectResponseDto> {
+  ): Promise<ObjectResponseDto | SavedWithoutAccess> {
     const roleCodes = this.getRoleCodes(currentUser);
     const instructionsOnly = payload.instructionSteps !== undefined &&
       Object.entries(payload).every(([field, value]) => value === undefined || field === 'instructionSteps');
@@ -875,8 +947,9 @@ export class ObjectsService {
       payload.counterpartyId !== undefined &&
       payload.counterpartyId !== existing.counterpartyId
     ) {
-      if (!canLinkCounterpartyObjects(currentUser.permissionCodes ?? [])) {
-        throw new ForbiddenException('Counterparty object linking denied');
+      if (existing.counterpartyId) {
+        // Replacing A with B also unlinks A and requires authority over A.
+        this.assertCounterpartyLinkAuthority(currentUser, existing.counterpartyId);
       }
       if (payload.counterpartyId) {
         await this.assertCounterpartyCanBeLinked(
@@ -1011,8 +1084,9 @@ export class ObjectsService {
       };
     }
 
-    const updated = (await this.prisma.$transaction(async (tx) => {
+    const updated = (await this.runObjectSourceWrite(currentUser, id, instructionsOnly ? 'objects.materials.manage' : isRateOnlyEditor ? 'objects.rates.manage' : 'objects.update', isRateOnlyEditor ? canEditObjectDailyRate(roleCodes) : canEditObject(roleCodes) || (existing.status === 'frozen' && canOverrideFrozenObject(roleCodes)), isRateOnlyEditor ? undefined : 'edit', async (tx) => {
       await tx.$queryRaw`SELECT "id" FROM "objects" WHERE "id" = ${id} FOR UPDATE`;
+      await lockActorAccessRevision(tx, currentUser);
       const locked = await tx.object.findUniqueOrThrow({ where: { id }, select: { updatedAt: true } });
       const currentPolicy = await tx.objectPlanningSettings.findUnique({ where: { objectId: id } });
       if (locked.updatedAt.getTime() !== existing.updatedAt.getTime() || (currentPolicy?.version ?? 0) !== (policy?.version ?? 0)) {
@@ -1174,6 +1248,12 @@ export class ObjectsService {
         } }, tx);
       }
       if (Object.keys(changes).length > 0) {
+        await this.auditService.writeObjectAuditLog({
+          objectId: id,
+          actorUserId: currentUser.id,
+          actionCode: 'object.updated',
+          payload: this.buildObjectUpdateAuditPayload(changes),
+        }, tx);
         const leadershipUserIds = await this.notificationsService.listActiveUserIdsByRoles(
           [...LEADERSHIP_OBJECT_ROLE_CODES],
           tx,
@@ -1198,23 +1278,27 @@ export class ObjectsService {
       this.rethrowResponsibleAssignmentError(error),
     )) as ObjectView;
 
-    if (Object.keys(changes).length > 0) {
-      await this.auditService.writeObjectAuditLog({
-        objectId: id,
-        actorUserId: currentUser.id,
-        actionCode: 'object.updated',
-        payload: this.buildObjectUpdateAuditPayload(changes),
+    return projectCommittedWrite(this.prisma, currentUser, async () => {
+      const subject = await loadAccessSubject(this.prisma, currentUser.id);
+      if (!subject?.isActive) throw new ForbiddenException('Доступ к объекту изменился');
+      const actor: CurrentAuthUser = {
+        ...currentUser, ...subject, isActive: true, roleCode: subject.roleCodes?.[0] ?? '',
+        roleCodes: [...(subject.roleCodes ?? [])], permissionCodes: [...(subject.permissionCodes ?? [])],
+      };
+      const grants = (await resolveObjectDelegationGrants(this.prisma, actor.id)).filter((grant) => grant.objectId === id);
+      return objectDelegationContext.run({ actorUserId: actor.id, grants, used: new Map() }, async () => {
+        // Read the committed resource through fresh visibility and projection;
+        // never return the protected pre-revoke transaction snapshot.
+        return this.getObjectById(actor, updated.id);
       });
-    }
-
-    return this.mapObject(updated, currentUser);
+    });
   }
 
   async changeStatus(
     currentUser: CurrentAuthUser,
     id: string,
     payload: ChangeObjectStatusDto,
-  ): Promise<ApprovalRequestResponseDto> {
+  ): Promise<ApprovalRequestResponseDto | SavedWithoutAccess> {
     const existing = await this.getObjectById(currentUser, id);
 
     const statusAction = existing.status === 'archived' ? 'objects.restore'
@@ -1229,7 +1313,17 @@ export class ObjectsService {
     }
     if (existing.status === 'archived' && payload.status === 'frozen' && !await this.canObjectAction(currentUser, id, 'objects.freeze', canManageObjectResponsibles(this.getRoleCodes(currentUser)), 'status')) throw new ForbiddenException('Object freeze denied');
 
-    const pendingRequest = await this.prisma.approvalRequest.findFirst({
+    const createdRequest = await this.runObjectSourceWrite(currentUser, id, statusAction, canManageObjectResponsibles(this.getRoleCodes(currentUser)), 'status', async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "objects" WHERE "id" = ${id} FOR UPDATE`;
+      await lockActorAccessRevision(tx, currentUser);
+      const current = await tx.object.findFirst({ where: { id, deletedAt: null }, select: { status: true } });
+      if (!current || current.status !== existing.status) {
+        throw new ConflictException('Состояние объекта изменилось. Обновите карточку.');
+      }
+      if (!await this.canObjectAction(currentUser, id, statusAction, canManageObjectResponsibles(this.getRoleCodes(currentUser)), 'status', tx)) {
+        throw new ForbiddenException('Object status changing denied');
+      }
+    const pendingRequest = await tx.approvalRequest.findFirst({
       where: {
         approvalType: OBJECT_CHANGE_CONFIRMATION_TYPE,
         sourceEntityType: OBJECT_APPROVAL_SOURCE_ENTITY_TYPE,
@@ -1267,7 +1361,7 @@ export class ObjectsService {
       );
     }
 
-    const createdRequest = await this.prisma.approvalRequest.create({
+    const createdRequest = await tx.approvalRequest.create({
       data: {
         approvalType: OBJECT_CHANGE_CONFIRMATION_TYPE,
         sourceEntityType: OBJECT_APPROVAL_SOURCE_ENTITY_TYPE,
@@ -1316,7 +1410,7 @@ export class ObjectsService {
         newStatus: payload.status,
         approvalRequestId: createdRequest.id,
       } as Prisma.InputJsonObject,
-    });
+    }, tx);
 
     await this.auditService.writeAuditEvent({
       entityType: 'approval_request',
@@ -1328,9 +1422,11 @@ export class ObjectsService {
         sourceEntityType: OBJECT_APPROVAL_SOURCE_ENTITY_TYPE,
         sourceEntityId: id,
       },
+    }, tx);
+    return createdRequest;
     });
 
-    return this.mapApprovalRequest(createdRequest, currentUser.id);
+    return this.projectCommittedObjectResult(currentUser, id, () => this.mapApprovalRequest(createdRequest, currentUser.id));
   }
 
   async applyObjectStatusChangeApprovalDecision(
@@ -1482,7 +1578,7 @@ export class ObjectsService {
     currentUser: CurrentAuthUser,
     objectId: string,
     userId: string,
-  ): Promise<ObjectResponseDto> {
+  ): Promise<ObjectResponseDto | SavedWithoutAccess> {
     const roleCodes = this.getRoleCodes(currentUser);
 
     if (!await this.canObjectAction(currentUser, objectId, 'objects.responsibles.manage', canManageObjectResponsibles(roleCodes), 'assign')) {
@@ -1493,14 +1589,8 @@ export class ObjectsService {
 
     const user = await this.getAssignableResponsibleUser(userId);
 
-    await this.prisma
-      .$transaction(async (tx) => {
-        await tx.$queryRaw`
-          SELECT "id"
-          FROM "objects"
-          WHERE "id" = ${objectId}
-          FOR UPDATE
-        `;
+    await this.runObjectSourceWrite(currentUser, objectId, 'objects.responsibles.manage', canManageObjectResponsibles(roleCodes), 'assign', async (tx) => {
+        await this.lockObjectAssignmentAuthority(tx, currentUser, objectId, 'objects.responsibles.manage');
 
         await tx.objectAssignment.updateMany({
           where: {
@@ -1529,23 +1619,18 @@ export class ObjectsService {
             isActive: true,
           },
         });
+        await this.auditService.writeObjectAuditLog({
+          objectId,
+          actorUserId: currentUser.id,
+          actionCode: 'object.responsible_added',
+          payload: { userId: user.id, login: user.login, fullName: user.fullName },
+        }, tx);
       })
       .catch((error: unknown) =>
         this.rethrowResponsibleAssignmentError(error),
       );
 
-    await this.auditService.writeObjectAuditLog({
-      objectId,
-      actorUserId: currentUser.id,
-      actionCode: 'object.responsible_added',
-      payload: {
-        userId: user.id,
-        login: user.login,
-        fullName: user.fullName,
-      } as Prisma.InputJsonObject,
-    });
-
-    return this.getObjectById(currentUser, objectId);
+    return this.projectCommittedObjectResult(currentUser, objectId, (object) => object);
   }
 
   async removeResponsibleFromObject(
@@ -1564,7 +1649,7 @@ export class ObjectsService {
 
     if (activeResponsibles.length <= 1) {
       throw new ForbiddenException(
-        'At least one responsible must remain assigned to object',
+        'У объекта должен остаться хотя бы один ответственный.',
       );
     }
 
@@ -1596,7 +1681,7 @@ export class ObjectsService {
     currentUser: CurrentAuthUser,
     objectId: string,
     userId: string,
-  ): Promise<ObjectResponseDto> {
+  ): Promise<ObjectResponseDto | SavedWithoutAccess> {
     const roleCodes = this.getRoleCodes(currentUser);
 
     if (!await this.canObjectAction(currentUser, objectId, 'objects.managers.manage', canManageObjectResponsibles(roleCodes), 'assign')) {
@@ -1630,7 +1715,9 @@ export class ObjectsService {
       throw new ForbiddenException('Selected user cannot be object manager');
     }
 
-    await this.prisma.objectAssignment.upsert({
+    await this.runObjectSourceWrite(currentUser, objectId, 'objects.managers.manage', canManageObjectResponsibles(roleCodes), 'assign', async (tx) => {
+    await this.lockObjectAssignmentAuthority(tx, currentUser, objectId, 'objects.managers.manage');
+    await tx.objectAssignment.upsert({
       where: {
         objectId_userId_assignmentRoleCode: {
           objectId,
@@ -1658,16 +1745,17 @@ export class ObjectsService {
         login: user.login,
         fullName: user.fullName,
       } as Prisma.InputJsonObject,
+    }, tx);
     });
 
-    return this.getObjectById(currentUser, objectId);
+    return this.projectCommittedObjectResult(currentUser, objectId, (object) => object);
   }
 
   async removeManagerFromObject(
     currentUser: CurrentAuthUser,
     objectId: string,
     userId: string,
-  ): Promise<ObjectResponseDto> {
+  ): Promise<ObjectResponseDto | SavedWithoutAccess> {
     const roleCodes = this.getRoleCodes(currentUser);
 
     if (!await this.canObjectAction(currentUser, objectId, 'objects.managers.manage', canManageObjectResponsibles(roleCodes), 'assign')) {
@@ -1676,7 +1764,9 @@ export class ObjectsService {
 
     await this.getObjectById(currentUser, objectId);
 
-    await this.prisma.objectAssignment.updateMany({
+    await this.runObjectSourceWrite(currentUser, objectId, 'objects.managers.manage', canManageObjectResponsibles(roleCodes), 'assign', async (tx) => {
+    await this.lockObjectAssignmentAuthority(tx, currentUser, objectId, 'objects.managers.manage');
+    await tx.objectAssignment.updateMany({
       where: {
         objectId,
         userId,
@@ -1695,9 +1785,82 @@ export class ObjectsService {
       payload: {
         userId,
       } as Prisma.InputJsonObject,
+    }, tx);
     });
 
-    return this.getObjectById(currentUser, objectId);
+    return this.projectCommittedObjectResult(currentUser, objectId, (object) => object);
+  }
+
+  async runObjectSourceWrite<T>(
+    user: CurrentAuthUser,
+    objectId: string,
+    actionCode: string,
+    legacy: boolean,
+    delegatedAction: ObjectDelegatedAction | undefined,
+    write: (tx: Prisma.TransactionClient) => Promise<T>,
+  ): Promise<T> {
+    const outer = objectDelegationContext.getStore();
+    const original = outer?.actorUserId === user.id ? outer.grants.filter((grant) => grant.objectId === objectId) : [];
+    const sourceIds = [...new Set(original.map((grant) => grant.substitutionId))].sort();
+    const principalIds = [...new Set(original.map((grant) => grant.principalUserId))].sort();
+    const used = new Map<string, ObjectDelegationGrant>();
+    const saved = await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "objects" WHERE "id" = ${objectId} FOR UPDATE`;
+      await lockActorAccessRevision(tx, user);
+      if (principalIds.length) await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "users" WHERE "id" IN (${Prisma.join(principalIds)}) ORDER BY "id" FOR SHARE`);
+      if (sourceIds.length) {
+        await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "user_substitutions" WHERE "id" IN (${Prisma.join(sourceIds)}) ORDER BY "id" FOR SHARE`);
+        await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "user_substitution_objects" WHERE "objectId" = ${objectId} AND "substitutionId" IN (${Prisma.join(sourceIds)}) ORDER BY "id" FOR SHARE`);
+      }
+      await tx.$queryRaw`SELECT "id" FROM "object_assignments" WHERE "objectId" = ${objectId} AND "isActive" = true ORDER BY "id" FOR SHARE`;
+      const grants = sourceIds.length
+        ? (await resolveObjectDelegationGrants(tx, user.id)).filter((grant) => grant.objectId === objectId && sourceIds.includes(grant.substitutionId)) : [];
+      return objectDelegationContext.run({ actorUserId: user.id, grants, used }, async () => {
+        const visible = await tx.object.findFirst({ where: { id: objectId, deletedAt: null, ...(await this.buildVisibilityWhere(user)) }, select: { id: true } });
+        if (!visible || !await this.canObjectAction(user, objectId, actionCode, legacy, delegatedAction, tx)) {
+          throw new ForbiddenException('Доступ к объекту изменился. Изменения не сохранены.');
+        }
+        return write(tx);
+      });
+    });
+    if (outer?.actorUserId === user.id) {
+      for (const [key, grant] of outer.used) if (grant.objectId === objectId) outer.used.delete(key);
+      for (const [key, grant] of used) outer.used.set(key, grant);
+    }
+    return saved;
+  }
+
+  projectCommittedObjectResult<T>(
+    currentUser: CurrentAuthUser,
+    objectId: string,
+    project: (object: ObjectResponseDto) => T | Promise<T>,
+  ): Promise<T | SavedWithoutAccess> {
+    return projectCommittedWrite(this.prisma, currentUser, async () => {
+      const subject = await loadAccessSubject(this.prisma, currentUser.id);
+      if (!subject?.isActive) throw new ForbiddenException('Доступ к объекту изменился');
+      const actor: CurrentAuthUser = {
+        ...currentUser, ...subject, isActive: true, roleCode: subject.roleCodes?.[0] ?? '',
+        roleCodes: [...(subject.roleCodes ?? [])], permissionCodes: [...(subject.permissionCodes ?? [])],
+      };
+      const grants = (await resolveObjectDelegationGrants(this.prisma, actor.id)).filter((grant) => grant.objectId === objectId);
+      return objectDelegationContext.run({ actorUserId: actor.id, grants, used: new Map() }, async () => {
+        const object = await this.getObjectById(actor, objectId);
+        return project(object);
+      });
+    });
+  }
+
+  private async lockObjectAssignmentAuthority(
+    tx: Prisma.TransactionClient,
+    currentUser: CurrentAuthUser,
+    objectId: string,
+    actionCode: string,
+  ): Promise<void> {
+    await tx.$queryRaw`SELECT "id" FROM "objects" WHERE "id" = ${objectId} FOR UPDATE`;
+    await lockActorAccessRevision(tx, currentUser);
+    if (!await this.canObjectAction(currentUser, objectId, actionCode, canManageObjectResponsibles(this.getRoleCodes(currentUser)), 'assign', tx)) {
+      throw new ForbiddenException('Object assignment management denied');
+    }
   }
 
   private buildObjectUpdateAuditPayload(
@@ -1811,8 +1974,8 @@ export class ObjectsService {
     ] };
   }
 
-  private async canObjectAction(user: CurrentAuthUser, id: string, actionCode: string, legacy: boolean, delegatedAction?: ObjectDelegatedAction): Promise<boolean> {
-    const object = await this.prisma.object.findFirst({ where: { id, deletedAt: null }, select: {
+  private async canObjectAction(user: CurrentAuthUser, id: string, actionCode: string, legacy: boolean, delegatedAction?: ObjectDelegatedAction, database: Pick<Prisma.TransactionClient, 'object'> = this.prisma): Promise<boolean> {
+    const object = await database.object.findFirst({ where: { id, deletedAt: null }, select: {
       id: true, createdByUserId: true, assignments: { where: { isActive: true }, select: { userId: true } },
     } });
     if (!object) return false;
@@ -1994,6 +2157,13 @@ export class ObjectsService {
     });
     const canReadMaterials = decideAccess(currentUser, 'objects.materials.read', true, { resourceType: 'object', resourceId: item.id,
       ownerUserId: item.createdByUserId, assignedUserIds: mappedAssignments.map(a => a.userId) });
+    // The object-authorized label remains a legacy baseline, but an explicit
+    // counterparty read/access deny must also hide its current nested fields.
+    const canReadCounterparty = item.counterparty
+      ? decideAccess(currentUser, 'counterparties.read', true, {
+          resourceType: 'counterparty', resourceId: item.counterparty.id,
+        })
+      : false;
 
     return {
       id: item.id,
@@ -2026,15 +2196,17 @@ export class ObjectsService {
       winterScheduleWeekdays: capabilities.canViewCompensationRates ? item.winterScheduleWeekdays : [],
       winterScheduleCycleStartDate: capabilities.canViewCompensationRates ? formatDateOnly(item.winterScheduleCycleStartDate) : null,
       notes: item.notes,
-      counterparty: item.counterparty
+      counterpartyAccessRestricted: Boolean(item.counterparty && !canReadCounterparty),
+      counterparty: item.counterparty && canReadCounterparty
         ? {
             id: item.counterparty.id,
             name: item.counterparty.name,
             legalName: item.counterparty.legalName,
             status: item.counterparty.status,
-            canOpenCounterparty: canViewCounterparties(
-              currentUser.permissionCodes ?? [],
-            ),
+            canOpenCounterparty: decideAccess(currentUser, 'counterparties.read',
+              canViewCounterparties(currentUser.permissionCodes ?? []), {
+                resourceType: 'counterparty', resourceId: item.counterparty.id,
+              }),
           }
         : null,
       createdAt: item.createdAt.toISOString(),
@@ -2070,13 +2242,19 @@ export class ObjectsService {
     };
   }
 
+  private assertCounterpartyLinkAuthority(currentUser: CurrentAuthUser, counterpartyId: string): void {
+    const context = { resourceType: 'counterparty', resourceId: counterpartyId };
+    const canRead = decideAccess(currentUser, 'counterparties.read', canViewCounterparties(currentUser.permissionCodes ?? []), context);
+    if (!canRead || !decideAccess(currentUser, 'counterparties.objects.link', canLinkCounterpartyObjects(currentUser.permissionCodes ?? []), context)) {
+      throw new ForbiddenException('Недостаточно прав для изменения связи с контрагентом.');
+    }
+  }
+
   private async assertCounterpartyCanBeLinked(
     currentUser: CurrentAuthUser,
     counterpartyId: string,
   ): Promise<void> {
-    if (!canLinkCounterpartyObjects(currentUser.permissionCodes ?? [])) {
-      throw new ForbiddenException('Counterparty object linking denied');
-    }
+    this.assertCounterpartyLinkAuthority(currentUser, counterpartyId);
     const counterparty = await this.prisma.counterparty.findFirst({
       where: { id: counterpartyId, status: 'active' },
       select: { id: true },

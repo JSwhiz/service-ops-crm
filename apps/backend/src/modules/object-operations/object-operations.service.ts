@@ -87,7 +87,11 @@ import { decideAccess } from "../users-access/utils/access-policy.util";
 import { objectPolicyContext } from "../users-access/utils/object-policy-context.util";
 import { taskPolicyWhere } from "../tasks/utils/task-policy.util";
 import { getAccessAction } from "../users-access/access-action-catalog";
-import { hasDelegatedObjectAction } from "../user-substitutions/object-delegation.context";
+import { hasDelegatedObjectAction, objectDelegationContext, type ObjectDelegationGrant } from "../user-substitutions/object-delegation.context";
+import { resolveObjectDelegationGrants } from "../user-substitutions/resolve-object-delegation-grants.util";
+import { lockActorAccessRevision } from "../../common/access/lock-actor-access-revision";
+import { projectCommittedWrite, type SavedWithoutAccess } from "../../common/access/project-committed-write";
+import { loadAccessSubject } from "../../common/access/notification-access";
 
 interface CurrentAuthUser extends AccessSubject {
   id: string;
@@ -228,14 +232,14 @@ export class ObjectOperationsService {
     currentUser: CurrentAuthUser,
     objectId: string,
     payload: CreateArrivalPhotoDto,
-  ): Promise<ObjectArrivalPhotoResponseDto> {
+  ): Promise<ObjectArrivalPhotoResponseDto | SavedWithoutAccess> {
     await this.assertObjectWritable(
       currentUser,
       objectId,
       "objects.arrival.create",
     );
 
-    const item = await this.prisma.objectArrivalPhoto.upsert({
+    const item = await this.runAuthorizedObjectWrite(currentUser, objectId, 'objects.arrival.create', (tx) => tx.objectArrivalPhoto.upsert({
       where: {
         objectId_operationDate: {
           objectId,
@@ -259,9 +263,9 @@ export class ObjectOperationsService {
       include: {
         createdBy: true,
       },
-    });
+    }));
 
-    return this.mapArrivalPhoto(item, []);
+    return this.projectCommittedOperation(currentUser, objectId, 'objects.arrival.read', () => this.mapArrivalPhoto(item, []));
   }
 
   async getTodayDailyReport(
@@ -343,7 +347,7 @@ export class ObjectOperationsService {
     currentUser: CurrentAuthUser,
     objectId: string,
     payload: UpsertDailyReportDto,
-  ): Promise<ObjectDailyReportResponseDto> {
+  ): Promise<ObjectDailyReportResponseDto | SavedWithoutAccess> {
     await this.assertObjectWritable(
       currentUser,
       objectId,
@@ -355,23 +359,20 @@ export class ObjectOperationsService {
       currentUser.id,
       payload.content,
       payload.expectedRevision,
+      (write) => this.runAuthorizedObjectWrite(currentUser, objectId, 'objects.reports.update', write),
     );
 
-    const attachments = await this.listDailyReportAttachmentsByEntityIds([
-      item.id,
-    ]);
-    return this.mapDailyReport(
-      item,
-      attachments.get(item.id) ?? [],
-      await this.canEditDailyReportAttachments(currentUser, item.id),
-    );
+    return this.projectCommittedOperation(currentUser, objectId, 'objects.reports.read', async (actor) => {
+      const attachments = await this.listDailyReportAttachmentsByEntityIds([item.id]);
+      return this.mapDailyReport(item, attachments.get(item.id) ?? [], await this.canEditDailyReportAttachments(actor, item.id));
+    });
   }
 
   async submitTodayDailyReport(
     currentUser: CurrentAuthUser,
     objectId: string,
     expectedRevision: number,
-  ): Promise<ObjectDailyReportResponseDto> {
+  ): Promise<ObjectDailyReportResponseDto | SavedWithoutAccess> {
     await this.assertObjectWritable(
       currentUser,
       objectId,
@@ -381,15 +382,12 @@ export class ObjectOperationsService {
       objectId,
       currentUser.id,
       expectedRevision,
+      (write) => this.runAuthorizedObjectWrite(currentUser, objectId, 'objects.reports.submit', write),
     );
-    const attachments = await this.listDailyReportAttachmentsByEntityIds([
-      item.id,
-    ]);
-    return this.mapDailyReport(
-      item,
-      attachments.get(item.id) ?? [],
-      await this.canEditDailyReportAttachments(currentUser, item.id),
-    );
+    return this.projectCommittedOperation(currentUser, objectId, 'objects.reports.read', async (actor) => {
+      const attachments = await this.listDailyReportAttachmentsByEntityIds([item.id]);
+      return this.mapDailyReport(item, attachments.get(item.id) ?? [], await this.canEditDailyReportAttachments(actor, item.id));
+    });
   }
 
   async correctDailyReportAttachments(
@@ -414,12 +412,14 @@ export class ObjectOperationsService {
       throw new ConflictException(
         "Frozen or archived objects cannot be edited",
       );
-    return this.reportPublications.correctAttachments(
+    const saved = await this.reportPublications.correctAttachments(
       objectId,
       reportId,
       currentUser,
       payload,
+      (write) => this.runAuthorizedObjectWrite(currentUser, objectId, 'objects.reports.attachments.correct', write),
     );
+    return this.projectCommittedOperation(currentUser, objectId, 'objects.reports.read', () => saved);
   }
 
   async listComments(
@@ -454,26 +454,60 @@ export class ObjectOperationsService {
     currentUser: CurrentAuthUser,
     objectId: string,
     payload: CreateObjectCommentDto,
-  ): Promise<ObjectCommentResponseDto> {
+  ): Promise<ObjectCommentResponseDto | SavedWithoutAccess> {
     await this.assertObjectWritable(
       currentUser,
       objectId,
       "objects.comments.create",
     );
 
-    const item = await this.prisma.objectComment.create({
-      data: {
-        objectId,
-        content: payload.content,
-        commentType: payload.commentType ?? "manual",
-        createdByUserId: currentUser.id,
-      },
-      include: {
-        createdBy: true,
-      },
+    const outerContext = objectDelegationContext.getStore();
+    const originalGrants = outerContext?.actorUserId === currentUser.id
+      ? outerContext.grants.filter((grant) => grant.objectId === objectId)
+      : [];
+    const sourceIds = [...new Set(originalGrants.map((grant) => grant.substitutionId))].sort();
+    const principalIds = [...new Set(originalGrants.map((grant) => grant.principalUserId))].sort();
+    const committedUsage = new Map<string, ObjectDelegationGrant>();
+    const item = await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "objects" WHERE "id" = ${objectId} FOR SHARE`;
+      await lockActorAccessRevision(tx, currentUser);
+      if (principalIds.length) {
+        await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "users" WHERE "id" IN (${Prisma.join(principalIds)}) ORDER BY "id" FOR SHARE`);
+      }
+      if (sourceIds.length) {
+        // Revoke locks these same rows. A later-created substitution must not
+        // silently replace the authority captured for this pending action.
+        await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "user_substitutions" WHERE "id" IN (${Prisma.join(sourceIds)}) ORDER BY "id" FOR SHARE`);
+        await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "user_substitution_objects" WHERE "objectId" = ${objectId} AND "substitutionId" IN (${Prisma.join(sourceIds)}) ORDER BY "id" FOR SHARE`);
+      }
+      await tx.$queryRaw`SELECT "id" FROM "object_assignments" WHERE "objectId" = ${objectId} AND "isActive" = true ORDER BY "id" FOR SHARE`;
+      const freshGrants = sourceIds.length
+        ? (await resolveObjectDelegationGrants(tx, currentUser.id)).filter((grant) =>
+            grant.objectId === objectId && sourceIds.includes(grant.substitutionId))
+        : [];
+      return objectDelegationContext.run({ actorUserId: currentUser.id, grants: freshGrants, used: committedUsage }, async () => {
+        await this.assertObjectWritable(currentUser, objectId, "objects.comments.create", tx);
+        return tx.objectComment.create({
+          data: {
+            objectId,
+            content: payload.content,
+            commentType: payload.commentType ?? "manual",
+            createdByUserId: currentUser.id,
+          },
+          include: { createdBy: true },
+        });
+      });
     });
+    if (outerContext?.actorUserId === currentUser.id) {
+      // Only committed, freshly checked authority is successful-write audit
+      // attribution. Failed attempts retain the interceptor's existing path.
+      for (const [key, grant] of outerContext.used) {
+        if (grant.objectId === objectId) outerContext.used.delete(key);
+      }
+      for (const [key, grant] of committedUsage) outerContext.used.set(key, grant);
+    }
 
-    return this.mapComment(item, []);
+    return this.projectCommittedOperation(currentUser, objectId, 'objects.comments.read', () => this.mapComment(item, []));
   }
 
   async getFeed(
@@ -936,11 +970,14 @@ export class ObjectOperationsService {
     objectId: string,
     payload: CreateObjectInventoryIssueDto,
   ): Promise<InventoryMovementResponseDto> {
+    await this.assertObjectVisible(currentUser, objectId, false, "objects.read");
     await this.assertObjectVisible(
       currentUser,
       objectId,
       false,
       "objects.inventory.issue",
+      (context) => decideAccess(currentUser, "inventory.issue_to_object", false, context)
+        ? true : undefined,
     );
     return this.inventoryService.createObjectIssueMovement(
       currentUser,
@@ -2554,6 +2591,20 @@ export class ObjectOperationsService {
       where: { id: adjustmentId },
     });
     await tx.$queryRaw`SELECT "id" FROM "objects" WHERE "id" = ${item.objectId} FOR UPDATE`;
+    const object = await tx.object.findFirst({ where: { id: item.objectId, deletedAt: null },
+      select: { id: true, status: true, createdByUserId: true, assignments: { where: { isActive: true }, select: { userId: true } } } });
+    if (!object) throw new NotFoundException('Object not found');
+    if (['frozen', 'closed', 'archived'].includes(object.status)) {
+      throw new ConflictException({ code: 'OBJECT_READ_ONLY', message: 'Объект недоступен для изменения' });
+    }
+    const context = { ...objectPolicyContext(object),
+      parents: [{ actionCode: 'objects.read', context: objectPolicyContext(object) }] };
+    // Shared approval has already checked independent leadership eligibility.
+    // The legacy attendance branch must retain the same financial deny gates
+    // as the scheduling branch, using the actual object rather than approval ID.
+    if (!decideAccess(currentUser, 'objects.compensation.correct_past', true, context) ||
+        !decideAccess(currentUser, 'objects.compensation.manage', true, context))
+      throw new ForbiddenException('Нет доступа к исправлению начислений объекта');
     const payload = item.payload as unknown as UpsertObjectAttendanceDto;
     const facts = await tx.objectAttendanceFact.findMany({
       where: {
@@ -3102,6 +3153,74 @@ export class ObjectOperationsService {
     };
   }
 
+  private async runAuthorizedObjectWrite<T>(
+    currentUser: CurrentAuthUser,
+    objectId: string,
+    actionCode: string,
+    write: (tx: Prisma.TransactionClient) => Promise<T>,
+  ): Promise<T> {
+    const outerContext = objectDelegationContext.getStore();
+    const originalGrants = outerContext?.actorUserId === currentUser.id
+      ? outerContext.grants.filter((grant) => grant.objectId === objectId)
+      : [];
+    const sourceIds = [...new Set(originalGrants.map((grant) => grant.substitutionId))].sort();
+    const principalIds = [...new Set(originalGrants.map((grant) => grant.principalUserId))].sort();
+    const committedUsage = new Map<string, ObjectDelegationGrant>();
+    const saved = await this.prisma.$transaction(async (tx) => {
+      // Writers take the strongest object lock first; no shared-to-exclusive
+      // upgrade when the existing report transaction also locks this row.
+      await tx.$queryRaw`SELECT "id" FROM "objects" WHERE "id" = ${objectId} FOR UPDATE`;
+      await lockActorAccessRevision(tx, currentUser);
+      if (principalIds.length) {
+        await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "users" WHERE "id" IN (${Prisma.join(principalIds)}) ORDER BY "id" FOR SHARE`);
+      }
+      if (sourceIds.length) {
+        await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "user_substitutions" WHERE "id" IN (${Prisma.join(sourceIds)}) ORDER BY "id" FOR SHARE`);
+        await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "user_substitution_objects" WHERE "objectId" = ${objectId} AND "substitutionId" IN (${Prisma.join(sourceIds)}) ORDER BY "id" FOR SHARE`);
+      }
+      await tx.$queryRaw`SELECT "id" FROM "object_assignments" WHERE "objectId" = ${objectId} AND "isActive" = true ORDER BY "id" FOR SHARE`;
+      const grants = sourceIds.length
+        ? (await resolveObjectDelegationGrants(tx, currentUser.id)).filter((grant) =>
+            grant.objectId === objectId && sourceIds.includes(grant.substitutionId))
+        : [];
+      return objectDelegationContext.run({ actorUserId: currentUser.id, grants, used: committedUsage }, async () => {
+        await this.assertObjectWritable(currentUser, objectId, actionCode, tx);
+        return write(tx);
+      });
+    });
+    if (outerContext?.actorUserId === currentUser.id) {
+      for (const [key, grant] of outerContext.used) {
+        if (grant.objectId === objectId) outerContext.used.delete(key);
+      }
+      for (const [key, grant] of committedUsage) outerContext.used.set(key, grant);
+    }
+    return saved;
+  }
+
+  private projectCommittedOperation<T>(
+    currentUser: CurrentAuthUser,
+    objectId: string,
+    readAction: string,
+    project: (actor: CurrentAuthUser) => T | Promise<T>,
+  ): Promise<T | SavedWithoutAccess> {
+    return projectCommittedWrite(this.prisma, currentUser, async () => {
+      const subject = await loadAccessSubject(this.prisma, currentUser.id);
+      if (!subject?.isActive) throw new ForbiddenException('Доступ к объекту изменился');
+      const actor: CurrentAuthUser = {
+        ...currentUser, ...subject, isActive: true, roleCode: subject.roleCodes?.[0] ?? '',
+        roleCodes: [...(subject.roleCodes ?? [])], permissionCodes: [...(subject.permissionCodes ?? [])],
+      };
+      const grants = (await resolveObjectDelegationGrants(this.prisma, actor.id))
+        .filter((grant) => grant.objectId === objectId);
+      // Response reads must not reuse the pre-write delegation snapshot or
+      // replace the committed mutation's audit attribution with a new grant.
+      return objectDelegationContext.run({ actorUserId: actor.id, grants, used: new Map() }, async () => {
+        await this.assertObjectVisible(actor, objectId, false, readAction);
+        return project(actor);
+      });
+    });
+  }
+
   private async assertObjectVisible(
     currentUser: CurrentAuthUser,
     objectId: string,
@@ -3110,8 +3229,9 @@ export class ObjectOperationsService {
     legacyOverride?:
       | boolean
       | ((context: AccessContext) => boolean | undefined),
+    database: Pick<Prisma.TransactionClient, 'object'> = this.prisma,
   ): Promise<void> {
-    const object = await this.prisma.object.findFirst({
+    const object = await database.object.findFirst({
       where: {
         id: objectId,
         deletedAt: null,
@@ -3259,10 +3379,13 @@ export class ObjectOperationsService {
           ownScopeOnly: true,
           object,
         }),
-        objectPolicyContext(object),
+        {
+          ...objectPolicyContext(object),
+          parents: [{ actionCode: "objects.read", context: objectPolicyContext(object) }],
+        },
       )
     ) {
-      throw new ForbiddenException("Access to employee staffing denied");
+      throw new ForbiddenException("Нет доступа к составу команды объекта");
     }
   }
 
@@ -3284,8 +3407,9 @@ export class ObjectOperationsService {
     currentUser: CurrentAuthUser,
     objectId: string,
     actionCode = "objects.update",
+    database: Pick<Prisma.TransactionClient, 'object'> = this.prisma,
   ): Promise<void> {
-    await this.assertObjectVisible(currentUser, objectId, false, actionCode);
+    await this.assertObjectVisible(currentUser, objectId, false, actionCode, undefined, database);
   }
 
   private async assertRatePolicyWritable(

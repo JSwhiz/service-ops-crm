@@ -8,6 +8,7 @@ export function useFloatingPosition(
   open: boolean,
   anchorRef: RefObject<HTMLElement | null>,
   floatingRef: RefObject<HTMLElement | null>,
+  matchAnchorWidth = false,
 ): FloatingPosition | null {
   const accessBlocked = useContext(AccessSnapshotBlockedContext);
   const [position, setPosition] = useState<FloatingPosition | null>(null);
@@ -22,7 +23,9 @@ export function useFloatingPosition(
     const update = (): void => {
       const anchor = anchorRef.current;
       if (!anchor) return;
-      const next = getFloatingPosition(anchor.getBoundingClientRect(), {
+      const anchorRect = anchor.getBoundingClientRect();
+      if (matchAnchorWidth) floating.style.width = `${Math.min(anchorRect.width, Math.max(0, window.innerWidth - 24))}px`;
+      const next = getFloatingPosition(anchorRect, {
         width: floating.offsetWidth,
         height: floating.scrollHeight,
       }, { width: window.innerWidth, height: window.innerHeight });
@@ -40,7 +43,7 @@ export function useFloatingPosition(
       window.removeEventListener('scroll', update, true);
       if (nativePopover && floating.matches(':popover-open')) floating.hidePopover();
     };
-  }, [anchorRef, floatingRef, open, accessBlocked]);
+  }, [anchorRef, floatingRef, open, accessBlocked, matchAnchorWidth]);
 
   return accessBlocked ? null : position;
 }

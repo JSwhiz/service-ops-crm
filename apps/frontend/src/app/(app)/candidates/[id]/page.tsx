@@ -3,6 +3,10 @@
 import { useRouter } from 'next/navigation';
 import React, { useEffect, useState } from 'react';
 import { useAccessRevision } from '@/shared/auth/use-access-revision';
+import { useAuth } from '@/shared/auth/use-auth';
+import { useOpenAccessRefresh } from '@/shared/auth/use-open-access-refresh';
+import { ApiError } from '@/shared/api/fetcher';
+import { getAccessGeneration, isAccessGenerationCurrent } from '@/shared/auth/access-generation';
 import { AccessSnapshotBoundary } from '@/shared/auth/access-snapshot-boundary';
 
 import {
@@ -144,7 +148,9 @@ export default function CandidatePage({
   params: Promise<{ id: string }>;
 }): React.JSX.Element {
   const accessRevision = useAccessRevision();
+  const { user, capabilitiesRefreshError } = useAuth();
   const [loadedAccessRevision, setLoadedAccessRevision] = useState<string | null>(null);
+  const [loadedParams, setLoadedParams] = useState<typeof params | null>(null);
   const [accessRetry, setAccessRetry] = useState(0);
   const [candidate, setCandidate] = useState<CandidateCard | null>(null);
   const router = useRouter();
@@ -176,6 +182,71 @@ export default function CandidatePage({
   const [error, setError] = useState<string | null>(null);
   const editingRef = React.useRef(editing);
   editingRef.current = editing;
+  const activeCandidateId = React.useRef<string | null>(null);
+  const snapshotReady = !capabilitiesRefreshError && loadedAccessRevision === accessRevision && loadedParams === params;
+  useOpenAccessRefresh(candidate !== null);
+  const candidateContext = React.useRef({ candidate, params, accessRevision, ready: snapshotReady });
+  candidateContext.current = { candidate, params, accessRevision, ready: snapshotReady };
+  const [candidateIntent, setCandidateIntent] = useState<{
+    kind: 'status' | 'archive' | 'convert'; isCurrent: () => boolean;
+  } | null>(null);
+  const candidateIntentRef = React.useRef(candidateIntent);
+  candidateIntentRef.current = candidateIntent;
+  const statusDraftOwner = React.useRef<{ actorId: string | undefined; candidateId: string; params: typeof params } | null>(null);
+  const previousLifecycleAccess = React.useRef<{ key: string; revision: string; caps: CandidateCard['capabilities'] } | null>(null);
+  const [revokedActions, setRevokedActions] = useState<{ key: string; leaves: string[] } | null>(null);
+  const mutationSequence = React.useRef(0);
+  const captureCandidateAction = (leaf: keyof CandidateCard['capabilities']): (() => boolean) => {
+    const generation = getAccessGeneration();
+    const origin = { candidate, params, accessRevision };
+    return () => isAccessGenerationCurrent(generation) && candidateContext.current.ready &&
+      candidateContext.current.params === origin.params && candidateContext.current.accessRevision === origin.accessRevision &&
+      origin.candidate !== null && candidateContext.current.candidate === origin.candidate && candidateContext.current.candidate?.id === origin.candidate.id &&
+      candidateContext.current.candidate?.version === origin.candidate.version &&
+      (leaf === 'canChangeStatus'
+        ? (candidateContext.current.candidate?.capabilities.canChangeStatus ?? candidateContext.current.candidate?.capabilities.canManage) === true
+        : leaf === 'canManageAssignments'
+          ? (candidateContext.current.candidate?.capabilities.canManageAssignments ?? candidateContext.current.candidate?.capabilities.canManage) === true
+          : candidateContext.current.candidate?.capabilities[leaf] === true);
+  };
+  const cancelCandidateIntent = (): void => {
+    statusDraftOwner.current = null;
+    candidateIntentRef.current = null;
+    setCandidateIntent(null); setArchiveOpen(false); setStatusTarget(null); setConverting(false);
+  };
+  const isIntentCurrent = (kind: 'status' | 'archive' | 'convert'): boolean => candidateIntentRef.current === candidateIntent && candidateIntent?.kind === kind && candidateIntent.isCurrent();
+  useEffect(() => {
+    if (candidateIntent && !candidateIntent.isCurrent()) {
+      // Invalidate the authorization token, retaining only the private status draft.
+      candidateIntentRef.current = null;
+      setCandidateIntent(null); setArchiveOpen(false); setConverting(false);
+    }
+  }, [candidateIntent, snapshotReady, candidate, params, accessRevision]);
+  useEffect(() => {
+    const owner = statusDraftOwner.current;
+    if (owner && (owner.actorId !== user?.id || owner.params !== params || owner.candidateId !== candidate?.id)) {
+      statusDraftOwner.current = null; setStatusTarget(null); setReopenManagers([]);
+      return;
+    }
+    if (!snapshotReady || !candidate || !statusTarget || !owner || candidateIntent) return;
+    if (candidate.status === statusTarget) { statusDraftOwner.current = null; setStatusTarget(null); return; }
+    if ((candidate.capabilities.canChangeStatus ?? candidate.capabilities.canManage) === true) {
+      // A fresh confirmation uses the new version and generation; never send a write here.
+      setCandidateIntent({ kind: 'status', isCurrent: captureCandidateAction('canChangeStatus') });
+    }
+  }, [snapshotReady, candidate, candidateIntent, statusTarget, user?.id, params, accessRevision]);
+  useEffect(() => {
+    if (!snapshotReady || !candidate) return;
+    const key = JSON.stringify([user?.id, candidate.id]);
+    const previous = previousLifecycleAccess.current;
+    const leaves = ['canChangeStatus', 'canArchive', 'canRestore', 'canConvert'] as const;
+    if (previous?.key === key && previous.revision !== accessRevision) {
+      const lost = leaves.filter(leaf => previous.caps[leaf] === true && candidate.capabilities[leaf] === false);
+      setRevokedActions(current => ({ key, leaves: [...new Set([...(current?.key === key ? current.leaves : []), ...lost])].filter(leaf => candidate.capabilities[leaf as typeof leaves[number]] === false) }));
+    }
+    previousLifecycleAccess.current = { key, revision: accessRevision, caps: candidate.capabilities };
+  }, [snapshotReady, candidate, user?.id, accessRevision]);
+  useEffect(() => () => { candidateContext.current = { ...candidateContext.current, ready: false }; }, []);
 
   const syncForm = (item: CandidateCard): void => {
     setForm({
@@ -197,18 +268,35 @@ export default function CandidatePage({
 
   useEffect(() => {
     let active = true;
+    setLoadedAccessRevision(null);
+    if (capabilitiesRefreshError) return;
     setError(null);
     void params
-      .then(({ id }) => getCandidate(id))
+      .then(({ id }) => {
+        if (!active) return null;
+        if (activeCandidateId.current !== id) {
+          activeCandidateId.current = id;
+          editingRef.current = false;
+          mutationSequence.current += 1;
+          setSaving(false);
+          setEditing(false); setEditingManagers(false); setResponseText(''); setManagers([]); setReopenManagers([]);
+          setEmployeeType('regular'); setConversionError(null);
+        }
+        return getCandidate(id);
+      })
       .then((item) => {
-        if (active) {
+        if (active && item) {
           setCandidate(item);
           setLoadedAccessRevision(accessRevision);
+          setLoadedParams(params);
           if (!editingRef.current) syncForm(item);
         }
       })
-      .catch(() => {
-        if (active) setError('Не удалось загрузить кандидата.');
+      .catch((error: unknown) => {
+        if (!active) return;
+        setError(error instanceof ApiError && (error.statusCode === 403 || error.statusCode === 404)
+          ? 'Карточка кандидата недоступна.'
+          : 'Не удалось загрузить кандидата.');
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -216,7 +304,7 @@ export default function CandidatePage({
     return () => {
       active = false;
     };
-  }, [params, accessRevision, accessRetry]);
+  }, [params, accessRevision, accessRetry, capabilitiesRefreshError]);
 
   const apply = (next: CandidateCard): void => {
     setCandidate(next);
@@ -225,14 +313,23 @@ export default function CandidatePage({
 
   const mutate = async (
     operation: () => Promise<CandidateCard>,
+    isCurrent: () => boolean,
   ): Promise<boolean> => {
-    if (saving) return false;
+    const generation = getAccessGeneration();
+    const isCurrentMutation = (): boolean => isCurrent() && isAccessGenerationCurrent(generation) && candidateContext.current.ready &&
+      candidateContext.current.params === params && candidateContext.current.accessRevision === accessRevision &&
+      candidateContext.current.candidate === candidate && candidate !== null;
+    if (saving || !isCurrentMutation()) return false;
+    const sequence = ++mutationSequence.current;
     setSaving(true);
     setError(null);
     try {
-      apply(await operation());
+      const next = await operation();
+      if (!isCurrentMutation()) return false;
+      apply(next);
       return true;
     } catch (caughtError) {
+      if (!isCurrentMutation()) return false;
       setError(
         caughtError instanceof Error
           ? caughtError.message
@@ -240,7 +337,7 @@ export default function CandidatePage({
       );
       return false;
     } finally {
-      setSaving(false);
+      if (sequence === mutationSequence.current) setSaving(false);
     }
   };
 
@@ -279,20 +376,24 @@ export default function CandidatePage({
   const reopenNeedsManagers = reopening && candidate.candidateType === 'regular';
   const phones = candidatePhones(candidate);
   const requestStatusChange = (next: CandidateStatus): void => {
-    if (!(candidate.capabilities.canChangeStatus ?? candidate.capabilities.canManage)) return;
+    const isCurrent = captureCandidateAction('canChangeStatus');
+    if (!isCurrent()) return;
     if (next === candidate.status) return;
     const closing = CLOSED_STATUSES.includes(next);
     const opening = isClosed && !closing;
     if (closing || (opening && candidate.candidateType === 'regular')) {
       setError(null);
       setReopenManagers(opening ? latestManagerDrafts(candidate) : []);
+      statusDraftOwner.current = { actorId: user?.id, candidateId: candidate.id, params };
       setStatusTarget(next);
+      setCandidateIntent({ kind: 'status', isCurrent });
       return;
     }
-    void mutate(() => changeCandidateStatus(candidate.id, next, candidate.version));
+    void mutate(() => changeCandidateStatus(candidate.id, next, candidate.version), isCurrent);
   };
   const confirmStatusChange = (): void => {
-    if (!statusTarget) return;
+    const isCurrent = (): boolean => candidateIntentRef.current === candidateIntent && candidateIntent?.isCurrent() === true;
+    if (!statusTarget || !isIntentCurrent('status') || !isCurrent()) return;
     const target = statusTarget;
     void mutate(() =>
       changeCandidateStatus(
@@ -302,9 +403,9 @@ export default function CandidatePage({
         reopenNeedsManagers
           ? candidateManagerPayload(reopenManagers, candidate.object?.id ?? null)
           : undefined,
-      ),
+      ), isCurrent,
     ).then((success) => {
-      if (success) setStatusTarget(null);
+      if (success) { statusDraftOwner.current = null; setStatusTarget(null); }
     });
   };
   const regularObjectMissing =
@@ -325,7 +426,7 @@ export default function CandidatePage({
           key: 'restore',
           label: 'Восстановить из архива',
           onSelect: () =>
-            void mutate(() => setCandidateArchive(candidate.id, candidate.version, true)),
+            void mutate(() => setCandidateArchive(candidate.id, candidate.version, true), captureCandidateAction('canRestore')),
         }]
       : []),
     ...(candidate.capabilities.canArchive
@@ -333,7 +434,11 @@ export default function CandidatePage({
           key: 'archive',
           label: 'Архивировать',
           tone: 'danger' as const,
-          onSelect: () => setArchiveOpen(true),
+          onSelect: () => {
+            const isCurrent = captureCandidateAction('canArchive');
+            if (!isCurrent()) return;
+            setCandidateIntent({ kind: 'archive', isCurrent }); setArchiveOpen(true);
+          },
         }]
       : []),
   ];
@@ -341,8 +446,8 @@ export default function CandidatePage({
   return (
     <div className={card.page}>
       <BackLink href="/candidates">Кандидаты</BackLink>
-      {loadedAccessRevision !== accessRevision ? <div role="status">{error || 'Проверяем доступ к кандидату…'}{error ? <Button onClick={() => setAccessRetry((value) => value + 1)}>Повторить проверку доступа</Button> : null}</div> : null}
-      <AccessSnapshotBoundary blocked={loadedAccessRevision !== accessRevision}>
+      {!snapshotReady ? <div role="status">{capabilitiesRefreshError || error || 'Проверяем доступ к кандидату…'}{error ? <Button onClick={() => setAccessRetry((value) => value + 1)}>Повторить проверку доступа</Button> : null}</div> : null}
+      <AccessSnapshotBoundary blocked={!snapshotReady}>
 
       <EntityHeader
         className={card.header}
@@ -379,6 +484,9 @@ export default function CandidatePage({
                 variant="primary"
                 disabled={saving}
                 onClick={() => {
+                  const isCurrent = captureCandidateAction('canConvert');
+                  if (!isCurrent()) return;
+                  setCandidateIntent({ kind: 'convert', isCurrent });
                   setConversionError(null);
                   setConverting(true);
                 }}
@@ -410,6 +518,13 @@ export default function CandidatePage({
           Кандидат в архиве: карточка доступна для просмотра, изменения недоступны.
         </Alert>
       ) : null}
+      {revokedActions?.key === JSON.stringify([user?.id, candidate.id]) ? revokedActions.leaves.map(leaf => (
+        <Alert key={leaf} tone="warning" role="status">{leaf === 'canChangeStatus'
+          ? 'Изменение статуса недоступно. Выбранный статус сохранён до восстановления доступа.'
+          : leaf === 'canArchive' ? 'Архивирование недоступно: нет прав на действие.'
+            : leaf === 'canRestore' ? 'Восстановление из архива недоступно: нет прав на действие.'
+              : 'Оформление сотрудником недоступно: нет прав на действие.'}</Alert>
+      )) : null}
       {error && !statusTarget && !archiveOpen ? (
         <Alert tone="danger" role="alert">{error}</Alert>
       ) : null}
@@ -501,6 +616,11 @@ export default function CandidatePage({
               </h2>
             </div>
             {editing ? (
+              <>
+              {!candidate.capabilities.canManage ? (
+                <Alert tone="warning" role="status">Редактирование кандидата недоступно. Черновик сохранён до восстановления доступа.</Alert>
+              ) : null}
+              <AccessSnapshotBoundary blocked={!candidate.capabilities.canManage}>
               <form
                 className={styles.form}
                 noValidate
@@ -522,7 +642,7 @@ export default function CandidatePage({
                       comment: form.comment.trim() || null,
                       candidateType: form.candidateType,
                       objectId: form.objectId || null,
-                    }),
+                    }), captureCandidateAction('canManage'),
                   ).then((success) => {
                     if (success) setEditing(false);
                   });
@@ -632,6 +752,8 @@ export default function CandidatePage({
                   </Button>
                 </div>
               </form>
+              </AccessSnapshotBoundary>
+              </>
             ) : candidate.comment ? (
               <p className={card.comment}>{candidate.comment}</p>
             ) : (
@@ -669,7 +791,7 @@ export default function CandidatePage({
                   event.preventDefault();
                   const text = responseText.trim();
                   if (!text) return;
-                  void mutate(() => addCandidateResponse(candidate.id, text)).then(
+                  void mutate(() => addCandidateResponse(candidate.id, text), captureCandidateAction('canRespond')).then(
                     (success) => {
                       if (success) setResponseText('');
                     },
@@ -750,7 +872,7 @@ export default function CandidatePage({
                           candidate.id,
                           candidateManagerPayload(managers, candidate.object?.id ?? null),
                           candidate.version,
-                        ),
+                        ), captureCandidateAction('canManageAssignments'),
                       ).then((success) => {
                         if (success) setEditingManagers(false);
                       });
@@ -825,8 +947,8 @@ export default function CandidatePage({
       </div>
 
       <ConfirmDialog
-        open={archiveOpen}
-        onOpenChange={setArchiveOpen}
+        open={archiveOpen && isIntentCurrent('archive')}
+        onOpenChange={(open) => { if (!open) cancelCandidateIntent(); }}
         title="Архивировать кандидата?"
         consequence="Кандидат будет перемещён в архив."
         confirmLabel="Архивировать"
@@ -834,17 +956,20 @@ export default function CandidatePage({
         pending={saving}
         error={error}
         onConfirm={() => {
+          const isCurrent = (): boolean => candidateIntentRef.current === candidateIntent && candidateIntent?.isCurrent() === true;
+          if (!isIntentCurrent('archive') || !isCurrent()) return;
           void mutate(() =>
             setCandidateArchive(candidate.id, candidate.version),
+            isCurrent,
           ).then((success) => {
             if (success) setArchiveOpen(false);
           });
         }}
       />
       <Dialog
-        open={Boolean(statusTarget)}
+        open={Boolean(statusTarget) && isIntentCurrent('status')}
         onOpenChange={(open) => {
-          if (!open) setStatusTarget(null);
+          if (!open && isIntentCurrent('status')) cancelCandidateIntent();
         }}
         title={
           reopening
@@ -857,7 +982,7 @@ export default function CandidatePage({
             <Button
               variant="ghost"
               disabled={saving}
-              onClick={() => setStatusTarget(null)}
+              onClick={cancelCandidateIntent}
             >
               Отмена
             </Button>
@@ -907,8 +1032,8 @@ export default function CandidatePage({
         </div>
       </Dialog>
       <ConfirmDialog
-        open={converting}
-        onOpenChange={setConverting}
+        open={converting && isIntentCurrent('convert')}
+        onOpenChange={(open) => { if (!open) cancelCandidateIntent(); }}
         title="Оформить сотрудником?"
         confirmLabel="Оформить сотрудником"
         pending={saving}
@@ -954,7 +1079,9 @@ export default function CandidatePage({
           </div>
         }
         onConfirm={() => {
-          if (saving) return;
+          const isCurrent = (): boolean => candidateIntentRef.current === candidateIntent && candidateIntent?.isCurrent() === true;
+          if (saving || !isIntentCurrent('convert') || !isCurrent()) return;
+          const sequence = ++mutationSequence.current;
           setSaving(true);
           setConversionError(null);
           void convertCandidateToEmployee(
@@ -963,19 +1090,21 @@ export default function CandidatePage({
             candidate.version,
           )
             .then((next) => {
+              if (!isCurrent()) return;
               apply(next);
               setConverting(false);
               if (next.employeeId && next.capabilities.canViewEmployee)
                 router.push(`/employees/${next.employeeId}`);
             })
-            .catch((caughtError) =>
+            .catch((caughtError) => {
+              if (!isCurrent()) return;
               setConversionError(
                 caughtError instanceof Error
                   ? caughtError.message
                   : 'Не удалось оформить сотрудника.',
-              ),
-            )
-            .finally(() => setSaving(false));
+              );
+            })
+            .finally(() => { if (sequence === mutationSequence.current) setSaving(false); });
         }}
       />
       </AccessSnapshotBoundary>

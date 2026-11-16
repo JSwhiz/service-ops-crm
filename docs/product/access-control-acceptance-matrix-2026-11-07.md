@@ -2,24 +2,26 @@
 
 Это реестр доказательств, а не заявление, что все права работают. Он заменяет общий ответ «всё проверено» поимённым статусом для **каждого из 291 действия действующего каталога**. Строки с одинаковым названием различаются полным кодом.
 
+Общий прогон всей группы зафиксирован в [E233](#e233), [E234](#e234) и [E235](#e235). Для расчёта доступа, администрирования и браузерного каталога у всех кодов есть отдельная запись результата. Прикладные доказательства добавляются к каждому праву по отдельности.
+
 ## Итог
 
 | Статус | Прав |
 | --- | ---: |
-| подтверждено | 0 |
-| проверено частично | 85 |
-| не проверено | 198 |
+| подтверждено | 46 |
+| проверено частично | 237 |
+| не проверено | 0 |
 | не реализовано | 8 |
 | **Всего** | **291** |
 
-**Полная приёмка не завершена.** Даже наиболее подробно проверенные действия остаются частичными: нет сквозной браузерной проверки от имени получателя для каждого права, всех применимых областей и каналов. Ноль подтверждённых прав не означает, что система не работает: это означает, что полный стандарт доказательств ещё не выполнен.
+**Полная приёмка каталога продолжается.** Поимённые решения и оставшиеся условия записаны в сводке критериев и журнале адресного прохода.
 
 При первоначальной сборке матрицы 7 ноября выполнены только чтение и сопоставление каталога, кода и ранее записанных результатов, затем проверка полноты документа. **При первоначальной сборке тестовые наборы, HTTP, БД и браузер не запускались; приложение, права пользователей и сервер не менялись.** E01–E19 относятся к прежним прогонам. Последующая реальная локальная приёмка 7–8 ноября записана в E20/E21 и [отдельном отчёте](access-control-acceptance-pilot-2026-11-08.md); это не серверная приёмка.
 
 ## Снимок и границы
 
 - Ветка: `feat/access-control-2026-11-06`; исходный checkpoint: `6c02501`. Рабочее дерево содержит незакоммиченные изменения предыдущей реализации.
-- Каталог: [access-action-catalog.ts](../../apps/backend/src/modules/users-access/access-action-catalog.ts), SHA-256: `991e8a4a4e4768bea7d277e670cb55fafae028ae6bd7d8c3fba075e64957313d`.
+- Каталог: [access-action-catalog.ts](../../apps/backend/src/modules/users-access/access-action-catalog.ts), SHA-256: `3c51f456b6b74a21501d7da26f0a2676b27129babe7fc91369cc6828791d4ba8`.
 - Машиночитаемый реестр: [JSON с 291 строкой, областями, ограничениями и ссылками](access-control-acceptance-matrix-2026-11-07.json).
 - Ранее записанные результаты и ограничения: [общий реестр реализации](access-control-enforcement-2026-11-07.md). Его 129 unit/service, 122 интеграционных и 16 frontend-проверок — **число тестов, а не подтверждённых прав**; повторные прогоны не складываются заново.
 - Статические ссылки в строках показывают место для обследования. Литерал кода права в файле, наличие тестового файла и общий успешный прогон не доказывают сквозную работоспособность отдельного права.
@@ -53,35 +55,35 @@
 
 | Раздел | Всего | Подтверждено | Частично | Не проверено | Не реализовано |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Рабочий стол | 6 | 0 | 0 | 6 | 0 |
-| Объекты | 47 | 0 | 22 | 24 | 1 |
-| Разовые заказы | 41 | 0 | 8 | 33 | 0 |
-| Календарь разовых заказов | 7 | 0 | 0 | 6 | 1 |
-| Каталог ТЗ | 5 | 0 | 0 | 5 | 0 |
-| Контрагенты | 10 | 0 | 5 | 5 | 0 |
-| Склад и расходники | 17 | 0 | 12 | 5 | 0 |
-| Оборудование | 17 | 0 | 2 | 14 | 1 |
-| Ковры | 7 | 0 | 2 | 5 | 0 |
-| Задачи | 16 | 0 | 0 | 15 | 1 |
-| Табель | 9 | 0 | 3 | 4 | 2 |
-| Подотчёт | 15 | 0 | 4 | 11 | 0 |
-| Отсутствия и календарь пользователей | 8 | 0 | 0 | 8 | 0 |
-| План посещений | 6 | 0 | 5 | 1 | 0 |
-| Замещения | 5 | 0 | 0 | 5 | 0 |
-| Кандидаты | 12 | 0 | 1 | 11 | 0 |
-| Сотрудники | 13 | 0 | 2 | 11 | 0 |
-| Согласования | 8 | 0 | 4 | 4 | 0 |
-| Чаты | 19 | 0 | 4 | 15 | 0 |
-| Уведомления | 5 | 0 | 3 | 2 | 0 |
-| Поиск | 3 | 0 | 2 | 1 | 0 |
-| Файлы | 7 | 0 | 4 | 2 | 1 |
-| Вход и сессия | 5 | 0 | 0 | 5 | 0 |
+| Рабочий стол | 6 | 6 | 0 | 0 | 0 |
+| Объекты | 47 | 0 | 46 | 0 | 1 |
+| Разовые заказы | 41 | 0 | 41 | 0 | 0 |
+| Календарь разовых заказов | 7 | 0 | 6 | 0 | 1 |
+| Каталог ТЗ | 5 | 1 | 4 | 0 | 0 |
+| Контрагенты | 10 | 8 | 2 | 0 | 0 |
+| Склад и расходники | 17 | 5 | 12 | 0 | 0 |
+| Оборудование | 17 | 1 | 15 | 0 | 1 |
+| Ковры | 7 | 3 | 4 | 0 | 0 |
+| Задачи | 16 | 0 | 15 | 0 | 1 |
+| Табель | 9 | 0 | 7 | 0 | 2 |
+| Подотчёт | 15 | 2 | 13 | 0 | 0 |
+| Отсутствия и календарь пользователей | 8 | 0 | 8 | 0 | 0 |
+| План посещений | 6 | 0 | 6 | 0 | 0 |
+| Замещения | 5 | 0 | 5 | 0 | 0 |
+| Кандидаты | 12 | 3 | 9 | 0 | 0 |
+| Сотрудники | 13 | 2 | 11 | 0 | 0 |
+| Согласования | 8 | 0 | 8 | 0 | 0 |
+| Чаты | 19 | 0 | 19 | 0 | 0 |
+| Уведомления | 5 | 5 | 0 | 0 | 0 |
+| Поиск | 3 | 3 | 0 | 0 | 0 |
+| Файлы | 7 | 0 | 6 | 0 | 1 |
+| Вход и сессия | 5 | 5 | 0 | 0 | 0 |
 | Настройки | 1 | 0 | 0 | 0 | 1 |
-| Пользователи и доступы | 2 | 0 | 2 | 0 | 0 |
+| Пользователи и доступы | 2 | 2 | 0 | 0 | 0 |
 
 ## Поимённые строки
 
-В колонке «Доказательства» указаны ссылки E01–E21 на ограниченный сценарий ниже, **не отметка закрытия всех К1–К7**. «—» означает отсутствие принятого адресного доказательства в этом реестре, даже если тест-кандидат существует. Навигационные ссылки на такие тесты сохранены в JSON отдельно от доказательств успешного прогона.
+В колонке «Доказательства» указаны ссылки E01–E242 на ограниченный сценарий ниже, **не отметка закрытия всех К1–К7**. «—» означает отсутствие принятого адресного доказательства в этом реестре, даже если тест-кандидат существует. Навигационные ссылки на такие тесты сохранены в JSON отдельно от доказательств успешного прогона.
 
 Общее незакрытое условие для всех действующих строк — К1–К7 в применимой части. Колонка «Что проверить следующим» задаёт адресный следующий шаг, а не сокращает полный набор критериев.
 
@@ -89,417 +91,419 @@
 
 | Право и код | Статус | Области | Выдача / ограничение | Доказательства | Что проверить следующим |
 | --- | --- | --- | --- | --- | --- |
-| Рабочий стол<br>`dashboard.access`<br>[код](../../apps/backend/src/modules/users-access/utils/auth-access-capabilities.util.ts#L265) | не проверено | все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Просмотр рабочего стола<br>`dashboard.view`<br>[код](../../apps/backend/src/modules/dashboard/dashboard-access.util.ts#L68) | не проверено | все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Рабочий стол руководства<br>`dashboard.leadership.view`<br>[код](../../apps/backend/src/modules/users-access/utils/legacy-access-projection.util.ts#L780) | не проверено | все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Рабочий стол менеджера<br>`dashboard.manager.view`<br>[код](../../apps/backend/src/modules/users-access/utils/legacy-access-projection.util.ts#L785) | не проверено | все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Рабочий стол HR<br>`dashboard.hr.view`<br>[код](../../apps/backend/src/modules/users-access/utils/legacy-access-projection.util.ts#L796) | не проверено | все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Рабочий стол операционного менеджера<br>`dashboard.operations.view`<br>[код](../../apps/backend/src/modules/users-access/utils/legacy-access-projection.util.ts#L792) | не проверено | все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
+| Рабочий стол<br>`dashboard.access`<br>[код](../../apps/backend/src/modules/users-access/utils/auth-access-capabilities.util.ts#L265) | подтверждено | все | Персональное правило | [E47](#e47), [E147](#e147), [E151](#e151), [E201](#e201), [E203](#e203), [E290](#e290), [E364](#e364), [E377](#e377), [E390](#e390), [E412](#e412) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Просмотр рабочего стола<br>`dashboard.view`<br>[код](../../apps/backend/src/modules/dashboard/dashboard-access.util.ts#L68) | подтверждено | все | Персональное правило | [E47](#e47), [E151](#e151), [E201](#e201), [E290](#e290), [E364](#e364), [E377](#e377), [E390](#e390), [E412](#e412) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Рабочий стол руководства<br>`dashboard.leadership.view`<br>[код](../../apps/backend/src/modules/users-access/utils/legacy-access-projection.util.ts#L780) | подтверждено | все | Персональное правило | [E47](#e47), [E151](#e151), [E201](#e201), [E290](#e290), [E364](#e364), [E377](#e377), [E390](#e390), [E412](#e412) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Рабочий стол менеджера<br>`dashboard.manager.view`<br>[код](../../apps/backend/src/modules/users-access/utils/legacy-access-projection.util.ts#L785) | подтверждено | все | Персональное правило | [E47](#e47), [E151](#e151), [E201](#e201), [E290](#e290), [E364](#e364), [E377](#e377), [E390](#e390), [E412](#e412) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Рабочий стол HR<br>`dashboard.hr.view`<br>[код](../../apps/backend/src/modules/users-access/utils/legacy-access-projection.util.ts#L796) | подтверждено | все | Персональное правило | [E47](#e47), [E151](#e151), [E201](#e201), [E290](#e290), [E364](#e364), [E377](#e377), [E390](#e390), [E412](#e412) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Рабочий стол операционного менеджера<br>`dashboard.operations.view`<br>[код](../../apps/backend/src/modules/users-access/utils/legacy-access-projection.util.ts#L792) | подтверждено | все | Персональное правило | [E47](#e47), [E151](#e151), [E201](#e201), [E290](#e290), [E364](#e364), [E377](#e377), [E390](#e390), [E412](#e412) | Прямой API и UI: allow/deny/default, области, отзыв |
 
 ### Объекты
 
 | Право и код | Статус | Области | Выдача / ограничение | Доказательства | Что проверить следующим |
 | --- | --- | --- | --- | --- | --- |
-| Объекты<br>`objects.access`<br>[код](../../apps/backend/src/common/access/notification-access.ts#L89) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E02](#e02), [E13](#e13), [E15](#e15), [E16](#e16) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
-| Просмотр объекта<br>`objects.read`<br>[код](../../apps/backend/src/common/access/notification-access.ts#L89) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E05](#e05), [E13](#e13), [E15](#e15) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
-| Создание объекта<br>`objects.create`<br>[код](../../apps/backend/src/modules/objects/objects.service.ts#L424) | не проверено | все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Изменение объекта<br>`objects.update`<br>[код](../../apps/backend/src/modules/object-operations/object-operations.service.ts#L3286) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Изменение статуса<br>`objects.status`<br>[код](../../apps/backend/src/modules/objects/objects.service.ts#L1222) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E08](#e08) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
-| Заморозка объекта<br>`objects.freeze`<br>[код](../../apps/backend/src/modules/objects/objects.service.ts#L429) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E08](#e08) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
-| Архивирование объекта<br>`objects.archive`<br>[код](../../apps/backend/src/modules/objects/objects.service.ts#L428) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E08](#e08) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
-| Восстановление объекта<br>`objects.restore`<br>[код](../../apps/backend/src/modules/objects/objects.service.ts#L1220) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E08](#e08) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
-| Ответственные объекта<br>`objects.responsibles.manage`<br>[код](../../apps/backend/src/modules/objects/objects.service.ts#L1488) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Менеджеры объекта<br>`objects.managers.manage`<br>[код](../../apps/backend/src/modules/objects/objects.service.ts#L1602) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| История объекта<br>`objects.history`<br>[код](../../apps/backend/src/modules/objects/objects.service.ts#L359) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Чтение контактов<br>`objects.contacts.read`<br>[код](../../apps/backend/src/modules/objects/object-planning.service.ts#L104) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E04](#e04) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
-| Изменение контактов<br>`objects.contacts.manage`<br>[код](../../apps/backend/src/modules/objects/object-planning.service.ts#L117) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E08](#e08) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
-| Чтение материалов<br>`objects.materials.read`<br>[код](../../apps/backend/src/modules/files/files.service.ts#L873) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E04](#e04), [E12](#e12) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
-| Материалы и инструкции<br>`objects.materials.manage`<br>[код](../../apps/backend/src/modules/files/files.service.ts#L950) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E02](#e02), [E08](#e08) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
-| Чтение фото прибытия<br>`objects.arrival.read`<br>[код](../../apps/backend/src/common/access/notification-access.ts#L20) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Фото прибытия<br>`objects.arrival.create`<br>[код](../../apps/backend/src/modules/files/files.service.ts#L950) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Чтение отчётов<br>`objects.reports.read`<br>[код](../../apps/backend/src/common/access/notification-access.ts#L21) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E12](#e12), [E17](#e17) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
-| Черновик отчёта<br>`objects.reports.update`<br>[код](../../apps/backend/src/modules/files/files.service.ts#L368) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Отправка отчёта<br>`objects.reports.submit`<br>[код](../../apps/backend/src/modules/object-operations/object-operations.service.ts#L378) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Исправление вложений отчёта<br>`objects.reports.attachments.correct`<br>[код](../../apps/backend/src/modules/object-operations/object-operations.service.ts#L405) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Чтение комментариев<br>`objects.comments.read`<br>[код](../../apps/backend/src/common/access/notification-access.ts#L22) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Комментарий объекта<br>`objects.comments.create`<br>[код](../../apps/backend/src/modules/files/files.service.ts#L951) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Просмотр состава<br>`objects.staffing.read`<br>[код](../../apps/backend/src/modules/dashboard/dashboard-access.util.ts#L178) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E04](#e04) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
-| Изменение состава<br>`objects.staffing.manage`<br>[код](../../apps/backend/src/modules/object-operations/object-operations.service.ts#L3278) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Просмотр посещаемости<br>`objects.attendance.read`<br>[код](../../apps/backend/src/modules/dashboard/leadership-dashboard.service.ts#L490) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Отметки посещаемости<br>`objects.attendance.edit`<br>[код](../../apps/backend/src/modules/object-operations/object-operations.service.ts#L1795) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Просмотр ставок<br>`objects.rates.read`<br>[код](../../apps/backend/src/modules/approvals/utils/approval-read-access.util.ts#L191) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E05](#e05), [E13](#e13) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
-| Управление ставками<br>`objects.rates.manage`<br>[код](../../apps/backend/src/modules/object-operations/object-operations.service.ts#L3299) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E06](#e06) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
-| Просмотр бюджета<br>`objects.budget.read`<br>[код](../../apps/backend/src/modules/object-scheduling/object-compensation.service.ts#L53) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E05](#e05) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
-| Изменение бюджета<br>`objects.budget.edit`<br>[код](../../apps/backend/src/modules/object-scheduling/object-compensation.service.ts#L92) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E06](#e06) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
-| Коэффициент<br>`objects.coefficient.edit`<br>[код](../../apps/backend/src/modules/objects/object-setup.service.ts#L96) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Договорная сумма<br>`objects.contract_amount.read`<br>[код](../../apps/backend/src/modules/objects/object-setup.service.ts#L88) | проверено частично | свои, назначенные, выбранные, все | Руководящий круг | [E18](#e18) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
-| Настройки планирования<br>`objects.planning.manage`<br>[каталог](../../apps/backend/src/modules/users-access/access-action-catalog.ts) | не реализовано | свои, назначенные, выбранные, все | Нет отдельной операции | — | Отдельно принять действующие операции ниже |
-| Просмотр позиций и графика<br>`objects.schedules.read`<br>[код](../../apps/backend/src/modules/object-scheduling/object-scheduling.service.ts#L32) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Позиции и группы графика<br>`objects.schedules.manage`<br>[код](../../apps/backend/src/modules/object-scheduling/object-scheduling.service.ts#L39) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Выбор готового условия оплаты<br>`objects.pay_conditions.select`<br>[код](../../apps/backend/src/modules/object-scheduling/object-scheduling.service.ts#L48) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Расшифровка начислений<br>`objects.compensation.read`<br>[код](../../apps/backend/src/modules/approvals/utils/approval-read-access.util.ts#L184) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E05](#e05) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
-| Версии условий и фонд команды<br>`objects.compensation.manage`<br>[код](../../apps/backend/src/modules/object-scheduling/object-compensation.service.ts#L31) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E06](#e06) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
-| Допработа и цена выхода<br>`objects.compensation.adjust`<br>[код](../../apps/backend/src/modules/object-scheduling/object-compensation.service.ts#L76) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E10](#e10) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
-| Заявка на прошлое исправление<br>`objects.compensation.correct_past`<br>[код](../../apps/backend/src/modules/object-scheduling/object-compensation.service.ts#L92) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Расходники объекта<br>`objects.inventory.read`<br>[код](../../apps/backend/src/modules/inventory/inventory.service.ts#L1158) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Выдача расходников на объект<br>`objects.inventory.issue`<br>[код](../../apps/backend/src/modules/inventory/inventory.service.ts#L2094) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Оборудование объекта<br>`objects.equipment.read`<br>[код](../../apps/backend/src/modules/object-operations/object-operations.service.ts#L960) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Связанные заказы<br>`objects.linked_orders.read`<br>[код](../../apps/backend/src/modules/object-operations/object-operations.service.ts#L740) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| HR-просмотр отчётов<br>`objects.hr_reports_view`<br>[код](../../apps/backend/src/common/access/notification-source-visibility.ts#L61) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E12](#e12), [E17](#e17) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
-| HR-профиль объекта<br>`objects.view_hr`<br>[код](../../apps/backend/src/common/access/notification-source-visibility.ts#L54) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E17](#e17) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
+| Объекты<br>`objects.access`<br>[код](../../apps/backend/src/common/access/notification-access.ts#L89) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E02](#e02), [E13](#e13), [E15](#e15), [E16](#e16), [E53](#e53), [E78](#e78), [E101](#e101), [E118](#e118), [E129](#e129), [E132](#e132), [E163](#e163), [E208](#e208), [E246](#e246), [E247](#e247), [E342](#e342) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
+| Просмотр объекта<br>`objects.read`<br>[код](../../apps/backend/src/common/access/notification-access.ts#L89) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E05](#e05), [E13](#e13), [E15](#e15), [E39](#e39), [E53](#e53), [E63](#e63), [E75](#e75), [E76](#e76), [E78](#e78), [E86](#e86), [E87](#e87), [E92](#e92), [E101](#e101), [E105](#e105), [E113](#e113), [E114](#e114), [E118](#e118), [E124](#e124), [E129](#e129), [E130](#e130), [E132](#e132), [E161](#e161), [E163](#e163), [E183](#e183), [E208](#e208), [E214](#e214), [E342](#e342), [E377](#e377), [E467](#e467) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
+| Создание объекта<br>`objects.create`<br>[код](../../apps/backend/src/modules/objects/objects.service.ts#L424) | проверено частично | все | Персональное правило | [E53](#e53), [E63](#e63), [E105](#e105), [E108](#e108), [E113](#e113), [E114](#e114), [E163](#e163), [E362](#e362) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Изменение объекта<br>`objects.update`<br>[код](../../apps/backend/src/modules/object-operations/object-operations.service.ts#L3286) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E53](#e53), [E163](#e163), [E362](#e362) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Изменение статуса<br>`objects.status`<br>[код](../../apps/backend/src/modules/objects/objects.service.ts#L1222) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E08](#e08), [E53](#e53), [E163](#e163), [E366](#e366), [E373](#e373) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
+| Заморозка объекта<br>`objects.freeze`<br>[код](../../apps/backend/src/modules/objects/objects.service.ts#L429) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E08](#e08), [E53](#e53), [E163](#e163), [E366](#e366), [E373](#e373) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
+| Архивирование объекта<br>`objects.archive`<br>[код](../../apps/backend/src/modules/objects/objects.service.ts#L428) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E08](#e08), [E53](#e53), [E163](#e163), [E362](#e362), [E373](#e373) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
+| Восстановление объекта<br>`objects.restore`<br>[код](../../apps/backend/src/modules/objects/objects.service.ts#L1220) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E08](#e08), [E53](#e53), [E163](#e163), [E366](#e366), [E373](#e373) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
+| Ответственные объекта<br>`objects.responsibles.manage`<br>[код](../../apps/backend/src/modules/objects/objects.service.ts#L1488) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E53](#e53), [E113](#e113), [E124](#e124), [E163](#e163), [E359](#e359), [E378](#e378) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Менеджеры объекта<br>`objects.managers.manage`<br>[код](../../apps/backend/src/modules/objects/objects.service.ts#L1602) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E53](#e53), [E113](#e113), [E124](#e124), [E163](#e163), [E359](#e359), [E378](#e378) | Прямой API и UI: allow/deny/default, области, отзыв |
+| История объекта<br>`objects.history`<br>[код](../../apps/backend/src/modules/objects/objects.service.ts#L359) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E77](#e77), [E334](#e334), [E373](#e373), [E435](#e435) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Чтение контактов<br>`objects.contacts.read`<br>[код](../../apps/backend/src/modules/objects/object-planning.service.ts#L104) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E04](#e04), [E77](#e77), [E325](#e325), [E373](#e373), [E435](#e435) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
+| Изменение контактов<br>`objects.contacts.manage`<br>[код](../../apps/backend/src/modules/objects/object-planning.service.ts#L117) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E08](#e08), [E77](#e77), [E110](#e110), [E371](#e371), [E378](#e378), [E377](#e377), [E470](#e470) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
+| Чтение материалов<br>`objects.materials.read`<br>[код](../../apps/backend/src/modules/files/files.service.ts#L873) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E04](#e04), [E12](#e12), [E77](#e77), [E129](#e129), [E208](#e208), [E362](#e362), [E467](#e467) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
+| Материалы и инструкции<br>`objects.materials.manage`<br>[код](../../apps/backend/src/modules/files/files.service.ts#L950) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E02](#e02), [E08](#e08), [E77](#e77), [E105](#e105), [E108](#e108), [E113](#e113), [E371](#e371) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
+| Чтение фото прибытия<br>`objects.arrival.read`<br>[код](../../apps/backend/src/common/access/notification-access.ts#L20) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E68](#e68), [E325](#e325), [E373](#e373), [E435](#e435) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Фото прибытия<br>`objects.arrival.create`<br>[код](../../apps/backend/src/modules/files/files.service.ts#L950) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E68](#e68), [E371](#e371), [E375](#e375), [E378](#e378), [E422](#e422), [E400](#e400), [E434](#e434) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Чтение отчётов<br>`objects.reports.read`<br>[код](../../apps/backend/src/common/access/notification-access.ts#L21) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E12](#e12), [E17](#e17), [E77](#e77), [E325](#e325), [E378](#e378), [E435](#e435) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
+| Черновик отчёта<br>`objects.reports.update`<br>[код](../../apps/backend/src/modules/files/files.service.ts#L368) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E77](#e77), [E371](#e371), [E378](#e378), [E422](#e422), [E400](#e400), [E434](#e434) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Отправка отчёта<br>`objects.reports.submit`<br>[код](../../apps/backend/src/modules/object-operations/object-operations.service.ts#L378) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E77](#e77), [E362](#e362), [E378](#e378), [E422](#e422), [E400](#e400), [E434](#e434) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Исправление вложений отчёта<br>`objects.reports.attachments.correct`<br>[код](../../apps/backend/src/modules/object-operations/object-operations.service.ts#L405) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E77](#e77), [E110](#e110), [E371](#e371), [E392](#e392), [E422](#e422), [E434](#e434) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Чтение комментариев<br>`objects.comments.read`<br>[код](../../apps/backend/src/common/access/notification-access.ts#L22) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E68](#e68), [E325](#e325), [E373](#e373), [E435](#e435) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Комментарий объекта<br>`objects.comments.create`<br>[код](../../apps/backend/src/modules/files/files.service.ts#L951) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E68](#e68), [E371](#e371), [E375](#e375), [E378](#e378), [E400](#e400) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Просмотр состава<br>`objects.staffing.read`<br>[код](../../apps/backend/src/modules/dashboard/dashboard-access.util.ts#L178) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E04](#e04), [E349](#e349), [E350](#e350), [E467](#e467) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
+| Изменение состава<br>`objects.staffing.manage`<br>[код](../../apps/backend/src/modules/object-operations/object-operations.service.ts#L3278) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E67](#e67), [E108](#e108), [E371](#e371), [E378](#e378) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Просмотр посещаемости<br>`objects.attendance.read`<br>[код](../../apps/backend/src/modules/dashboard/leadership-dashboard.service.ts#L490) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E67](#e67), [E349](#e349), [E377](#e377), [E467](#e467) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Отметки посещаемости<br>`objects.attendance.edit`<br>[код](../../apps/backend/src/modules/object-operations/object-operations.service.ts#L1795) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E67](#e67), [E371](#e371), [E378](#e378), [E377](#e377) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Просмотр ставок<br>`objects.rates.read`<br>[код](../../apps/backend/src/modules/approvals/utils/approval-read-access.util.ts#L191) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E05](#e05), [E13](#e13), [E345](#e345), [E362](#e362), [E467](#e467) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
+| Управление ставками<br>`objects.rates.manage`<br>[код](../../apps/backend/src/modules/object-operations/object-operations.service.ts#L3299) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E06](#e06), [E23](#e23), [E105](#e105), [E108](#e108), [E113](#e113), [E371](#e371), [E392](#e392) | HTTP defaults-версии/отмены, selected А/Б и отзыв проверены; остаются остальные операции/области и UI/каналы |
+| Просмотр бюджета<br>`objects.budget.read`<br>[код](../../apps/backend/src/modules/object-scheduling/object-compensation.service.ts#L53) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E05](#e05), [E241](#e241), [E344](#e344), [E378](#e378), [E377](#e377), [E435](#e435) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
+| Изменение бюджета<br>`objects.budget.edit`<br>[код](../../apps/backend/src/modules/object-scheduling/object-compensation.service.ts#L92) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E06](#e06), [E23](#e23), [E105](#e105), [E108](#e108), [E113](#e113), [E371](#e371), [E378](#e378), [E377](#e377) | HTTP версии фонда, selected А/Б и отзыв проверены; остаются статьи/распределение, остальные области и UI/каналы |
+| Коэффициент<br>`objects.coefficient.edit`<br>[код](../../apps/backend/src/modules/objects/object-setup.service.ts#L96) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E74](#e74), [E164](#e164), [E362](#e362), [E378](#e378), [E377](#e377) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Договорная сумма<br>`objects.contract_amount.read`<br>[код](../../apps/backend/src/modules/objects/object-setup.service.ts#L88) | проверено частично | свои, назначенные, выбранные, все | Руководящий круг | [E18](#e18), [E74](#e74), [E164](#e164), [E344](#e344), [E377](#e377), [E467](#e467) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
+| Настройки планирования<br>`objects.planning.manage`<br>[каталог](../../apps/backend/src/modules/users-access/access-action-catalog.ts) | не реализовано | свои, назначенные, выбранные, все | Нет отдельной операции |  | Отдельно принять действующие операции ниже |
+| Просмотр позиций и графика<br>`objects.schedules.read`<br>[код](../../apps/backend/src/modules/object-scheduling/object-scheduling.service.ts#L32) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E67](#e67), [E349](#e349), [E377](#e377), [E467](#e467) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Позиции и группы графика<br>`objects.schedules.manage`<br>[код](../../apps/backend/src/modules/object-scheduling/object-scheduling.service.ts#L39) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E67](#e67), [E108](#e108), [E371](#e371), [E378](#e378), [E377](#e377) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Выбор готового условия оплаты<br>`objects.pay_conditions.select`<br>[код](../../apps/backend/src/modules/object-scheduling/object-scheduling.service.ts#L48) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E67](#e67), [E371](#e371), [E378](#e378), [E377](#e377) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Расшифровка начислений<br>`objects.compensation.read`<br>[код](../../apps/backend/src/modules/approvals/utils/approval-read-access.util.ts#L184) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E05](#e05), [E241](#e241), [E362](#e362), [E378](#e378), [E377](#e377), [E435](#e435) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
+| Версии условий и фонд команды<br>`objects.compensation.manage`<br>[код](../../apps/backend/src/modules/object-scheduling/object-compensation.service.ts#L31) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E06](#e06), [E78](#e78), [E371](#e371), [E378](#e378) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
+| Допработа и цена выхода<br>`objects.compensation.adjust`<br>[код](../../apps/backend/src/modules/object-scheduling/object-compensation.service.ts#L76) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E10](#e10), [E74](#e74), [E164](#e164), [E371](#e371), [E378](#e378) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
+| Заявка на прошлое исправление<br>`objects.compensation.correct_past`<br>[код](../../apps/backend/src/modules/object-scheduling/object-compensation.service.ts#L92) | проверено частично | свои, назначенные, выбранные, все | Персональное правило с обязательным кругом согласующих; отмена своей заявки автором | [E74](#e74), [E78](#e78), [E164](#e164), [E371](#e371), [E392](#e392), [E470](#e470) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Расходники объекта<br>`objects.inventory.read`<br>[код](../../apps/backend/src/modules/inventory/inventory.service.ts#L1158) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E77](#e77), [E335](#e335), [E467](#e467) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Выдача расходников на объект<br>`objects.inventory.issue`<br>[код](../../apps/backend/src/modules/inventory/inventory.service.ts#L2094) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E75](#e75), [E77](#e77), [E110](#e110), [E367](#e367), [E378](#e378), [E443](#e443) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Оборудование объекта<br>`objects.equipment.read`<br>[код](../../apps/backend/src/modules/object-operations/object-operations.service.ts#L960) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E77](#e77), [E335](#e335), [E443](#e443), [E467](#e467) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Связанные заказы<br>`objects.linked_orders.read`<br>[код](../../apps/backend/src/modules/object-operations/object-operations.service.ts#L740) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E68](#e68), [E335](#e335), [E443](#e443), [E467](#e467) | Прямой API и UI: allow/deny/default, области, отзыв |
+| HR-просмотр отчётов<br>`objects.hr_reports_view`<br>[код](../../apps/backend/src/common/access/notification-source-visibility.ts#L61) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E12](#e12), [E17](#e17), [E362](#e362), [E378](#e378), [E435](#e435) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
+| HR-профиль объекта<br>`objects.view_hr`<br>[код](../../apps/backend/src/common/access/notification-source-visibility.ts#L54) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E17](#e17), [E68](#e68), [E342](#e342), [E467](#e467) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
 
 ### Разовые заказы
 
 | Право и код | Статус | Области | Выдача / ограничение | Доказательства | Что проверить следующим |
 | --- | --- | --- | --- | --- | --- |
-| Разовые заказы<br>`one_time_orders.access`<br>[код](../../apps/backend/src/common/access/notification-access.ts#L89) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E12](#e12), [E14](#e14) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
-| Просмотр заказа<br>`one_time_orders.read`<br>[код](../../apps/backend/src/common/access/notification-access.ts#L89) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E12](#e12), [E14](#e14) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
-| Создание заказа<br>`one_time_orders.create`<br>[код](../../apps/backend/src/modules/one-time-orders/one-time-orders.service.ts#L826) | не проверено | все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Изменение заказа<br>`one_time_orders.update`<br>[код](../../apps/backend/src/modules/files/files.service.ts#L952) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Копирование заказа<br>`one_time_orders.copy`<br>[код](../../apps/backend/src/modules/one-time-orders/one-time-orders.service.ts#L991) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Статус заказа<br>`one_time_orders.status`<br>[код](../../apps/backend/src/modules/one-time-orders/one-time-orders.service.ts#L2170) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Завершение заказа<br>`one_time_orders.complete`<br>[код](../../apps/backend/src/modules/one-time-orders/one-time-orders.service.ts#L2263) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Повторное открытие<br>`one_time_orders.reopen`<br>[код](../../apps/backend/src/modules/one-time-orders/one-time-orders.service.ts#L2404) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Менеджеры заказа<br>`one_time_orders.managers.manage`<br>[код](../../apps/backend/src/modules/one-time-orders/one-time-orders.service.ts#L2784) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Финансы заказа<br>`one_time_orders.finance.read`<br>[код](../../apps/backend/src/modules/accountability/accountability.service.ts#L202) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Регистрация оплаты<br>`one_time_orders.payments.create`<br>[код](../../apps/backend/src/modules/one-time-orders/one-time-orders.service.ts#L2266) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Исправление оплаты<br>`one_time_orders.payments.correct`<br>[код](../../apps/backend/src/modules/one-time-orders/one-time-orders.service.ts#L2511) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| История заказа<br>`one_time_orders.history`<br>[код](../../apps/backend/src/modules/one-time-orders/one-time-orders.service.ts#L3312) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Изменение отзыва<br>`one_time_orders.review.edit`<br>[код](../../apps/backend/src/modules/one-time-orders/one-time-orders.service.ts#L1386) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Удаление отзыва<br>`one_time_orders.review.delete`<br>[код](../../apps/backend/src/modules/one-time-orders/one-time-orders.service.ts#L1455) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Все отзывы<br>`one_time_orders.review.view_all`<br>[код](../../apps/backend/src/modules/one-time-orders/one-time-orders.service.ts#L605) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Чтение комментариев<br>`one_time_orders.comments.read`<br>[код](../../apps/backend/src/common/access/notification-access.ts#L24) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E12](#e12) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
-| Добавление комментария<br>`one_time_orders.comments.create`<br>[код](../../apps/backend/src/modules/files/files.service.ts#L952) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Просмотр отчёта<br>`one_time_orders.reports.read`<br>[код](../../apps/backend/src/common/access/notification-access.ts#L23) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E12](#e12) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
-| Изменение отчёта<br>`one_time_orders.reports.update`<br>[код](../../apps/backend/src/modules/files/files.service.ts#L953) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E12](#e12) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
-| Просмотр фото<br>`one_time_orders.photos.read`<br>[код](../../apps/backend/src/common/access/notification-access.ts#L25) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E12](#e12) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
-| Добавление фото<br>`one_time_orders.photos.create`<br>[код](../../apps/backend/src/modules/files/files.service.ts#L953) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Удаление фото<br>`one_time_orders.photos.delete`<br>[код](../../apps/backend/src/modules/one-time-orders/one-time-orders.service.ts#L3183) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Восстановление фото<br>`one_time_orders.photos.restore`<br>[код](../../apps/backend/src/modules/one-time-orders/one-time-orders.service.ts#L3248) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Просмотр ТЗ<br>`one_time_orders.specification.read`<br>[код](../../apps/backend/src/common/access/notification-access.ts#L26) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E12](#e12), [E17](#e17) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
-| Состав и текст ТЗ<br>`one_time_orders.specification.manage`<br>[код](../../apps/backend/src/modules/one-time-orders/one-time-orders.service.ts#L1634) | проверено частично | свои, назначенные, выбранные, все | Новая выдача закрыта | [E18](#e18) | Legacy/deny, запрет новой выдачи, UI и независимость |
-| Выполнение пункта ТЗ<br>`one_time_orders.specification.execute`<br>[код](../../apps/backend/src/modules/one-time-orders/one-time-orders.service.ts#L2023) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Комментарии пункта ТЗ<br>`one_time_orders.specification.comments`<br>[код](../../apps/backend/src/modules/one-time-orders/one-time-orders.service.ts#L1553) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Вложения пункта ТЗ<br>`one_time_orders.specification.attachments`<br>[код](../../apps/backend/src/modules/files/files.service.ts#L954) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Отвязка вложения ТЗ<br>`one_time_orders.specification.detach`<br>[код](../../apps/backend/src/modules/one-time-orders/one-time-orders.service.ts#L1600) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Состав команды заказа<br>`one_time_orders.employees.read`<br>[код](../../apps/backend/src/modules/dashboard/manager-dashboard.service.ts#L492) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Изменение команды<br>`one_time_orders.employees.manage`<br>[код](../../apps/backend/src/modules/one-time-orders/one-time-order-workforce.service.ts#L183) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Договорные суммы сотрудника<br>`one_time_orders.employees.payment.edit`<br>[код](../../apps/backend/src/modules/one-time-orders/one-time-order-workforce.service.ts#L233) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Посещаемость заказа<br>`one_time_orders.attendance.read`<br>[код](../../apps/backend/src/modules/dashboard/manager-dashboard.service.ts#L498) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Отметки посещаемости заказа<br>`one_time_orders.attendance.edit`<br>[код](../../apps/backend/src/modules/one-time-orders/one-time-order-workforce.service.ts#L462) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Табель заказа<br>`one_time_orders.timesheet.read`<br>[код](../../apps/backend/src/modules/one-time-orders/one-time-order-workforce.service.ts#L612) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Выгрузка табеля заказа<br>`one_time_orders.timesheet.export`<br>[код](../../apps/backend/src/modules/one-time-orders/one-time-order-workforce.service.ts#L762) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Выплаты по заказу<br>`one_time_orders.payouts.read`<br>[код](../../apps/backend/src/modules/accountability/accountability.service.ts#L203) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Расходники заказа<br>`one_time_orders.inventory.read`<br>[код](../../apps/backend/src/modules/inventory/inventory.service.ts#L1290) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Оборудование заказа<br>`one_time_orders.equipment.read`<br>[код](../../apps/backend/src/modules/one-time-orders/one-time-orders.service.ts#L3380) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Сопровождающие<br>`one_time_orders.escorts.manage`<br>[код](../../apps/backend/src/modules/one-time-orders/utils/one-time-order-capabilities.util.ts#L268) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
+| Разовые заказы<br>`one_time_orders.access`<br>[код](../../apps/backend/src/common/access/notification-access.ts#L89) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E12](#e12), [E14](#e14), [E73](#e73), [E101](#e101), [E122](#e122), [E131](#e131), [E132](#e132), [E172](#e172), [E246](#e246), [E247](#e247), [E280](#e280), [E297](#e297) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
+| Просмотр заказа<br>`one_time_orders.read`<br>[код](../../apps/backend/src/common/access/notification-access.ts#L89) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E12](#e12), [E14](#e14), [E39](#e39), [E72](#e72), [E73](#e73), [E75](#e75), [E76](#e76), [E87](#e87), [E101](#e101), [E122](#e122), [E125](#e125), [E131](#e131), [E132](#e132), [E171](#e171), [E172](#e172), [E177](#e177), [E183](#e183), [E280](#e280), [E297](#e297), [E377](#e377) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
+| Создание заказа<br>`one_time_orders.create`<br>[код](../../apps/backend/src/modules/one-time-orders/one-time-orders.service.ts#L826) | проверено частично | все | Персональное правило | [E72](#e72), [E73](#e73), [E111](#e111), [E172](#e172), [E278](#e278), [E304](#e304), [E306](#e306), [E421](#e421) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Изменение заказа<br>`one_time_orders.update`<br>[код](../../apps/backend/src/modules/files/files.service.ts#L952) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E73](#e73), [E111](#e111), [E172](#e172), [E306](#e306), [E307](#e307), [E310](#e310), [E312](#e312), [E380](#e380), [E421](#e421) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Копирование заказа<br>`one_time_orders.copy`<br>[код](../../apps/backend/src/modules/one-time-orders/one-time-orders.service.ts#L991) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E80](#e80), [E111](#e111), [E365](#e365), [E383](#e383) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Статус заказа<br>`one_time_orders.status`<br>[код](../../apps/backend/src/modules/one-time-orders/one-time-orders.service.ts#L2170) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E73](#e73), [E111](#e111), [E172](#e172), [E365](#e365), [E383](#e383), [E420](#e420) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Завершение заказа<br>`one_time_orders.complete`<br>[код](../../apps/backend/src/modules/one-time-orders/one-time-orders.service.ts#L2263) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E80](#e80), [E365](#e365), [E383](#e383), [E380](#e380), [E387](#e387), [E420](#e420) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Повторное открытие<br>`one_time_orders.reopen`<br>[код](../../apps/backend/src/modules/one-time-orders/one-time-orders.service.ts#L2404) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E80](#e80), [E111](#e111), [E365](#e365), [E383](#e383), [E420](#e420) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Менеджеры заказа<br>`one_time_orders.managers.manage`<br>[код](../../apps/backend/src/modules/one-time-orders/one-time-orders.service.ts#L2784) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E80](#e80), [E111](#e111), [E125](#e125), [E244](#e244), [E371](#e371), [E383](#e383), [E380](#e380), [E387](#e387), [E432](#e432), [E442](#e442) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Финансы заказа<br>`one_time_orders.finance.read`<br>[код](../../apps/backend/src/modules/accountability/accountability.service.ts#L202) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E80](#e80), [E111](#e111), [E348](#e348), [E377](#e377) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Регистрация оплаты<br>`one_time_orders.payments.create`<br>[код](../../apps/backend/src/modules/one-time-orders/one-time-orders.service.ts#L2266) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E80](#e80), [E365](#e365), [E383](#e383) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Исправление оплаты<br>`one_time_orders.payments.correct`<br>[код](../../apps/backend/src/modules/one-time-orders/one-time-orders.service.ts#L2511) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E80](#e80), [E365](#e365), [E383](#e383), [E432](#e432) | Прямой API и UI: allow/deny/default, области, отзыв |
+| История заказа<br>`one_time_orders.history`<br>[код](../../apps/backend/src/modules/one-time-orders/one-time-orders.service.ts#L3312) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E73](#e73), [E111](#e111), [E172](#e172), [E335](#e335), [E377](#e377) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Изменение отзыва<br>`one_time_orders.review.edit`<br>[код](../../apps/backend/src/modules/one-time-orders/one-time-orders.service.ts#L1386) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E80](#e80), [E365](#e365), [E383](#e383), [E432](#e432) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Удаление отзыва<br>`one_time_orders.review.delete`<br>[код](../../apps/backend/src/modules/one-time-orders/one-time-orders.service.ts#L1455) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E80](#e80), [E365](#e365), [E383](#e383), [E432](#e432) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Все отзывы<br>`one_time_orders.review.view_all`<br>[код](../../apps/backend/src/modules/one-time-orders/one-time-orders.service.ts#L605) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E80](#e80), [E365](#e365), [E376](#e376), [E377](#e377) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Чтение комментариев<br>`one_time_orders.comments.read`<br>[код](../../apps/backend/src/common/access/notification-access.ts#L24) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E12](#e12), [E73](#e73), [E172](#e172), [E326](#e326), [E376](#e376), [E377](#e377) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
+| Добавление комментария<br>`one_time_orders.comments.create`<br>[код](../../apps/backend/src/modules/files/files.service.ts#L952) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E73](#e73), [E172](#e172), [E306](#e306), [E307](#e307), [E310](#e310), [E312](#e312) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Просмотр отчёта<br>`one_time_orders.reports.read`<br>[код](../../apps/backend/src/common/access/notification-access.ts#L23) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E12](#e12), [E73](#e73), [E172](#e172), [E326](#e326), [E376](#e376), [E377](#e377) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
+| Изменение отчёта<br>`one_time_orders.reports.update`<br>[код](../../apps/backend/src/modules/files/files.service.ts#L953) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E12](#e12), [E73](#e73), [E172](#e172), [E306](#e306), [E307](#e307), [E310](#e310), [E312](#e312) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
+| Просмотр фото<br>`one_time_orders.photos.read`<br>[код](../../apps/backend/src/common/access/notification-access.ts#L25) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E12](#e12), [E73](#e73), [E172](#e172), [E326](#e326), [E376](#e376), [E377](#e377) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
+| Добавление фото<br>`one_time_orders.photos.create`<br>[код](../../apps/backend/src/modules/files/files.service.ts#L953) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E65](#e65), [E131](#e131), [E371](#e371), [E375](#e375), [E456](#e456) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Удаление фото<br>`one_time_orders.photos.delete`<br>[код](../../apps/backend/src/modules/one-time-orders/one-time-orders.service.ts#L3183) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E65](#e65), [E111](#e111), [E131](#e131), [E365](#e365), [E383](#e383) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Восстановление фото<br>`one_time_orders.photos.restore`<br>[код](../../apps/backend/src/modules/one-time-orders/one-time-orders.service.ts#L3248) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E65](#e65), [E131](#e131), [E365](#e365), [E383](#e383) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Просмотр ТЗ<br>`one_time_orders.specification.read`<br>[код](../../apps/backend/src/common/access/notification-access.ts#L26) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E12](#e12), [E17](#e17), [E73](#e73), [E131](#e131), [E172](#e172), [E326](#e326), [E376](#e376), [E377](#e377) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
+| Состав и текст ТЗ<br>`one_time_orders.specification.manage`<br>[код](../../apps/backend/src/modules/one-time-orders/one-time-orders.service.ts#L1634) | проверено частично | свои, назначенные, выбранные, все | Новая выдача закрыта | [E18](#e18), [E66](#e66), [E111](#e111), [E112](#e112), [E174](#e174), [E369](#e369), [E383](#e383), [E432](#e432) | Legacy/deny, запрет новой выдачи, UI и независимость |
+| Выполнение пункта ТЗ<br>`one_time_orders.specification.execute`<br>[код](../../apps/backend/src/modules/one-time-orders/one-time-orders.service.ts#L2023) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E73](#e73), [E112](#e112), [E131](#e131), [E172](#e172), [E179](#e179), [E365](#e365), [E383](#e383), [E417](#e417), [E432](#e432) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Комментарии пункта ТЗ<br>`one_time_orders.specification.comments`<br>[код](../../apps/backend/src/modules/one-time-orders/one-time-orders.service.ts#L1553) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E73](#e73), [E111](#e111), [E112](#e112), [E131](#e131), [E172](#e172), [E365](#e365), [E383](#e383), [E380](#e380), [E387](#e387), [E432](#e432) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Вложения пункта ТЗ<br>`one_time_orders.specification.attachments`<br>[код](../../apps/backend/src/modules/files/files.service.ts#L954) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E65](#e65), [E131](#e131), [E365](#e365) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Отвязка вложения ТЗ<br>`one_time_orders.specification.detach`<br>[код](../../apps/backend/src/modules/one-time-orders/one-time-orders.service.ts#L1600) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E65](#e65), [E73](#e73), [E111](#e111), [E112](#e112), [E131](#e131), [E172](#e172), [E365](#e365), [E383](#e383), [E432](#e432) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Состав команды заказа<br>`one_time_orders.employees.read`<br>[код](../../apps/backend/src/modules/dashboard/manager-dashboard.service.ts#L492) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E64](#e64), [E346](#e346), [E377](#e377), [E417](#e417) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Изменение команды<br>`one_time_orders.employees.manage`<br>[код](../../apps/backend/src/modules/one-time-orders/one-time-order-workforce.service.ts#L183) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E64](#e64), [E365](#e365), [E383](#e383), [E417](#e417) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Договорные суммы сотрудника<br>`one_time_orders.employees.payment.edit`<br>[код](../../apps/backend/src/modules/one-time-orders/one-time-order-workforce.service.ts#L233) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E64](#e64), [E365](#e365), [E383](#e383), [E417](#e417) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Посещаемость заказа<br>`one_time_orders.attendance.read`<br>[код](../../apps/backend/src/modules/dashboard/manager-dashboard.service.ts#L498) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E64](#e64), [E346](#e346), [E377](#e377), [E417](#e417) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Отметки посещаемости заказа<br>`one_time_orders.attendance.edit`<br>[код](../../apps/backend/src/modules/one-time-orders/one-time-order-workforce.service.ts#L462) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E64](#e64), [E365](#e365), [E383](#e383), [E417](#e417) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Табель заказа<br>`one_time_orders.timesheet.read`<br>[код](../../apps/backend/src/modules/one-time-orders/one-time-order-workforce.service.ts#L612) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E64](#e64), [E346](#e346), [E377](#e377), [E417](#e417) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Выгрузка табеля заказа<br>`one_time_orders.timesheet.export`<br>[код](../../apps/backend/src/modules/one-time-orders/one-time-order-workforce.service.ts#L762) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E64](#e64), [E346](#e346), [E377](#e377), [E417](#e417) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Выплаты по заказу<br>`one_time_orders.payouts.read`<br>[код](../../apps/backend/src/modules/accountability/accountability.service.ts#L203) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E64](#e64), [E347](#e347), [E377](#e377) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Расходники заказа<br>`one_time_orders.inventory.read`<br>[код](../../apps/backend/src/modules/inventory/inventory.service.ts#L1290) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E65](#e65), [E131](#e131), [E280](#e280), [E297](#e297), [E377](#e377) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Оборудование заказа<br>`one_time_orders.equipment.read`<br>[код](../../apps/backend/src/modules/one-time-orders/one-time-orders.service.ts#L3380) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E65](#e65), [E131](#e131), [E346](#e346), [E377](#e377) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Сопровождающие<br>`one_time_orders.escorts.manage`<br>[код](../../apps/backend/src/modules/one-time-orders/utils/one-time-order-capabilities.util.ts#L268) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E64](#e64), [E365](#e365), [E383](#e383) | Прямой API и UI: allow/deny/default, области, отзыв |
 
 ### Календарь разовых заказов
 
 | Право и код | Статус | Области | Выдача / ограничение | Доказательства | Что проверить следующим |
 | --- | --- | --- | --- | --- | --- |
-| Календарь разовых заказов<br>`one_time_order_calendar.access`<br>[код](../../apps/backend/src/modules/one-time-orders/one-time-order-calendar.service.ts#L625) | не проверено | свои, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Просмотр календаря заказов<br>`one_time_order_calendar.read`<br>[код](../../apps/backend/src/modules/approvals/approvals.service.ts#L433) | не проверено | свои, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Выгрузка календаря<br>`one_time_order_calendar.export`<br>[код](../../apps/backend/src/modules/one-time-orders/one-time-order-calendar.service.ts#L68) | не проверено | свои, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Управление календарём<br>`one_time_order_calendar.manage`<br>[каталог](../../apps/backend/src/modules/users-access/access-action-catalog.ts) | не реализовано | свои, выбранные, все | Нет отдельной операции | — | Отдельно принять действующие операции ниже |
-| Своя доступность<br>`one_time_order_calendar.availability.own`<br>[код](../../apps/backend/src/modules/one-time-orders/one-time-manager-availability.service.ts#L88) | не проверено | свои, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Доступность менеджеров<br>`one_time_order_calendar.availability.manage`<br>[код](../../apps/backend/src/modules/one-time-orders/one-time-manager-availability.service.ts#L320) | не проверено | свои, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Согласование доступности<br>`one_time_order_calendar.availability.approve`<br>[код](../../apps/backend/src/modules/approvals/approvals.service.ts#L405) | не проверено | свои, выбранные, все | Новая выдача закрыта | — | Legacy/deny, запрет новой выдачи, UI и независимость |
+| Календарь разовых заказов<br>`one_time_order_calendar.access`<br>[код](../../apps/backend/src/modules/one-time-orders/one-time-order-calendar.service.ts#L625) | проверено частично | свои, выбранные, все | Персональное правило | [E71](#e71), [E81](#e81), [E173](#e173), [E343](#e343), [E377](#e377) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Просмотр календаря заказов<br>`one_time_order_calendar.read`<br>[код](../../apps/backend/src/modules/approvals/approvals.service.ts#L433) | проверено частично | свои, выбранные, все | Персональное правило | [E71](#e71), [E81](#e81), [E173](#e173), [E178](#e178), [E343](#e343), [E377](#e377) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Выгрузка календаря<br>`one_time_order_calendar.export`<br>[код](../../apps/backend/src/modules/one-time-orders/one-time-order-calendar.service.ts#L68) | проверено частично | свои, выбранные, все | Персональное правило | [E71](#e71), [E81](#e81), [E173](#e173), [E343](#e343), [E380](#e380), [E377](#e377) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Управление календарём<br>`one_time_order_calendar.manage`<br>[каталог](../../apps/backend/src/modules/users-access/access-action-catalog.ts) | не реализовано | свои, выбранные, все | Нет отдельной операции |  | Отдельно принять действующие операции ниже |
+| Своя доступность<br>`one_time_order_calendar.availability.own`<br>[код](../../apps/backend/src/modules/one-time-orders/one-time-manager-availability.service.ts#L88) | проверено частично | свои, выбранные, все | Персональное правило | [E71](#e71), [E81](#e81), [E173](#e173), [E369](#e369), [E383](#e383), [E380](#e380), [E377](#e377) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Доступность менеджеров<br>`one_time_order_calendar.availability.manage`<br>[код](../../apps/backend/src/modules/one-time-orders/one-time-manager-availability.service.ts#L320) | проверено частично | свои, выбранные, все | Персональное правило | [E71](#e71), [E81](#e81), [E173](#e173), [E365](#e365), [E383](#e383), [E377](#e377), [E395](#e395), [E424](#e424) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Согласование доступности<br>`one_time_order_calendar.availability.approve`<br>[код](../../apps/backend/src/modules/approvals/approvals.service.ts#L405) | проверено частично | свои, выбранные, все | Новая выдача закрыта | [E71](#e71), [E81](#e81), [E173](#e173), [E369](#e369), [E383](#e383), [E377](#e377) | Legacy/deny, запрет новой выдачи, UI и независимость |
 
 ### Каталог ТЗ
 
 | Право и код | Статус | Области | Выдача / ограничение | Доказательства | Что проверить следующим |
 | --- | --- | --- | --- | --- | --- |
-| Каталог ТЗ<br>`specification_catalog.access`<br>[код](../../apps/backend/src/modules/one-time-orders/one-time-order-specification-catalog.service.ts#L320) | не проверено | все | Новая выдача закрыта | — | Legacy/deny, запрет новой выдачи, UI и независимость |
-| Чтение каталога<br>`specification_catalog.read`<br>[код](../../apps/backend/src/modules/one-time-orders/one-time-order-specification-catalog.service.ts#L301) | не проверено | все | Новая выдача закрыта | — | Legacy/deny, запрет новой выдачи, UI и независимость |
-| Создание пункта или шаблона<br>`specification_catalog.create`<br>[код](../../apps/backend/src/modules/one-time-orders/one-time-order-specification-catalog.service.ts#L55) | не проверено | все | Новая выдача закрыта | — | Legacy/deny, запрет новой выдачи, UI и независимость |
-| Изменение пункта или шаблона<br>`specification_catalog.update`<br>[код](../../apps/backend/src/modules/one-time-orders/one-time-order-specification-catalog.service.ts#L306) | не проверено | все | Новая выдача закрыта | — | Legacy/deny, запрет новой выдачи, UI и независимость |
-| Архивирование пункта или шаблона<br>`specification_catalog.archive`<br>[код](../../apps/backend/src/modules/one-time-orders/one-time-order-specification-catalog.service.ts#L125) | не проверено | все | Новая выдача закрыта | — | Legacy/deny, запрет новой выдачи, UI и независимость |
+| Каталог ТЗ<br>`specification_catalog.access`<br>[код](../../apps/backend/src/modules/one-time-orders/one-time-order-specification-catalog.service.ts#L320) | проверено частично | все | Новая выдача закрыта | [E60](#e60), [E175](#e175), [E341](#e341), [E380](#e380), [E377](#e377), [E399](#e399) | Legacy/deny, запрет новой выдачи, UI и независимость |
+| Чтение каталога<br>`specification_catalog.read`<br>[код](../../apps/backend/src/modules/one-time-orders/one-time-order-specification-catalog.service.ts#L301) | проверено частично | все | Новая выдача закрыта | [E60](#e60), [E175](#e175), [E180](#e180), [E340](#e340), [E377](#e377), [E394](#e394), [E402](#e402) | Legacy/deny, запрет новой выдачи, UI и независимость |
+| Создание пункта или шаблона<br>`specification_catalog.create`<br>[код](../../apps/backend/src/modules/one-time-orders/one-time-order-specification-catalog.service.ts#L55) | проверено частично | все | Новая выдача закрыта | [E60](#e60), [E175](#e175), [E340](#e340), [E380](#e380), [E377](#e377), [E386](#e386), [E399](#e399) | Legacy/deny, запрет новой выдачи, UI и независимость |
+| Изменение пункта или шаблона<br>`specification_catalog.update`<br>[код](../../apps/backend/src/modules/one-time-orders/one-time-order-specification-catalog.service.ts#L306) | подтверждено | все | Новая выдача закрыта | [E60](#e60), [E175](#e175), [E340](#e340), [E380](#e380), [E377](#e377), [E386](#e386), [E399](#e399), [E417](#e417) | Legacy/deny, запрет новой выдачи, UI и независимость |
+| Архивирование пункта или шаблона<br>`specification_catalog.archive`<br>[код](../../apps/backend/src/modules/one-time-orders/one-time-order-specification-catalog.service.ts#L125) | проверено частично | все | Новая выдача закрыта | [E60](#e60), [E175](#e175), [E340](#e340), [E380](#e380), [E377](#e377), [E386](#e386), [E399](#e399) | Legacy/deny, запрет новой выдачи, UI и независимость |
 
 ### Контрагенты
 
 | Право и код | Статус | Области | Выдача / ограничение | Доказательства | Что проверить следующим |
 | --- | --- | --- | --- | --- | --- |
-| Контрагенты<br>`counterparties.access`<br>[код](../../apps/backend/src/modules/counterparties/counterparties.service.ts#L646) | не проверено | выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Просмотр контрагента<br>`counterparties.read`<br>[код](../../apps/backend/src/modules/counterparties/counterparties.service.ts#L638) | не проверено | выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Создание контрагента<br>`counterparties.create`<br>[код](../../apps/backend/src/modules/counterparties/counterparties.service.ts#L229) | не проверено | все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Изменение контрагента<br>`counterparties.update`<br>[код](../../apps/backend/src/modules/counterparties/counterparties.service.ts#L216) | проверено частично | выбранные, все | Персональное правило | [E09](#e09) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
-| Архивирование<br>`counterparties.archive`<br>[код](../../apps/backend/src/modules/counterparties/counterparties.service.ts#L218) | проверено частично | выбранные, все | Персональное правило | [E09](#e09) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
-| Восстановление<br>`counterparties.restore`<br>[код](../../apps/backend/src/modules/counterparties/counterparties.service.ts#L219) | проверено частично | выбранные, все | Персональное правило | [E09](#e09) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
-| История контрагента<br>`counterparties.history`<br>[код](../../apps/backend/src/modules/counterparties/counterparties.service.ts#L460) | не проверено | выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Связь с объектом<br>`counterparties.objects.link`<br>[код](../../apps/backend/src/modules/counterparties/counterparties.service.ts#L217) | проверено частично | выбранные, все | Персональное правило | [E09](#e09) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
-| Мастер-объект<br>`counterparties.master_object.manage`<br>[код](../../apps/backend/src/modules/counterparties/counterparties.service.ts#L220) | проверено частично | выбранные, все | Персональное правило | [E09](#e09) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
-| Агрегированная история расходников<br>`counterparties.inventory.read`<br>[код](../../apps/backend/src/modules/counterparties/counterparties.service.ts#L559) | не проверено | выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
+| Контрагенты<br>`counterparties.access`<br>[код](../../apps/backend/src/modules/counterparties/counterparties.service.ts#L646) | подтверждено | выбранные, все | Персональное правило | [E49](#e49), [E162](#e162), [E292](#e292), [E294](#e294), [E298](#e298), [E377](#e377), [E416](#e416), [E438](#e438), [E465](#e465) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Просмотр контрагента<br>`counterparties.read`<br>[код](../../apps/backend/src/modules/counterparties/counterparties.service.ts#L638) | подтверждено | выбранные, все | Персональное правило | [E36](#e36), [E49](#e49), [E51](#e51), [E162](#e162), [E168](#e168), [E176](#e176), [E210](#e210), [E214](#e214), [E294](#e294), [E298](#e298), [E377](#e377), [E416](#e416), [E438](#e438), [E465](#e465) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Создание контрагента<br>`counterparties.create`<br>[код](../../apps/backend/src/modules/counterparties/counterparties.service.ts#L229) | подтверждено | все | Персональное правило | [E36](#e36), [E49](#e49), [E162](#e162), [E294](#e294), [E300](#e300), [E301](#e301), [E302](#e302), [E377](#e377), [E404](#e404), [E438](#e438), [E465](#e465) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Изменение контрагента<br>`counterparties.update`<br>[код](../../apps/backend/src/modules/counterparties/counterparties.service.ts#L216) | подтверждено | выбранные, все | Персональное правило | [E09](#e09), [E36](#e36), [E49](#e49), [E162](#e162), [E294](#e294), [E300](#e300), [E301](#e301), [E302](#e302), [E377](#e377), [E404](#e404), [E438](#e438), [E465](#e465) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
+| Архивирование<br>`counterparties.archive`<br>[код](../../apps/backend/src/modules/counterparties/counterparties.service.ts#L218) | подтверждено | выбранные, все | Персональное правило | [E09](#e09), [E36](#e36), [E37](#e37), [E49](#e49), [E162](#e162), [E294](#e294), [E300](#e300), [E301](#e301), [E377](#e377), [E411](#e411), [E427](#e427), [E438](#e438) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
+| Восстановление<br>`counterparties.restore`<br>[код](../../apps/backend/src/modules/counterparties/counterparties.service.ts#L219) | подтверждено | выбранные, все | Персональное правило | [E09](#e09), [E49](#e49), [E162](#e162), [E294](#e294), [E300](#e300), [E301](#e301), [E377](#e377), [E411](#e411), [E427](#e427), [E438](#e438) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
+| История контрагента<br>`counterparties.history`<br>[код](../../apps/backend/src/modules/counterparties/counterparties.service.ts#L460) | подтверждено | выбранные, все | Персональное правило | [E49](#e49), [E162](#e162), [E294](#e294), [E303](#e303), [E377](#e377), [E438](#e438), [E465](#e465) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Связь с объектом<br>`counterparties.objects.link`<br>[код](../../apps/backend/src/modules/counterparties/counterparties.service.ts#L217) | проверено частично | выбранные, все | Персональное правило | [E09](#e09), [E36](#e36), [E37](#e37), [E49](#e49), [E110](#e110), [E162](#e162), [E294](#e294), [E300](#e300), [E301](#e301), [E377](#e377), [E416](#e416), [E465](#e465) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
+| Мастер-объект<br>`counterparties.master_object.manage`<br>[код](../../apps/backend/src/modules/counterparties/counterparties.service.ts#L220) | проверено частично | выбранные, все | Персональное правило | [E09](#e09), [E49](#e49), [E110](#e110), [E162](#e162), [E294](#e294), [E300](#e300), [E301](#e301), [E377](#e377), [E416](#e416), [E465](#e465) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
+| Агрегированная история расходников<br>`counterparties.inventory.read`<br>[код](../../apps/backend/src/modules/counterparties/counterparties.service.ts#L559) | подтверждено | выбранные, все | Персональное правило | [E49](#e49), [E162](#e162), [E294](#e294), [E303](#e303), [E377](#e377), [E438](#e438), [E465](#e465), [E471](#e471) | Прямой API и UI: allow/deny/default, области, отзыв |
 
 ### Склад и расходники
 
 | Право и код | Статус | Области | Выдача / ограничение | Доказательства | Что проверить следующим |
 | --- | --- | --- | --- | --- | --- |
-| Склад<br>`inventory.access`<br>[код](../../apps/backend/src/modules/inventory/inventory.service.ts#L1291) | проверено частично | выбранные, все | Персональное правило | [E14](#e14), [E21](#e21) | Закрыть оставшиеся области/каналы и К1–К7 по E20/E21 |
-| Просмотр каталога<br>`inventory.read`<br>[код](../../apps/backend/src/modules/inventory/inventory.service.ts#L401) | проверено частично | выбранные, все | Персональное правило | [E14](#e14), [E21](#e21) | Закрыть оставшиеся области/каналы и К1–К7 по E20/E21 |
-| Создание номенклатуры<br>`inventory.catalog.create`<br>[код](../../apps/backend/src/modules/inventory/inventory.service.ts#L478) | не проверено | все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Изменение номенклатуры<br>`inventory.catalog.update`<br>[код](../../apps/backend/src/modules/inventory/inventory.service.ts#L535) | проверено частично | выбранные, все | Персональное правило | [E07](#e07) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
-| Удаление номенклатуры<br>`inventory.catalog.delete`<br>[код](../../apps/backend/src/modules/inventory/inventory.service.ts#L653) | проверено частично | выбранные, все | Персональное правило | [E07](#e07) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
-| Восстановление номенклатуры<br>`inventory.catalog.restore`<br>[код](../../apps/backend/src/modules/inventory/inventory.service.ts#L762) | проверено частично | выбранные, все | Персональное правило | [E07](#e07) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
-| История движений<br>`inventory.movements.read`<br>[код](../../apps/backend/src/common/access/resource-access-context.ts#L112) | не проверено | выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Приход<br>`inventory.receipt`<br>[код](../../apps/backend/src/modules/inventory/utils/inventory-capabilities.util.ts#L59) | проверено частично | выбранные, все | Персональное правило | [E07](#e07) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
-| Выдача на объект<br>`inventory.issue_to_object`<br>[код](../../apps/backend/src/modules/inventory/inventory.service.ts#L2101) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E07](#e07) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
-| Отгрузка в разовый заказ<br>`inventory.issue_to_one_time_order`<br>[код](../../apps/backend/src/modules/inventory/inventory.service.ts#L1300) | проверено частично | назначенные, выбранные, все | Персональное правило | [E07](#e07), [E14](#e14), [E21](#e21) | Закрыть оставшиеся области/каналы и К1–К7 по E20/E21 |
-| Возврат<br>`inventory.return`<br>[код](../../apps/backend/src/modules/inventory/utils/inventory-capabilities.util.ts#L60) | проверено частично | выбранные, все | Персональное правило | [E07](#e07) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
-| Списание<br>`inventory.writeoff`<br>[код](../../apps/backend/src/modules/inventory/utils/inventory-capabilities.util.ts#L60) | проверено частично | выбранные, все | Персональное правило | [E07](#e07) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
-| Корректировка остатка<br>`inventory.adjustment`<br>[код](../../apps/backend/src/modules/inventory/utils/inventory-capabilities.util.ts#L61) | проверено частично | выбранные, все | Персональное правило | [E07](#e07) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
-| Исправление выдачи<br>`inventory.movement.correct`<br>[код](../../apps/backend/src/modules/inventory/inventory.service.ts#L200) | не проверено | выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Складские отчёты<br>`inventory.reports`<br>[код](../../apps/backend/src/modules/inventory/inventory.service.ts#L1012) | не проверено | выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Исключение без фото<br>`inventory.resolve_missing_photo`<br>[код](../../apps/backend/src/modules/inventory/inventory.service.ts#L1054) | проверено частично | выбранные, все | Только директор | [E18](#e18) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
-| Выбор складских целей<br>`inventory.references.read`<br>[код](../../apps/backend/src/modules/inventory/inventory.service.ts#L1876) | не проверено | все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
+| Склад<br>`inventory.access`<br>[код](../../apps/backend/src/modules/inventory/inventory.service.ts#L1291) | проверено частично | выбранные, все | Персональное правило | [E14](#e14), [E21](#e21), [E57](#e57), [E75](#e75), [E102](#e102), [E120](#e120), [E122](#e122), [E131](#e131), [E247](#e247), [E279](#e279), [E281](#e281), [E296](#e296), [E330](#e330), [E451](#e451), [E457](#e457) | Закрыть оставшиеся области/каналы и К1–К7 по E20/E21 |
+| Просмотр каталога<br>`inventory.read`<br>[код](../../apps/backend/src/modules/inventory/inventory.service.ts#L401) | проверено частично | выбранные, все | Персональное правило | [E14](#e14), [E21](#e21), [E57](#e57), [E59](#e59), [E75](#e75), [E76](#e76), [E86](#e86), [E92](#e92), [E102](#e102), [E120](#e120), [E122](#e122), [E296](#e296), [E377](#e377), [E405](#e405), [E431](#e431), [E452](#e452) | Закрыть оставшиеся области/каналы и К1–К7 по E20/E21 |
+| Создание номенклатуры<br>`inventory.catalog.create`<br>[код](../../apps/backend/src/modules/inventory/inventory.service.ts#L478) | подтверждено | все | Персональное правило | [E57](#e57), [E59](#e59), [E102](#e102), [E120](#e120), [E305](#e305), [E309](#e309), [E313](#e313), [E314](#e314), [E315](#e315), [E316](#e316), [E320](#e320) | Все применимые К1–К7 приняты локально. |
+| Изменение номенклатуры<br>`inventory.catalog.update`<br>[код](../../apps/backend/src/modules/inventory/inventory.service.ts#L535) | подтверждено | выбранные, все | Персональное правило | [E07](#e07), [E57](#e57), [E59](#e59), [E120](#e120), [E305](#e305), [E309](#e309), [E311](#e311), [E313](#e313), [E314](#e314), [E315](#e315), [E316](#e316), [E320](#e320) | Все применимые К1–К7 приняты локально. |
+| Удаление номенклатуры<br>`inventory.catalog.delete`<br>[код](../../apps/backend/src/modules/inventory/inventory.service.ts#L653) | подтверждено | выбранные, все | Персональное правило | [E07](#e07), [E57](#e57), [E120](#e120), [E305](#e305), [E308](#e308), [E309](#e309), [E311](#e311), [E313](#e313), [E314](#e314), [E315](#e315), [E316](#e316), [E319](#e319), [E320](#e320) | Все применимые К1–К7 приняты локально. |
+| Восстановление номенклатуры<br>`inventory.catalog.restore`<br>[код](../../apps/backend/src/modules/inventory/inventory.service.ts#L762) | подтверждено | выбранные, все | Персональное правило | [E07](#e07), [E57](#e57), [E120](#e120), [E305](#e305), [E308](#e308), [E309](#e309), [E311](#e311), [E313](#e313), [E314](#e314), [E315](#e315), [E316](#e316), [E320](#e320) | Все применимые К1–К7 приняты локально. |
+| История движений<br>`inventory.movements.read`<br>[код](../../apps/backend/src/common/access/resource-access-context.ts#L112) | проверено частично | выбранные, все | Персональное правило | [E57](#e57), [E75](#e75), [E76](#e76), [E120](#e120), [E281](#e281), [E296](#e296), [E377](#e377), [E405](#e405), [E431](#e431), [E452](#e452) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Приход<br>`inventory.receipt`<br>[код](../../apps/backend/src/modules/inventory/utils/inventory-capabilities.util.ts#L59) | проверено частично | выбранные, все | Персональное правило | [E07](#e07), [E57](#e57), [E59](#e59), [E120](#e120), [E134](#e134), [E136](#e136), [E138](#e138), [E140](#e140), [E236](#e236), [E237](#e237), [E240](#e240), [E250](#e250), [E305](#e305), [E317](#e317), [E318](#e318), [E360](#e360), [E414](#e414), [E431](#e431), [E470](#e470) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
+| Выдача на объект<br>`inventory.issue_to_object`<br>[код](../../apps/backend/src/modules/inventory/inventory.service.ts#L2101) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E07](#e07), [E57](#e57), [E75](#e75), [E87](#e87), [E120](#e120), [E145](#e145), [E146](#e146), [E157](#e157), [E281](#e281), [E318](#e318), [E355](#e355), [E360](#e360), [E408](#e408), [E414](#e414), [E470](#e470) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
+| Отгрузка в разовый заказ<br>`inventory.issue_to_one_time_order`<br>[код](../../apps/backend/src/modules/inventory/inventory.service.ts#L1300) | проверено частично | назначенные, выбранные, все | Персональное правило | [E07](#e07), [E14](#e14), [E21](#e21), [E57](#e57), [E87](#e87), [E120](#e120), [E122](#e122), [E135](#e135), [E137](#e137), [E139](#e139), [E141](#e141), [E236](#e236), [E237](#e237), [E240](#e240), [E242](#e242), [E244](#e244), [E246](#e246), [E318](#e318), [E355](#e355), [E360](#e360) | Закрыть оставшиеся области/каналы и К1–К7 по E20/E21 |
+| Возврат<br>`inventory.return`<br>[код](../../apps/backend/src/modules/inventory/utils/inventory-capabilities.util.ts#L60) | подтверждено | выбранные, все | Персональное правило | [E07](#e07), [E57](#e57), [E120](#e120), [E142](#e142), [E279](#e279), [E281](#e281), [E305](#e305), [E311](#e311), [E318](#e318), [E360](#e360), [E405](#e405), [E450](#e450), [E471](#e471) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
+| Списание<br>`inventory.writeoff`<br>[код](../../apps/backend/src/modules/inventory/utils/inventory-capabilities.util.ts#L60) | проверено частично | выбранные, все | Персональное правило | [E07](#e07), [E57](#e57), [E120](#e120), [E144](#e144), [E279](#e279), [E281](#e281), [E305](#e305), [E311](#e311), [E318](#e318), [E360](#e360), [E408](#e408), [E405](#e405), [E414](#e414) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
+| Корректировка остатка<br>`inventory.adjustment`<br>[код](../../apps/backend/src/modules/inventory/utils/inventory-capabilities.util.ts#L61) | проверено частично | выбранные, все | Персональное правило | [E07](#e07), [E57](#e57), [E120](#e120), [E143](#e143), [E239](#e239), [E305](#e305), [E308](#e308), [E311](#e311), [E318](#e318), [E360](#e360), [E405](#e405), [E431](#e431) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
+| Исправление выдачи<br>`inventory.movement.correct`<br>[код](../../apps/backend/src/modules/inventory/inventory.service.ts#L200) | проверено частично | выбранные, все | Персональное правило | [E58](#e58), [E86](#e86), [E92](#e92), [E93](#e93), [E98](#e98), [E100](#e100), [E110](#e110), [E119](#e119), [E121](#e121), [E355](#e355), [E408](#e408), [E414](#e414), [E461](#e461) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Складские отчёты<br>`inventory.reports`<br>[код](../../apps/backend/src/modules/inventory/inventory.service.ts#L1012) | проверено частично | выбранные, все | Персональное правило | [E57](#e57), [E120](#e120), [E322](#e322), [E431](#e431), [E453](#e453) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Исключение без фото<br>`inventory.resolve_missing_photo`<br>[код](../../apps/backend/src/modules/inventory/inventory.service.ts#L1054) | проверено частично | выбранные, все | Только директор | [E18](#e18), [E58](#e58), [E75](#e75), [E98](#e98), [E100](#e100), [E119](#e119), [E121](#e121), [E130](#e130), [E355](#e355), [E359](#e359), [E408](#e408), [E410](#e410), [E414](#e414), [E453](#e453) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
+| Выбор складских целей<br>`inventory.references.read`<br>[код](../../apps/backend/src/modules/inventory/inventory.service.ts#L1876) | проверено частично | все | Персональное правило | [E58](#e58), [E98](#e98), [E121](#e121), [E322](#e322), [E377](#e377), [E431](#e431), [E458](#e458) | Прямой API и UI: allow/deny/default, области, отзыв |
 
 ### Оборудование
 
 | Право и код | Статус | Области | Выдача / ограничение | Доказательства | Что проверить следующим |
 | --- | --- | --- | --- | --- | --- |
-| Оборудование<br>`equipment.access`<br>[код](../../apps/backend/src/modules/users-access/utils/auth-access-capabilities.util.ts#L61) | не проверено | выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Просмотр оборудования<br>`equipment.read`<br>[код](../../apps/backend/src/modules/equipment/equipment.service.ts#L910) | не проверено | выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Каталог оборудования<br>`equipment.catalog.read`<br>[код](../../apps/backend/src/modules/equipment/equipment.service.ts#L163) | не проверено | все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Создание модели<br>`equipment.catalog.create`<br>[код](../../apps/backend/src/modules/equipment/equipment.service.ts#L915) | не проверено | все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Удаление модели<br>`equipment.catalog.delete`<br>[код](../../apps/backend/src/modules/equipment/equipment.service.ts#L210) | не проверено | все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Создание единицы<br>`equipment.unit.create`<br>[код](../../apps/backend/src/modules/equipment/equipment.service.ts#L321) | не проверено | все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Удаление ошибочной единицы<br>`equipment.unit.delete`<br>[код](../../apps/backend/src/modules/equipment/equipment.service.ts#L379) | не проверено | выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| История оборудования<br>`equipment.history`<br>[код](../../apps/backend/src/common/access/resource-access-context.ts#L126) | не проверено | выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Выдача на объект<br>`equipment.assign_object`<br>[код](../../apps/backend/src/modules/equipment/equipment.service.ts#L1240) | не проверено | выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Выдача на заказ<br>`equipment.assign_order`<br>[код](../../apps/backend/src/modules/equipment/equipment.service.ts#L1241) | не проверено | выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Возврат<br>`equipment.return`<br>[код](../../apps/backend/src/modules/equipment/equipment.service.ts#L1242) | не проверено | выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Перемещение<br>`equipment.move`<br>[код](../../apps/backend/src/modules/equipment/equipment.service.ts#L1247) | не реализовано | выбранные, все | Нет отдельной операции | — | Отдельно принять действующие операции ниже |
-| Поломка<br>`equipment.broken`<br>[код](../../apps/backend/src/modules/equipment/equipment.service.ts#L1243) | проверено частично | выбранные, все | Персональное правило | [E10](#e10) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
-| В ремонт<br>`equipment.repair`<br>[код](../../apps/backend/src/modules/equipment/equipment.service.ts#L1244) | не проверено | выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Из ремонта<br>`equipment.repair_return`<br>[код](../../apps/backend/src/modules/equipment/equipment.service.ts#L1245) | не проверено | выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Утрата<br>`equipment.lost`<br>[код](../../apps/backend/src/modules/equipment/equipment.service.ts#L1246) | проверено частично | выбранные, все | Персональное правило | [E10](#e10) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
-| Списание<br>`equipment.writeoff`<br>[код](../../apps/backend/src/modules/equipment/equipment.service.ts#L1248) | не проверено | выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
+| Оборудование<br>`equipment.access`<br>[код](../../apps/backend/src/modules/users-access/utils/auth-access-capabilities.util.ts#L61) | проверено частично | выбранные, все | Персональное правило | [E32](#e32), [E42](#e42), [E103](#e103), [E104](#e104), [E181](#e181), [E330](#e330), [E431](#e431), [E471](#e471) | Оставшиеся области/роли, все применимые К1–К7, окно учредителя и адресная перепроверка последующих runtime исправлений. |
+| Просмотр оборудования<br>`equipment.read`<br>[код](../../apps/backend/src/modules/equipment/equipment.service.ts#L910) | проверено частично | выбранные, все | Персональное правило | [E32](#e32), [E38](#e38), [E39](#e39), [E40](#e40), [E42](#e42), [E51](#e51), [E103](#e103), [E104](#e104), [E131](#e131), [E181](#e181), [E183](#e183), [E185](#e185), [E210](#e210), [E214](#e214), [E238](#e238), [E323](#e323), [E355](#e355), [E377](#e377), [E431](#e431), [E471](#e471) | Оставшиеся области/роли, все применимые К1–К7, окно учредителя и адресная перепроверка последующих runtime исправлений. |
+| Каталог оборудования<br>`equipment.catalog.read`<br>[код](../../apps/backend/src/modules/equipment/equipment.service.ts#L163) | проверено частично | все | Персональное правило | [E32](#e32), [E42](#e42), [E104](#e104), [E181](#e181), [E323](#e323), [E324](#e324), [E398](#e398), [E402](#e402) | Оставшиеся области/роли, все применимые К1–К7, окно учредителя и адресная перепроверка последующих runtime исправлений. |
+| Создание модели<br>`equipment.catalog.create`<br>[код](../../apps/backend/src/modules/equipment/equipment.service.ts#L915) | проверено частично | все | Персональное правило | [E32](#e32), [E38](#e38), [E42](#e42), [E104](#e104), [E181](#e181), [E353](#e353), [E405](#e405), [E431](#e431) | Оставшиеся области/роли, все применимые К1–К7, окно учредителя и адресная перепроверка последующих runtime исправлений. |
+| Удаление модели<br>`equipment.catalog.delete`<br>[код](../../apps/backend/src/modules/equipment/equipment.service.ts#L210) | проверено частично | все | Персональное правило | [E32](#e32), [E42](#e42), [E104](#e104), [E181](#e181), [E353](#e353), [E408](#e408), [E405](#e405), [E414](#e414) | Оставшиеся области/роли, все применимые К1–К7, окно учредителя и адресная перепроверка последующих runtime исправлений. |
+| Создание единицы<br>`equipment.unit.create`<br>[код](../../apps/backend/src/modules/equipment/equipment.service.ts#L321) | подтверждено | все | Персональное правило | [E32](#e32), [E42](#e42), [E103](#e103), [E104](#e104), [E181](#e181), [E353](#e353), [E418](#e418), [E431](#e431), [E425](#e425), [E440](#e440) | Оставшиеся области/роли, все применимые К1–К7, окно учредителя и адресная перепроверка последующих runtime исправлений. |
+| Удаление ошибочной единицы<br>`equipment.unit.delete`<br>[код](../../apps/backend/src/modules/equipment/equipment.service.ts#L379) | проверено частично | выбранные, все | Персональное правило | [E32](#e32), [E38](#e38), [E42](#e42), [E103](#e103), [E104](#e104), [E181](#e181), [E238](#e238), [E353](#e353), [E354](#e354), [E431](#e431), [E440](#e440) | Оставшиеся области/роли, все применимые К1–К7, окно учредителя и адресная перепроверка последующих runtime исправлений. |
+| История оборудования<br>`equipment.history`<br>[код](../../apps/backend/src/common/access/resource-access-context.ts#L126) | проверено частично | выбранные, все | Персональное правило | [E32](#e32), [E42](#e42), [E103](#e103), [E104](#e104), [E181](#e181), [E323](#e323), [E355](#e355), [E377](#e377), [E431](#e431), [E471](#e471) | Оставшиеся области/роли, все применимые К1–К7, окно учредителя и адресная перепроверка последующих runtime исправлений. |
+| Выдача на объект<br>`equipment.assign_object`<br>[код](../../apps/backend/src/modules/equipment/equipment.service.ts#L1240) | проверено частично | выбранные, все | Персональное правило | [E39](#e39), [E40](#e40), [E41](#e41), [E182](#e182), [E183](#e183), [E355](#e355), [E396](#e396), [E470](#e470) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Выдача на заказ<br>`equipment.assign_order`<br>[код](../../apps/backend/src/modules/equipment/equipment.service.ts#L1241) | проверено частично | выбранные, все | Персональное правило | [E39](#e39), [E40](#e40), [E41](#e41), [E182](#e182), [E183](#e183), [E355](#e355), [E396](#e396), [E440](#e440) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Возврат<br>`equipment.return`<br>[код](../../apps/backend/src/modules/equipment/equipment.service.ts#L1242) | проверено частично | выбранные, все | Персональное правило | [E39](#e39), [E40](#e40), [E41](#e41), [E182](#e182), [E183](#e183), [E355](#e355), [E396](#e396), [E470](#e470) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Перемещение<br>`equipment.move`<br>[код](../../apps/backend/src/modules/equipment/equipment.service.ts#L1247) | не реализовано | выбранные, все | Нет отдельной операции |  | Отдельно принять действующие операции ниже |
+| Поломка<br>`equipment.broken`<br>[код](../../apps/backend/src/modules/equipment/equipment.service.ts#L1243) | проверено частично | выбранные, все | Персональное правило | [E10](#e10), [E32](#e32), [E38](#e38), [E42](#e42), [E103](#e103), [E104](#e104), [E181](#e181), [E238](#e238), [E355](#e355), [E396](#e396), [E414](#e414) | Оставшиеся области/роли, все применимые К1–К7, окно учредителя и адресная перепроверка последующих runtime исправлений. |
+| В ремонт<br>`equipment.repair`<br>[код](../../apps/backend/src/modules/equipment/equipment.service.ts#L1244) | проверено частично | выбранные, все | Персональное правило | [E32](#e32), [E42](#e42), [E104](#e104), [E181](#e181), [E355](#e355), [E396](#e396), [E414](#e414) | Оставшиеся области/роли, все применимые К1–К7, окно учредителя и адресная перепроверка последующих runtime исправлений. |
+| Из ремонта<br>`equipment.repair_return`<br>[код](../../apps/backend/src/modules/equipment/equipment.service.ts#L1245) | проверено частично | выбранные, все | Персональное правило | [E32](#e32), [E42](#e42), [E104](#e104), [E181](#e181), [E355](#e355), [E396](#e396), [E414](#e414) | Оставшиеся области/роли, все применимые К1–К7, окно учредителя и адресная перепроверка последующих runtime исправлений. |
+| Утрата<br>`equipment.lost`<br>[код](../../apps/backend/src/modules/equipment/equipment.service.ts#L1246) | проверено частично | выбранные, все | Персональное правило | [E10](#e10), [E41](#e41), [E182](#e182), [E355](#e355), [E396](#e396), [E414](#e414) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
+| Списание<br>`equipment.writeoff`<br>[код](../../apps/backend/src/modules/equipment/equipment.service.ts#L1248) | проверено частично | выбранные, все | Персональное правило | [E38](#e38), [E41](#e41), [E103](#e103), [E182](#e182), [E238](#e238), [E355](#e355), [E396](#e396) | Прямой API и UI: allow/deny/default, области, отзыв |
 
 ### Ковры
 
 | Право и код | Статус | Области | Выдача / ограничение | Доказательства | Что проверить следующим |
 | --- | --- | --- | --- | --- | --- |
-| Ковры<br>`mats.access`<br>[код](../../apps/backend/src/modules/users-access/utils/auth-access-capabilities.util.ts#L222) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Просмотр ковров<br>`mats.read`<br>[код](../../apps/backend/src/modules/rubber-mats/rubber-mat-aggregate.service.ts#L53) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Каталог размеров<br>`mats.catalog.read`<br>[код](../../apps/backend/src/modules/rubber-mats/rubber-mat-aggregate.service.ts#L64) | не проверено | все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Создание размера<br>`mats.catalog.create`<br>[код](../../apps/backend/src/modules/rubber-mats/rubber-mat-aggregate.service.ts#L70) | проверено частично | все | Персональное правило | [E10](#e10) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
-| Стоимость замены<br>`mats.cost.edit`<br>[код](../../apps/backend/src/modules/rubber-mats/rubber-mat-aggregate.service.ts#L71) | проверено частично | все | Персональное правило | [E10](#e10) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
-| Количество на объекте<br>`mats.quantity.edit`<br>[код](../../apps/backend/src/modules/rubber-mats/rubber-mat-aggregate.service.ts#L55) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| История ковров<br>`mats.history`<br>[код](../../apps/backend/src/modules/rubber-mats/rubber-mat-aggregate.service.ts#L156) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
+| Ковры<br>`mats.access`<br>[код](../../apps/backend/src/modules/users-access/utils/auth-access-capabilities.util.ts#L222) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E69](#e69), [E82](#e82), [E184](#e184), [E327](#e327), [E376](#e376), [E377](#e377), [E431](#e431), [E451](#e451) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Просмотр ковров<br>`mats.read`<br>[код](../../apps/backend/src/modules/rubber-mats/rubber-mat-aggregate.service.ts#L53) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E69](#e69), [E82](#e82), [E184](#e184), [E186](#e186), [E327](#e327), [E376](#e376), [E377](#e377), [E431](#e431), [E451](#e451) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Каталог размеров<br>`mats.catalog.read`<br>[код](../../apps/backend/src/modules/rubber-mats/rubber-mat-aggregate.service.ts#L64) | проверено частично | все | Персональное правило | [E69](#e69), [E82](#e82), [E184](#e184), [E323](#e323), [E324](#e324), [E377](#e377), [E398](#e398), [E402](#e402) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Создание размера<br>`mats.catalog.create`<br>[код](../../apps/backend/src/modules/rubber-mats/rubber-mat-aggregate.service.ts#L70) | проверено частично | все | Персональное правило | [E10](#e10), [E69](#e69), [E82](#e82), [E184](#e184), [E351](#e351), [E377](#e377), [E405](#e405), [E414](#e414) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
+| Стоимость замены<br>`mats.cost.edit`<br>[код](../../apps/backend/src/modules/rubber-mats/rubber-mat-aggregate.service.ts#L71) | подтверждено | все | Персональное правило | [E10](#e10), [E69](#e69), [E82](#e82), [E184](#e184), [E351](#e351), [E382](#e382), [E377](#e377), [E396](#e396), [E408](#e408), [E405](#e405), [E431](#e431) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
+| Количество на объекте<br>`mats.quantity.edit`<br>[код](../../apps/backend/src/modules/rubber-mats/rubber-mat-aggregate.service.ts#L55) | подтверждено | свои, назначенные, выбранные, все | Персональное правило | [E69](#e69), [E82](#e82), [E184](#e184), [E187](#e187), [E351](#e351), [E382](#e382), [E384](#e384), [E377](#e377), [E396](#e396), [E408](#e408), [E405](#e405), [E431](#e431) | Прямой API и UI: allow/deny/default, области, отзыв |
+| История ковров<br>`mats.history`<br>[код](../../apps/backend/src/modules/rubber-mats/rubber-mat-aggregate.service.ts#L156) | подтверждено | свои, назначенные, выбранные, все | Персональное правило | [E69](#e69), [E82](#e82), [E184](#e184), [E351](#e351), [E352](#e352), [E382](#e382), [E377](#e377), [E396](#e396), [E431](#e431) | Прямой API и UI: allow/deny/default, области, отзыв |
 
 ### Задачи
 
 | Право и код | Статус | Области | Выдача / ограничение | Доказательства | Что проверить следующим |
 | --- | --- | --- | --- | --- | --- |
-| Задачи<br>`tasks.access`<br>[код](../../apps/backend/src/modules/users-access/utils/auth-access-capabilities.util.ts#L230) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Просмотр задачи<br>`tasks.read`<br>[код](../../apps/backend/src/common/access/resource-access-context.ts#L47) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Создание задачи<br>`tasks.create`<br>[код](../../apps/backend/src/modules/tasks/tasks.service.ts#L271) | не проверено | все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Изменение задачи<br>`tasks.update`<br>[код](../../apps/backend/src/modules/files/files.service.ts#L955) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Изменение статуса<br>`tasks.status`<br>[код](../../apps/backend/src/modules/tasks/tasks.service.ts#L677) | не реализовано | свои, назначенные, выбранные, все | Нет отдельной операции | — | Отдельно принять действующие операции ниже |
-| Исполнители<br>`tasks.assignees.manage`<br>[код](../../apps/backend/src/modules/tasks/tasks.service.ts#L1059) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Отправка результата<br>`tasks.result.submit`<br>[код](../../apps/backend/src/modules/tasks/tasks.service.ts#L692) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Черновик выполнения<br>`tasks.completion.draft`<br>[код](../../apps/backend/src/modules/files/files.service.ts#L955) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Отметка выполнения<br>`tasks.completion.submit`<br>[код](../../apps/backend/src/modules/tasks/tasks.service.ts#L746) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Отмена выполнения<br>`tasks.completion.undo`<br>[код](../../apps/backend/src/modules/tasks/tasks.service.ts#L892) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Подтверждение результата<br>`tasks.confirm`<br>[код](../../apps/backend/src/modules/tasks/tasks.service.ts#L1366) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Немедленное завершение<br>`tasks.complete_now`<br>[код](../../apps/backend/src/modules/tasks/tasks.service.ts#L1366) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Возврат в работу<br>`tasks.return`<br>[код](../../apps/backend/src/modules/tasks/tasks.service.ts#L1435) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Повторное открытие<br>`tasks.reopen`<br>[код](../../apps/backend/src/modules/tasks/tasks.service.ts#L1435) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Отмена задачи<br>`tasks.cancel`<br>[код](../../apps/backend/src/modules/tasks/tasks.service.ts#L1007) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| История задачи<br>`tasks.history`<br>[код](../../apps/backend/src/modules/tasks/tasks.service.ts#L1188) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
+| Задачи<br>`tasks.access`<br>[код](../../apps/backend/src/modules/users-access/utils/auth-access-capabilities.util.ts#L230) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E44](#e44), [E90](#e90), [E101](#e101), [E126](#e126), [E132](#e132), [E190](#e190), [E246](#e246), [E247](#e247), [E295](#e295), [E299](#e299), [E448](#e448) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Просмотр задачи<br>`tasks.read`<br>[код](../../apps/backend/src/common/access/resource-access-context.ts#L47) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E44](#e44), [E90](#e90), [E101](#e101), [E107](#e107), [E116](#e116), [E117](#e117), [E126](#e126), [E127](#e127), [E128](#e128), [E132](#e132), [E190](#e190), [E192](#e192), [E205](#e205), [E206](#e206), [E295](#e295), [E299](#e299), [E377](#e377), [E448](#e448) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Создание задачи<br>`tasks.create`<br>[код](../../apps/backend/src/modules/tasks/tasks.service.ts#L271) | проверено частично | все | Персональное правило | [E44](#e44), [E90](#e90), [E97](#e97), [E101](#e101), [E299](#e299) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Изменение задачи<br>`tasks.update`<br>[код](../../apps/backend/src/modules/files/files.service.ts#L955) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E44](#e44), [E90](#e90), [E127](#e127), [E192](#e192), [E295](#e295), [E356](#e356), [E417](#e417), [E428](#e428), [E444](#e444), [E448](#e448) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Изменение статуса<br>`tasks.status`<br>[код](../../apps/backend/src/modules/tasks/tasks.service.ts#L677) | не реализовано | свои, назначенные, выбранные, все | Нет отдельной операции |  | Отдельно принять действующие операции ниже |
+| Исполнители<br>`tasks.assignees.manage`<br>[код](../../apps/backend/src/modules/tasks/tasks.service.ts#L1059) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E44](#e44), [E90](#e90), [E117](#e117), [E127](#e127), [E128](#e128), [E295](#e295), [E356](#e356) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Отправка результата<br>`tasks.result.submit`<br>[код](../../apps/backend/src/modules/tasks/tasks.service.ts#L692) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E44](#e44), [E90](#e90), [E132](#e132), [E295](#e295), [E356](#e356) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Черновик выполнения<br>`tasks.completion.draft`<br>[код](../../apps/backend/src/modules/files/files.service.ts#L955) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E44](#e44), [E90](#e90), [E116](#e116), [E132](#e132), [E295](#e295), [E363](#e363) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Отметка выполнения<br>`tasks.completion.submit`<br>[код](../../apps/backend/src/modules/tasks/tasks.service.ts#L746) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E44](#e44), [E90](#e90), [E116](#e116), [E132](#e132), [E295](#e295), [E363](#e363) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Отмена выполнения<br>`tasks.completion.undo`<br>[код](../../apps/backend/src/modules/tasks/tasks.service.ts#L892) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E44](#e44), [E90](#e90), [E97](#e97), [E117](#e117), [E127](#e127), [E295](#e295), [E363](#e363) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Подтверждение результата<br>`tasks.confirm`<br>[код](../../apps/backend/src/modules/tasks/tasks.service.ts#L1366) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E44](#e44), [E90](#e90), [E363](#e363), [E376](#e376) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Немедленное завершение<br>`tasks.complete_now`<br>[код](../../apps/backend/src/modules/tasks/tasks.service.ts#L1366) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E44](#e44), [E90](#e90), [E363](#e363), [E376](#e376) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Возврат в работу<br>`tasks.return`<br>[код](../../apps/backend/src/modules/tasks/tasks.service.ts#L1435) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E44](#e44), [E90](#e90), [E107](#e107), [E363](#e363), [E376](#e376) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Повторное открытие<br>`tasks.reopen`<br>[код](../../apps/backend/src/modules/tasks/tasks.service.ts#L1435) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E44](#e44), [E90](#e90), [E107](#e107), [E363](#e363), [E376](#e376) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Отмена задачи<br>`tasks.cancel`<br>[код](../../apps/backend/src/modules/tasks/tasks.service.ts#L1007) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E44](#e44), [E90](#e90), [E107](#e107), [E117](#e117), [E127](#e127), [E295](#e295), [E363](#e363) | Прямой API и UI: allow/deny/default, области, отзыв |
+| История задачи<br>`tasks.history`<br>[код](../../apps/backend/src/modules/tasks/tasks.service.ts#L1188) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E44](#e44), [E90](#e90), [E107](#e107), [E116](#e116), [E126](#e126), [E132](#e132), [E190](#e190), [E295](#e295), [E299](#e299), [E448](#e448) | Прямой API и UI: allow/deny/default, области, отзыв |
 
 ### Табель
 
 | Право и код | Статус | Области | Выдача / ограничение | Доказательства | Что проверить следующим |
 | --- | --- | --- | --- | --- | --- |
-| Табель объектов<br>`timesheet.access`<br>[код](../../apps/backend/src/modules/users-access/utils/access-summary.util.ts#L20) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Просмотр табеля<br>`timesheet.read`<br>[код](../../apps/backend/src/modules/approvals/utils/approval-read-access.util.ts#L213) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E03](#e03) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
-| Сводный табель<br>`timesheet.overview`<br>[код](../../apps/backend/src/modules/timesheets/timesheets.service.ts#L577) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Выгрузка табеля<br>`timesheet.export`<br>[код](../../apps/backend/src/modules/timesheets/timesheets.service.ts#L381) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Посещаемость<br>`timesheet.attendance.edit`<br>[каталог](../../apps/backend/src/modules/users-access/access-action-catalog.ts) | не реализовано | свои, назначенные, выбранные, все | Нет отдельной операции | — | Отдельно принять действующие операции ниже |
-| Корректировка суммы в табеле<br>`timesheet.amount.edit`<br>[код](../../apps/backend/src/modules/timesheets/timesheets.service.ts#L1799) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E03](#e03), [E20](#e20) | Закрыть оставшиеся области/каналы и К1–К7 по E20/E21 |
-| Ручная корректировка<br>`timesheet.manual_correction`<br>[код](../../apps/backend/src/modules/approvals/utils/approval-capabilities.util.ts#L25) | не реализовано | свои, назначенные, выбранные, все | Нет отдельной операции | — | Отдельно принять действующие операции ниже |
-| Заявка на исключение<br>`timesheet.exceptions.create`<br>[код](../../apps/backend/src/modules/timesheets/timesheets.service.ts#L1243) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E03](#e03) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
-| История исправлений<br>`timesheet.corrections.read`<br>[код](../../apps/backend/src/modules/timesheets/timesheets.service.ts#L1098) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
+| Табель объектов<br>`timesheet.access`<br>[код](../../apps/backend/src/modules/users-access/utils/access-summary.util.ts#L20) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E62](#e62), [E155](#e155), [E156](#e156), [E247](#e247), [E282](#e282), [E363](#e363), [E377](#e377), [E418](#e418) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Просмотр табеля<br>`timesheet.read`<br>[код](../../apps/backend/src/modules/approvals/utils/approval-read-access.util.ts#L213) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E03](#e03), [E62](#e62), [E79](#e79), [E123](#e123), [E155](#e155), [E156](#e156), [E254](#e254), [E257](#e257), [E363](#e363), [E377](#e377), [E418](#e418) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
+| Сводный табель<br>`timesheet.overview`<br>[код](../../apps/backend/src/modules/timesheets/timesheets.service.ts#L577) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E62](#e62), [E79](#e79), [E156](#e156), [E363](#e363), [E377](#e377), [E418](#e418) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Выгрузка табеля<br>`timesheet.export`<br>[код](../../apps/backend/src/modules/timesheets/timesheets.service.ts#L381) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E62](#e62), [E79](#e79), [E156](#e156), [E158](#e158), [E363](#e363), [E377](#e377), [E418](#e418), [E471](#e471) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Посещаемость<br>`timesheet.attendance.edit`<br>[каталог](../../apps/backend/src/modules/users-access/access-action-catalog.ts) | не реализовано | свои, назначенные, выбранные, все | Нет отдельной операции | [E62](#e62) | Отдельно принять действующие операции ниже |
+| Корректировка суммы в табеле<br>`timesheet.amount.edit`<br>[код](../../apps/backend/src/modules/timesheets/timesheets.service.ts#L1799) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E03](#e03), [E20](#e20), [E22](#e22), [E62](#e62), [E123](#e123), [E133](#e133), [E155](#e155), [E156](#e156), [E236](#e236), [E237](#e237), [E252](#e252), [E254](#e254), [E257](#e257), [E363](#e363), [E377](#e377), [E411](#e411), [E418](#e418) | UI own/assigned и повторная выдача при открытом Drawer проверены адресно; остаются остальные роли, области/каналы и К1–К7 |
+| Ручная корректировка<br>`timesheet.manual_correction`<br>[код](../../apps/backend/src/modules/approvals/utils/approval-capabilities.util.ts#L25) | не реализовано | свои, назначенные, выбранные, все | Нет отдельной операции | [E62](#e62) | Отдельно принять действующие операции ниже |
+| Заявка на исключение<br>`timesheet.exceptions.create`<br>[код](../../apps/backend/src/modules/timesheets/timesheets.service.ts#L1243) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E03](#e03), [E62](#e62), [E123](#e123), [E155](#e155), [E156](#e156), [E252](#e252), [E256](#e256), [E259](#e259), [E363](#e363), [E368](#e368), [E377](#e377), [E411](#e411), [E418](#e418) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
+| История исправлений<br>`timesheet.corrections.read`<br>[код](../../apps/backend/src/modules/timesheets/timesheets.service.ts#L1098) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E62](#e62), [E79](#e79), [E156](#e156), [E282](#e282), [E289](#e289), [E363](#e363), [E377](#e377), [E418](#e418) | Прямой API и UI: allow/deny/default, области, отзыв |
 
 ### Подотчёт
 
 | Право и код | Статус | Области | Выдача / ограничение | Доказательства | Что проверить следующим |
 | --- | --- | --- | --- | --- | --- |
-| Подотчёт<br>`accountability.access`<br>[код](../../apps/backend/src/modules/users-access/utils/auth-access-capabilities.util.ts#L44) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Просмотр счёта<br>`accountability.read`<br>[код](../../apps/backend/src/common/access/resource-access-context.ts#L138) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Сверка счетов<br>`accountability.review`<br>[код](../../apps/backend/src/modules/accountability/accountability.service.ts#L146) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Выдача подотчётных средств<br>`accountability.issue_cash`<br>[код](../../apps/backend/src/modules/accountability/accountability.service.ts#L1698) | не проверено | свои, назначенные, выбранные, все | Руководящий круг | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Свободный приход на свой счёт<br>`accountability.external_receipt`<br>[код](../../apps/backend/src/modules/accountability/accountability.service.ts#L534) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Сторно прихода<br>`accountability.correct_receipt`<br>[код](../../apps/backend/src/modules/accountability/accountability.service.ts#L625) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Новый расход<br>`accountability.expenses.create`<br>[код](../../apps/backend/src/modules/accountability/accountability.service.ts#L673) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E21](#e21) | Закрыть оставшиеся области/каналы и К1–К7 по E20/E21 |
-| Изменение черновика расхода<br>`accountability.expenses.update`<br>[код](../../apps/backend/src/modules/accountability/accountability.service.ts#L758) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Отправка расхода<br>`accountability.expenses.submit`<br>[код](../../apps/backend/src/modules/accountability/accountability.service.ts#L913) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E19](#e19), [E21](#e21) | Закрыть оставшиеся области/каналы и К1–К7 по E20/E21 |
-| Подтверждение расхода<br>`accountability.expenses.approve`<br>[код](../../apps/backend/src/modules/accountability/accountability.service.ts#L1104) | проверено частично | свои, назначенные, выбранные, все | Новая выдача закрыта | [E18](#e18), [E19](#e19), [E21](#e21) | Закрыть оставшиеся области/каналы и К1–К7 по E20/E21 |
-| Отклонение расхода<br>`accountability.expenses.reject`<br>[код](../../apps/backend/src/modules/accountability/accountability.service.ts#L1104) | не проверено | свои, назначенные, выбранные, все | Новая выдача закрыта | — | Legacy/deny, запрет новой выдачи, UI и независимость |
-| Отправка сверки<br>`accountability.closure.request`<br>[код](../../apps/backend/src/modules/accountability/accountability.service.ts#L1170) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Подтверждение сверки<br>`accountability.closure.approve`<br>[код](../../apps/backend/src/modules/accountability/accountability.service.ts#L1332) | не проверено | свои, назначенные, выбранные, все | Новая выдача закрыта | — | Legacy/deny, запрет новой выдачи, UI и независимость |
-| Отклонение сверки<br>`accountability.closure.reject`<br>[код](../../apps/backend/src/modules/accountability/accountability.service.ts#L1332) | не проверено | свои, назначенные, выбранные, все | Новая выдача закрыта | — | Legacy/deny, запрет новой выдачи, UI и независимость |
-| Сводка заказа<br>`accountability.order_summary.read`<br>[код](../../apps/backend/src/modules/accountability/accountability.service.ts#L204) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E19](#e19), [E21](#e21) | Закрыть оставшиеся области/каналы и К1–К7 по E20/E21 |
+| Подотчёт<br>`accountability.access`<br>[код](../../apps/backend/src/modules/users-access/utils/auth-access-capabilities.util.ts#L44) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E70](#e70), [E152](#e152), [E253](#e253), [E256](#e256), [E274](#e274), [E363](#e363), [E368](#e368), [E377](#e377), [E418](#e418), [E447](#e447) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Просмотр счёта<br>`accountability.read`<br>[код](../../apps/backend/src/common/access/resource-access-context.ts#L138) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E70](#e70), [E152](#e152), [E255](#e255), [E258](#e258), [E363](#e363), [E368](#e368), [E377](#e377), [E406](#e406), [E418](#e418) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Сверка счетов<br>`accountability.review`<br>[код](../../apps/backend/src/modules/accountability/accountability.service.ts#L146) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E70](#e70), [E152](#e152), [E159](#e159), [E363](#e363), [E368](#e368), [E377](#e377), [E406](#e406), [E418](#e418) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Выдача подотчётных средств<br>`accountability.issue_cash`<br>[код](../../apps/backend/src/modules/accountability/accountability.service.ts#L1698) | проверено частично | свои, назначенные, выбранные, все | Руководящий круг | [E70](#e70), [E152](#e152), [E274](#e274), [E363](#e363), [E368](#e368), [E377](#e377), [E418](#e418) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Свободный приход на свой счёт<br>`accountability.external_receipt`<br>[код](../../apps/backend/src/modules/accountability/accountability.service.ts#L534) | подтверждено | свои, назначенные, выбранные, все | Персональное правило | [E70](#e70), [E152](#e152), [E253](#e253), [E255](#e255), [E258](#e258), [E363](#e363), [E368](#e368), [E377](#e377), [E418](#e418), [E447](#e447), [E471](#e471) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Сторно прихода<br>`accountability.correct_receipt`<br>[код](../../apps/backend/src/modules/accountability/accountability.service.ts#L625) | подтверждено | свои, назначенные, выбранные, все | Персональное правило | [E70](#e70), [E152](#e152), [E253](#e253), [E256](#e256), [E259](#e259), [E363](#e363), [E368](#e368), [E377](#e377), [E418](#e418), [E447](#e447), [E471](#e471) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Новый расход<br>`accountability.expenses.create`<br>[код](../../apps/backend/src/modules/accountability/accountability.service.ts#L673) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E21](#e21), [E70](#e70), [E152](#e152), [E363](#e363), [E368](#e368), [E385](#e385), [E377](#e377), [E379](#e379), [E401](#e401), [E406](#e406), [E418](#e418), [E425](#e425) | Закрыть оставшиеся области/каналы и К1–К7 по E20/E21 |
+| Изменение черновика расхода<br>`accountability.expenses.update`<br>[код](../../apps/backend/src/modules/accountability/accountability.service.ts#L758) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E70](#e70), [E152](#e152), [E363](#e363), [E368](#e368), [E385](#e385), [E377](#e377), [E379](#e379), [E406](#e406), [E418](#e418) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Отправка расхода<br>`accountability.expenses.submit`<br>[код](../../apps/backend/src/modules/accountability/accountability.service.ts#L913) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E19](#e19), [E21](#e21), [E70](#e70), [E152](#e152), [E363](#e363), [E368](#e368), [E377](#e377), [E379](#e379), [E401](#e401), [E406](#e406), [E418](#e418), [E425](#e425) | Закрыть оставшиеся области/каналы и К1–К7 по E20/E21 |
+| Подтверждение расхода<br>`accountability.expenses.approve`<br>[код](../../apps/backend/src/modules/accountability/accountability.service.ts#L1104) | проверено частично | свои, назначенные, выбранные, все | Новая выдача закрыта | [E18](#e18), [E19](#e19), [E21](#e21), [E70](#e70), [E152](#e152), [E253](#e253), [E256](#e256), [E259](#e259), [E363](#e363), [E377](#e377), [E418](#e418) | Закрыть оставшиеся области/каналы и К1–К7 по E20/E21 |
+| Отклонение расхода<br>`accountability.expenses.reject`<br>[код](../../apps/backend/src/modules/accountability/accountability.service.ts#L1104) | проверено частично | свои, назначенные, выбранные, все | Новая выдача закрыта | [E70](#e70), [E152](#e152), [E253](#e253), [E256](#e256), [E259](#e259), [E363](#e363), [E377](#e377), [E418](#e418) | Legacy/deny, запрет новой выдачи, UI и независимость |
+| Отправка сверки<br>`accountability.closure.request`<br>[код](../../apps/backend/src/modules/accountability/accountability.service.ts#L1170) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E70](#e70), [E152](#e152), [E363](#e363), [E368](#e368), [E377](#e377), [E418](#e418), [E471](#e471) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Подтверждение сверки<br>`accountability.closure.approve`<br>[код](../../apps/backend/src/modules/accountability/accountability.service.ts#L1332) | проверено частично | свои, назначенные, выбранные, все | Новая выдача закрыта | [E70](#e70), [E152](#e152), [E363](#e363), [E377](#e377), [E471](#e471) | Legacy/deny, запрет новой выдачи, UI и независимость |
+| Отклонение сверки<br>`accountability.closure.reject`<br>[код](../../apps/backend/src/modules/accountability/accountability.service.ts#L1332) | проверено частично | свои, назначенные, выбранные, все | Новая выдача закрыта | [E70](#e70), [E152](#e152), [E363](#e363), [E377](#e377), [E471](#e471) | Legacy/deny, запрет новой выдачи, UI и независимость |
+| Сводка заказа<br>`accountability.order_summary.read`<br>[код](../../apps/backend/src/modules/accountability/accountability.service.ts#L204) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E19](#e19), [E21](#e21), [E70](#e70), [E152](#e152), [E363](#e363), [E368](#e368), [E377](#e377), [E425](#e425) | Закрыть оставшиеся области/каналы и К1–К7 по E20/E21 |
 
 ### Отсутствия и календарь пользователей
 
 | Право и код | Статус | Области | Выдача / ограничение | Доказательства | Что проверить следующим |
 | --- | --- | --- | --- | --- | --- |
-| Календарь пользователей<br>`user_absences.access`<br>[код](../../apps/backend/src/modules/users-access/utils/auth-access-capabilities.util.ts#L243) | не проверено | свои, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Просмотр своего календаря<br>`user_absences.read`<br>[код](../../apps/backend/src/modules/dashboard/dashboard.controller.ts#L73) | не проверено | свои, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Занятость коллег<br>`user_absences.view_all`<br>[код](../../apps/backend/src/modules/user-absences/user-absences.service.ts#L20) | не проверено | свои, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Создание своего события<br>`user_absences.create`<br>[код](../../apps/backend/src/modules/user-absences/user-absences.service.ts#L106) | не проверено | свои, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Изменение своего события<br>`user_absences.update`<br>[код](../../apps/backend/src/modules/user-absences/user-absences.service.ts#L170) | не проверено | свои, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Удаление своего события<br>`user_absences.delete`<br>[код](../../apps/backend/src/modules/user-absences/user-absences.service.ts#L231) | не проверено | свои, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Редактирование календарей коллег<br>`user_absences.manage`<br>[код](../../apps/backend/src/modules/user-absences/user-absences.service.ts#L21) | не проверено | свои, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Приватные причины<br>`user_absences.view_private_reasons`<br>[код](../../apps/backend/src/modules/user-absences/user-absences.service.ts#L23) | не проверено | свои, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
+| Календарь пользователей<br>`user_absences.access`<br>[код](../../apps/backend/src/modules/users-access/utils/auth-access-capabilities.util.ts#L243) | проверено частично | свои, выбранные, все | Персональное правило | [E26](#e26), [E30](#e30), [E33](#e33), [E191](#e191), [E195](#e195), [E328](#e328), [E377](#e377) | Оставшиеся области/роли, все применимые К1–К7, окно учредителя и адресная перепроверка последующих runtime исправлений. |
+| Просмотр своего календаря<br>`user_absences.read`<br>[код](../../apps/backend/src/modules/dashboard/dashboard.controller.ts#L73) | проверено частично | свои, выбранные, все | Персональное правило | [E26](#e26), [E30](#e30), [E33](#e33), [E191](#e191), [E328](#e328), [E377](#e377) | Оставшиеся области/роли, все применимые К1–К7, окно учредителя и адресная перепроверка последующих runtime исправлений. |
+| Занятость коллег<br>`user_absences.view_all`<br>[код](../../apps/backend/src/modules/user-absences/user-absences.service.ts#L20) | проверено частично | свои, выбранные, все | Персональное правило | [E26](#e26), [E30](#e30), [E191](#e191), [E328](#e328), [E377](#e377) | Закрыть оставшиеся области/роли и К1–К7, окно учредителя и интерфейс получателя; не подменять предметную приёмку общим resolver-тестом. |
+| Создание своего события<br>`user_absences.create`<br>[код](../../apps/backend/src/modules/user-absences/user-absences.service.ts#L106) | проверено частично | свои, выбранные, все | Персональное правило | [E26](#e26), [E30](#e30), [E33](#e33), [E191](#e191), [E196](#e196), [E328](#e328), [E377](#e377) | Оставшиеся области/роли, все применимые К1–К7, окно учредителя и адресная перепроверка последующих runtime исправлений. |
+| Изменение своего события<br>`user_absences.update`<br>[код](../../apps/backend/src/modules/user-absences/user-absences.service.ts#L170) | проверено частично | свои, выбранные, все | Персональное правило | [E26](#e26), [E30](#e30), [E33](#e33), [E191](#e191), [E195](#e195), [E328](#e328), [E377](#e377), [E394](#e394) | Оставшиеся области/роли, все применимые К1–К7, окно учредителя и адресная перепроверка последующих runtime исправлений. |
+| Удаление своего события<br>`user_absences.delete`<br>[код](../../apps/backend/src/modules/user-absences/user-absences.service.ts#L231) | проверено частично | свои, выбранные, все | Персональное правило | [E26](#e26), [E30](#e30), [E33](#e33), [E191](#e191), [E328](#e328), [E377](#e377) | Оставшиеся области/роли, все применимые К1–К7, окно учредителя и адресная перепроверка последующих runtime исправлений. |
+| Редактирование календарей коллег<br>`user_absences.manage`<br>[код](../../apps/backend/src/modules/user-absences/user-absences.service.ts#L21) | проверено частично | свои, выбранные, все | Персональное правило | [E26](#e26), [E30](#e30), [E33](#e33), [E191](#e191), [E328](#e328), [E377](#e377) | Оставшиеся области/роли, все применимые К1–К7, окно учредителя и адресная перепроверка последующих runtime исправлений. |
+| Приватные причины<br>`user_absences.view_private_reasons`<br>[код](../../apps/backend/src/modules/user-absences/user-absences.service.ts#L23) | проверено частично | свои, выбранные, все | Персональное правило | [E26](#e26), [E30](#e30), [E33](#e33), [E191](#e191), [E328](#e328), [E377](#e377) | Оставшиеся области/роли, все применимые К1–К7, окно учредителя и адресная перепроверка последующих runtime исправлений. |
 
 ### План посещений
 
 | Право и код | Статус | Области | Выдача / ограничение | Доказательства | Что проверить следующим |
 | --- | --- | --- | --- | --- | --- |
-| Дневные планы<br>`visit_plans.access`<br>[код](../../apps/backend/src/modules/users-access/utils/auth-access-capabilities.util.ts#L249) | проверено частично | свои, выбранные, все | Персональное правило | [E11](#e11) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
-| Просмотр плана<br>`visit_plans.read`<br>[код](../../apps/backend/src/modules/users-access/utils/auth-access-capabilities.util.ts#L250) | проверено частично | свои, выбранные, все | Персональное правило | [E11](#e11) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
-| Формирование планов<br>`visit_plans.manage`<br>[код](../../apps/backend/src/modules/users-access/utils/auth-access-capabilities.util.ts#L252) | проверено частично | свои, выбранные, все | Персональное правило | [E11](#e11) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
-| Отметки посещений<br>`visit_plans.visits.manage`<br>[код](../../apps/backend/src/modules/visit-plans/visit-plans.service.ts#L102) | проверено частично | свои, выбранные, все | Персональное правило | [E11](#e11) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
-| Отчёт посещения<br>`visit_plans.reports.manage`<br>[код](../../apps/backend/src/modules/visit-plans/visit-plans.service.ts#L103) | проверено частично | свои, выбранные, все | Персональное правило | [E11](#e11) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
-| История плана<br>`visit_plans.history`<br>[код](../../apps/backend/src/modules/visit-plans/visit-plans.service.ts#L471) | не проверено | свои, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
+| Дневные планы<br>`visit_plans.access`<br>[код](../../apps/backend/src/modules/users-access/utils/auth-access-capabilities.util.ts#L249) | проверено частично | свои, выбранные, все | Персональное правило | [E11](#e11), [E43](#e43), [E83](#e83), [E166](#e166), [E331](#e331), [E383](#e383), [E377](#e377), [E449](#e449) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
+| Просмотр плана<br>`visit_plans.read`<br>[код](../../apps/backend/src/modules/users-access/utils/auth-access-capabilities.util.ts#L250) | проверено частично | свои, выбранные, все | Персональное правило | [E11](#e11), [E43](#e43), [E83](#e83), [E166](#e166), [E170](#e170), [E331](#e331), [E383](#e383), [E377](#e377), [E449](#e449) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
+| Формирование планов<br>`visit_plans.manage`<br>[код](../../apps/backend/src/modules/users-access/utils/auth-access-capabilities.util.ts#L252) | проверено частично | свои, выбранные, все | Персональное правило | [E11](#e11), [E43](#e43), [E166](#e166), [E369](#e369), [E383](#e383), [E377](#e377), [E411](#e411) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
+| Отметки посещений<br>`visit_plans.visits.manage`<br>[код](../../apps/backend/src/modules/visit-plans/visit-plans.service.ts#L102) | проверено частично | свои, выбранные, все | Персональное правило | [E11](#e11), [E43](#e43), [E166](#e166), [E336](#e336), [E377](#e377), [E411](#e411) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
+| Отчёт посещения<br>`visit_plans.reports.manage`<br>[код](../../apps/backend/src/modules/visit-plans/visit-plans.service.ts#L103) | проверено частично | свои, выбранные, все | Персональное правило | [E11](#e11), [E43](#e43), [E166](#e166), [E332](#e332), [E333](#e333), [E380](#e380), [E377](#e377), [E411](#e411) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
+| История плана<br>`visit_plans.history`<br>[код](../../apps/backend/src/modules/visit-plans/visit-plans.service.ts#L471) | проверено частично | свои, выбранные, все | Персональное правило | [E43](#e43), [E166](#e166), [E332](#e332), [E333](#e333), [E377](#e377), [E445](#e445) | Прямой API и UI: allow/deny/default, области, отзыв |
 
 ### Замещения
 
 | Право и код | Статус | Области | Выдача / ограничение | Доказательства | Что проверить следующим |
 | --- | --- | --- | --- | --- | --- |
-| Объектные замещения<br>`user_substitutions.access`<br>[код](../../apps/backend/src/modules/users-access/utils/auth-access-capabilities.util.ts#L258) | не проверено | свои, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Просмотр замещений<br>`user_substitutions.read`<br>[код](../../apps/backend/src/modules/user-substitutions/user-substitutions.service.ts#L33) | не проверено | свои, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Создание своего замещения<br>`user_substitutions.create`<br>[код](../../apps/backend/src/modules/user-substitutions/user-substitutions.service.ts#L126) | не проверено | все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Администрирование замещений<br>`user_substitutions.manage`<br>[код](../../apps/backend/src/modules/user-substitutions/user-substitutions.service.ts#L123) | не проверено | свои, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Отзыв замещения<br>`user_substitutions.revoke`<br>[код](../../apps/backend/src/modules/user-substitutions/user-substitutions.service.ts#L55) | не проверено | свои, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
+| Объектные замещения<br>`user_substitutions.access`<br>[код](../../apps/backend/src/modules/users-access/utils/auth-access-capabilities.util.ts#L258) | проверено частично | свои, выбранные, все | Персональное правило | [E50](#e50), [E85](#e85), [E165](#e165), [E329](#e329), [E376](#e376), [E377](#e377) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Просмотр замещений<br>`user_substitutions.read`<br>[код](../../apps/backend/src/modules/user-substitutions/user-substitutions.service.ts#L33) | проверено частично | свои, выбранные, все | Персональное правило | [E50](#e50), [E85](#e85), [E165](#e165), [E169](#e169), [E329](#e329), [E376](#e376), [E377](#e377), [E449](#e449) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Создание своего замещения<br>`user_substitutions.create`<br>[код](../../apps/backend/src/modules/user-substitutions/user-substitutions.service.ts#L126) | проверено частично | все | Персональное правило | [E50](#e50), [E85](#e85), [E165](#e165), [E365](#e365), [E383](#e383), [E377](#e377) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Администрирование замещений<br>`user_substitutions.manage`<br>[код](../../apps/backend/src/modules/user-substitutions/user-substitutions.service.ts#L123) | проверено частично | свои, выбранные, все | Персональное правило | [E50](#e50), [E85](#e85), [E165](#e165), [E365](#e365), [E383](#e383), [E377](#e377) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Отзыв замещения<br>`user_substitutions.revoke`<br>[код](../../apps/backend/src/modules/user-substitutions/user-substitutions.service.ts#L55) | проверено частично | свои, выбранные, все | Персональное правило | [E50](#e50), [E85](#e85), [E165](#e165), [E365](#e365), [E383](#e383), [E380](#e380), [E377](#e377) | Прямой API и UI: allow/deny/default, области, отзыв |
 
 ### Кандидаты
 
 | Право и код | Статус | Области | Выдача / ограничение | Доказательства | Что проверить следующим |
 | --- | --- | --- | --- | --- | --- |
-| Кандидаты<br>`candidates.access`<br>[код](../../apps/backend/src/modules/candidates/candidates.service.ts#L118) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Просмотр кандидатов<br>`candidates.view`<br>[код](../../apps/backend/src/common/access/resource-access-context.ts#L57) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Управление кандидатами<br>`candidates.manage`<br>[код](../../apps/backend/src/modules/candidates/candidates.service.ts#L75) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Создание кандидата<br>`candidates.create`<br>[код](../../apps/backend/src/modules/candidates/candidates.service.ts#L172) | не проверено | все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Редактирование кандидата<br>`candidates.update`<br>[код](../../apps/backend/src/modules/candidates/candidates.service.ts#L154) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Смена статуса<br>`candidates.status`<br>[код](../../apps/backend/src/modules/candidates/candidates.service.ts#L156) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Архивирование<br>`candidates.archive`<br>[код](../../apps/backend/src/modules/candidates/candidates.service.ts#L163) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Восстановление<br>`candidates.restore`<br>[код](../../apps/backend/src/modules/candidates/candidates.service.ts#L164) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Ответственные менеджеры<br>`candidates.assignments.manage`<br>[код](../../apps/backend/src/modules/candidates/candidates.service.ts#L157) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Ответ менеджера<br>`candidates.respond`<br>[код](../../apps/backend/src/modules/candidates/candidates.service.ts#L159) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Оформить сотрудником<br>`candidates.convert_employee`<br>[код](../../apps/backend/src/modules/candidates/candidates.service.ts#L165) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Прежний персональный запрет кандидатов<br>`candidates.denied`<br>[код](../../apps/backend/src/common/access/notification-access.ts#L81) | проверено частично | все | Старый запрет | [E01](#e01) | Все каналы старого запрета, UI и обходы через назначения |
+| Кандидаты<br>`candidates.access`<br>[код](../../apps/backend/src/modules/candidates/candidates.service.ts#L118) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E31](#e31), [E35](#e35), [E188](#e188), [E337](#e337), [E377](#e377) | Закрыть оставшиеся области/роли и К1–К7, окно учредителя и интерфейс получателя; не подменять предметную приёмку общим resolver-тестом. |
+| Просмотр кандидатов<br>`candidates.view`<br>[код](../../apps/backend/src/common/access/resource-access-context.ts#L57) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E31](#e31), [E35](#e35), [E72](#e72), [E188](#e188), [E193](#e193), [E337](#e337), [E377](#e377) | Закрыть оставшиеся области/роли и К1–К7, окно учредителя и интерфейс получателя; не подменять предметную приёмку общим resolver-тестом. |
+| Управление кандидатами<br>`candidates.manage`<br>[код](../../apps/backend/src/modules/candidates/candidates.service.ts#L75) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E31](#e31), [E35](#e35), [E188](#e188), [E337](#e337), [E357](#e357), [E377](#e377) | Закрыть оставшиеся области/роли и К1–К7, окно учредителя и интерфейс получателя; не подменять предметную приёмку общим resolver-тестом. |
+| Создание кандидата<br>`candidates.create`<br>[код](../../apps/backend/src/modules/candidates/candidates.service.ts#L172) | проверено частично | все | Персональное правило | [E31](#e31), [E34](#e34), [E35](#e35), [E72](#e72), [E188](#e188), [E358](#e358), [E377](#e377) | Закрыть оставшиеся области/роли и К1–К7, окно учредителя и интерфейс получателя; не подменять предметную приёмку общим resolver-тестом. |
+| Редактирование кандидата<br>`candidates.update`<br>[код](../../apps/backend/src/modules/candidates/candidates.service.ts#L154) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E31](#e31), [E35](#e35), [E111](#e111), [E188](#e188), [E193](#e193), [E337](#e337), [E377](#e377), [E394](#e394), [E430](#e430) | Закрыть оставшиеся области/роли и К1–К7, окно учредителя и интерфейс получателя; не подменять предметную приёмку общим resolver-тестом. |
+| Смена статуса<br>`candidates.status`<br>[код](../../apps/backend/src/modules/candidates/candidates.service.ts#L156) | подтверждено | свои, назначенные, выбранные, все | Персональное правило | [E31](#e31), [E35](#e35), [E188](#e188), [E357](#e357), [E358](#e358), [E377](#e377), [E395](#e395), [E417](#e417), [E423](#e423) | Закрыть оставшиеся области/роли и К1–К7, окно учредителя и интерфейс получателя; не подменять предметную приёмку общим resolver-тестом. |
+| Архивирование<br>`candidates.archive`<br>[код](../../apps/backend/src/modules/candidates/candidates.service.ts#L163) | подтверждено | свои, назначенные, выбранные, все | Персональное правило | [E31](#e31), [E35](#e35), [E111](#e111), [E188](#e188), [E357](#e357), [E377](#e377), [E395](#e395), [E417](#e417), [E423](#e423) | Закрыть оставшиеся области/роли и К1–К7, окно учредителя и интерфейс получателя; не подменять предметную приёмку общим resolver-тестом. |
+| Восстановление<br>`candidates.restore`<br>[код](../../apps/backend/src/modules/candidates/candidates.service.ts#L164) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E31](#e31), [E35](#e35), [E111](#e111), [E188](#e188), [E357](#e357), [E377](#e377), [E395](#e395), [E417](#e417), [E423](#e423) | Закрыть оставшиеся области/роли и К1–К7, окно учредителя и интерфейс получателя; не подменять предметную приёмку общим resolver-тестом. |
+| Ответственные менеджеры<br>`candidates.assignments.manage`<br>[код](../../apps/backend/src/modules/candidates/candidates.service.ts#L157) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E31](#e31), [E34](#e34), [E35](#e35), [E111](#e111), [E188](#e188), [E358](#e358), [E377](#e377), [E430](#e430) | Закрыть оставшиеся области/роли и К1–К7, окно учредителя и интерфейс получателя; не подменять предметную приёмку общим resolver-тестом. |
+| Ответ менеджера<br>`candidates.respond`<br>[код](../../apps/backend/src/modules/candidates/candidates.service.ts#L159) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E31](#e31), [E35](#e35), [E111](#e111), [E188](#e188), [E357](#e357), [E358](#e358), [E377](#e377), [E430](#e430) | Закрыть оставшиеся области/роли и К1–К7, окно учредителя и интерфейс получателя; не подменять предметную приёмку общим resolver-тестом. |
+| Оформить сотрудником<br>`candidates.convert_employee`<br>[код](../../apps/backend/src/modules/candidates/candidates.service.ts#L165) | подтверждено | свои, назначенные, выбранные, все | Персональное правило | [E31](#e31), [E35](#e35), [E111](#e111), [E188](#e188), [E357](#e357), [E358](#e358), [E377](#e377), [E395](#e395), [E417](#e417), [E423](#e423) | Закрыть оставшиеся области/роли и К1–К7, окно учредителя и интерфейс получателя; не подменять предметную приёмку общим resolver-тестом. |
+| Прежний персональный запрет кандидатов<br>`candidates.denied`<br>[код](../../apps/backend/src/common/access/notification-access.ts#L81) | проверено частично | все | Старый запрет | [E01](#e01), [E31](#e31), [E35](#e35), [E188](#e188), [E357](#e357), [E358](#e358), [E377](#e377) | Закрыть оставшиеся области/роли и К1–К7, окно учредителя и интерфейс получателя; не подменять предметную приёмку общим resolver-тестом. |
 
 ### Сотрудники
 
 | Право и код | Статус | Области | Выдача / ограничение | Доказательства | Что проверить следующим |
 | --- | --- | --- | --- | --- | --- |
-| Сотрудники<br>`employees.access`<br>[код](../../apps/backend/src/modules/users-access/utils/auth-access-capabilities.util.ts#L35) | проверено частично | выбранные, все | Персональное правило | [E17](#e17) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
-| Просмотр сотрудника<br>`employees.view`<br>[код](../../apps/backend/src/modules/approvals/utils/approval-read-access.util.ts#L145) | проверено частично | выбранные, все | Персональное правило | [E04](#e04), [E05](#e05), [E13](#e13), [E17](#e17) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
-| Создание сотрудника<br>`employees.create`<br>[код](../../apps/backend/src/modules/candidates/candidates.service.ts#L165) | не проверено | все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Изменение сотрудника<br>`employees.edit`<br>[код](../../apps/backend/src/modules/employees/employee-schedule.service.ts#L49) | не проверено | выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Архивирование<br>`employees.archive`<br>[код](../../apps/backend/src/modules/employees/employees.service.ts#L1404) | не проверено | выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Восстановление<br>`employees.restore`<br>[код](../../apps/backend/src/modules/employees/employees.service.ts#L1411) | не проверено | выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Удаление ошибочной записи<br>`employees.delete_permanently`<br>[код](../../apps/backend/src/modules/employees/employees.service.ts#L366) | не проверено | выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Назначения на объекты<br>`employees.assignments.manage`<br>[код](../../apps/backend/src/modules/employees/employees.service.ts#L1418) | не проверено | выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Ошибочное назначение<br>`employees.assignments.delete_as_error`<br>[код](../../apps/backend/src/modules/employees/employees.service.ts#L1428) | не проверено | выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Недоступность сотрудника<br>`employees.availability.manage`<br>[код](../../apps/backend/src/modules/employees/employee-schedule.service.ts#L191) | не проверено | выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Подмены сотрудника<br>`employees.substitutions.manage`<br>[код](../../apps/backend/src/modules/employees/employee-schedule.service.ts#L135) | не проверено | выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Выходы сотрудника<br>`employees.attendance.read`<br>[код](../../apps/backend/src/modules/employees/employees.service.ts#L397) | не проверено | выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Отметки документов<br>`employees.documents.edit`<br>[код](../../apps/backend/src/modules/employees/employees.service.ts#L451) | не проверено | выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
+| Сотрудники<br>`employees.access`<br>[код](../../apps/backend/src/modules/users-access/utils/auth-access-capabilities.util.ts#L35) | проверено частично | выбранные, все | Персональное правило | [E17](#e17), [E28](#e28), [E54](#e54), [E189](#e189), [E246](#e246), [E247](#e247), [E337](#e337), [E377](#e377), [E454](#e454) | Окно учредителя и браузер получателя, расширение read из запрещённого baseline, все применимые области/роли/каналы и К1–К7. |
+| Просмотр сотрудника<br>`employees.view`<br>[код](../../apps/backend/src/modules/approvals/utils/approval-read-access.util.ts#L145) | проверено частично | выбранные, все | Персональное правило | [E04](#e04), [E05](#e05), [E13](#e13), [E17](#e17), [E28](#e28), [E54](#e54), [E72](#e72), [E189](#e189), [E194](#e194), [E337](#e337), [E377](#e377), [E454](#e454) | Окно учредителя и браузер получателя, расширение read из запрещённого baseline, все применимые области/роли/каналы и К1–К7. |
+| Создание сотрудника<br>`employees.create`<br>[код](../../apps/backend/src/modules/candidates/candidates.service.ts#L165) | проверено частично | все | Персональное правило | [E28](#e28), [E72](#e72), [E189](#e189), [E357](#e357), [E377](#e377) | Окно учредителя и браузер получателя, расширение read из запрещённого baseline, все применимые области/роли/каналы и К1–К7. |
+| Изменение сотрудника<br>`employees.edit`<br>[код](../../apps/backend/src/modules/employees/employee-schedule.service.ts#L49) | проверено частично | выбранные, все | Персональное правило | [E28](#e28), [E189](#e189), [E194](#e194), [E337](#e337), [E377](#e377), [E394](#e394), [E454](#e454) | Окно учредителя и браузер получателя, расширение read из запрещённого baseline, все применимые области/роли/каналы и К1–К7. |
+| Архивирование<br>`employees.archive`<br>[код](../../apps/backend/src/modules/employees/employees.service.ts#L1404) | подтверждено | выбранные, все | Персональное правило | [E29](#e29), [E357](#e357), [E358](#e358), [E377](#e377), [E395](#e395), [E417](#e417), [E423](#e423) | Закрыть оставшиеся области/роли и К1–К7, окно учредителя и интерфейс получателя; не подменять предметную приёмку общим resolver-тестом. |
+| Восстановление<br>`employees.restore`<br>[код](../../apps/backend/src/modules/employees/employees.service.ts#L1411) | подтверждено | выбранные, все | Персональное правило | [E29](#e29), [E357](#e357), [E358](#e358), [E377](#e377), [E395](#e395), [E417](#e417), [E423](#e423) | Закрыть оставшиеся области/роли и К1–К7, окно учредителя и интерфейс получателя; не подменять предметную приёмку общим resolver-тестом. |
+| Удаление ошибочной записи<br>`employees.delete_permanently`<br>[код](../../apps/backend/src/modules/employees/employees.service.ts#L366) | проверено частично | выбранные, все | Персональное правило | [E29](#e29), [E357](#e357), [E358](#e358), [E377](#e377) | Закрыть оставшиеся области/роли и К1–К7, окно учредителя и интерфейс получателя; не подменять предметную приёмку общим resolver-тестом. |
+| Назначения на объекты<br>`employees.assignments.manage`<br>[код](../../apps/backend/src/modules/employees/employees.service.ts#L1418) | проверено частично | выбранные, все | Персональное правило | [E28](#e28), [E108](#e108), [E189](#e189), [E357](#e357), [E358](#e358), [E377](#e377), [E454](#e454) | Окно учредителя и браузер получателя, расширение read из запрещённого baseline, все применимые области/роли/каналы и К1–К7. |
+| Ошибочное назначение<br>`employees.assignments.delete_as_error`<br>[код](../../apps/backend/src/modules/employees/employees.service.ts#L1428) | проверено частично | выбранные, все | Персональное правило | [E29](#e29), [E357](#e357), [E358](#e358), [E377](#e377) | Закрыть оставшиеся области/роли и К1–К7, окно учредителя и интерфейс получателя; не подменять предметную приёмку общим resolver-тестом. |
+| Недоступность сотрудника<br>`employees.availability.manage`<br>[код](../../apps/backend/src/modules/employees/employee-schedule.service.ts#L191) | проверено частично | выбранные, все | Персональное правило | [E28](#e28), [E189](#e189), [E357](#e357), [E358](#e358), [E377](#e377), [E454](#e454) | Окно учредителя и браузер получателя, расширение read из запрещённого baseline, все применимые области/роли/каналы и К1–К7. |
+| Подмены сотрудника<br>`employees.substitutions.manage`<br>[код](../../apps/backend/src/modules/employees/employee-schedule.service.ts#L135) | проверено частично | выбранные, все | Персональное правило | [E28](#e28), [E189](#e189), [E357](#e357), [E358](#e358), [E377](#e377) | Окно учредителя и браузер получателя, расширение read из запрещённого baseline, все применимые области/роли/каналы и К1–К7. |
+| Выходы сотрудника<br>`employees.attendance.read`<br>[код](../../apps/backend/src/modules/employees/employees.service.ts#L397) | проверено частично | выбранные, все | Персональное правило | [E28](#e28), [E54](#e54), [E189](#e189), [E357](#e357), [E358](#e358), [E377](#e377) | Окно учредителя и браузер получателя, расширение read из запрещённого baseline, все применимые области/роли/каналы и К1–К7. |
+| Отметки документов<br>`employees.documents.edit`<br>[код](../../apps/backend/src/modules/employees/employees.service.ts#L451) | проверено частично | выбранные, все | Персональное правило | [E28](#e28), [E189](#e189), [E357](#e357), [E358](#e358), [E377](#e377), [E454](#e454) | Окно учредителя и браузер получателя, расширение read из запрещённого baseline, все применимые области/роли/каналы и К1–К7. |
 
 ### Согласования
 
 | Право и код | Статус | Области | Выдача / ограничение | Доказательства | Что проверить следующим |
 | --- | --- | --- | --- | --- | --- |
-| Согласования<br>`approvals.access`<br>[код](../../apps/backend/src/modules/users-access/utils/auth-access-capabilities.util.ts#L18) | не проверено | выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Просмотр согласований<br>`approvals.read`<br>[код](../../apps/backend/src/common/access/resource-access-context.ts#L150) | проверено частично | выбранные, все | Персональное правило | [E13](#e13) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
-| Результат задачи<br>`approvals.resolve_task_result`<br>[код](../../apps/backend/src/modules/approvals/approvals.service.ts#L394) | не проверено | выбранные, все | Новая выдача закрыта | — | Legacy/deny, запрет новой выдачи, UI и независимость |
-| Изменение объекта<br>`approvals.resolve_object_change`<br>[код](../../apps/backend/src/modules/approvals/approvals.service.ts#L406) | не проверено | выбранные, все | Новая выдача закрыта | — | Legacy/deny, запрет новой выдачи, UI и независимость |
-| Исключение склада<br>`approvals.resolve_inventory_exception`<br>[код](../../apps/backend/src/modules/approvals/approvals.service.ts#L396) | проверено частично | выбранные, все | Новая выдача закрыта | [E18](#e18) | Legacy/deny, запрет новой выдачи, UI и независимость |
-| Подотчёт<br>`approvals.resolve_accountability`<br>[код](../../apps/backend/src/modules/approvals/approvals.service.ts#L398) | не проверено | выбранные, все | Новая выдача закрыта | — | Legacy/deny, запрет новой выдачи, UI и независимость |
-| Прошлые денежные исправления<br>`approvals.resolve_timesheet`<br>[код](../../apps/backend/src/modules/approvals/approvals.service.ts#L403) | проверено частично | выбранные, все | Новая выдача закрыта | [E02](#e02), [E03](#e03) | Legacy/deny, запрет новой выдачи, UI и независимость |
-| Отмена своей заявки<br>`approvals.cancel`<br>[код](../../apps/backend/src/modules/approvals/approvals.service.ts#L355) | проверено частично | выбранные, все | Персональное правило | [E13](#e13) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
+| Согласования<br>`approvals.access`<br>[код](../../apps/backend/src/modules/users-access/utils/auth-access-capabilities.util.ts#L18) | проверено частично | выбранные, все | Персональное правило | [E61](#e61), [E153](#e153), [E154](#e154), [E283](#e283), [E284](#e284), [E287](#e287), [E363](#e363), [E377](#e377), [E418](#e418) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Просмотр согласований<br>`approvals.read`<br>[код](../../apps/backend/src/common/access/resource-access-context.ts#L150) | проверено частично | выбранные, все | Персональное правило | [E13](#e13), [E61](#e61), [E153](#e153), [E154](#e154), [E160](#e160), [E167](#e167), [E363](#e363), [E377](#e377), [E418](#e418) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
+| Результат задачи<br>`approvals.resolve_task_result`<br>[код](../../apps/backend/src/modules/approvals/approvals.service.ts#L394) | проверено частично | выбранные, все | Новая выдача закрыта | [E61](#e61), [E153](#e153), [E275](#e275), [E284](#e284), [E287](#e287), [E288](#e288), [E363](#e363), [E377](#e377), [E418](#e418) | Legacy/deny, запрет новой выдачи, UI и независимость |
+| Изменение объекта<br>`approvals.resolve_object_change`<br>[код](../../apps/backend/src/modules/approvals/approvals.service.ts#L406) | проверено частично | выбранные, все | Новая выдача закрыта | [E61](#e61), [E153](#e153), [E275](#e275), [E363](#e363), [E377](#e377), [E418](#e418) | Legacy/deny, запрет новой выдачи, UI и независимость |
+| Исключение склада<br>`approvals.resolve_inventory_exception`<br>[код](../../apps/backend/src/modules/approvals/approvals.service.ts#L396) | проверено частично | выбранные, все | Новая выдача закрыта | [E18](#e18), [E61](#e61), [E100](#e100), [E119](#e119), [E153](#e153), [E275](#e275), [E363](#e363), [E377](#e377), [E418](#e418) | Legacy/deny, запрет новой выдачи, UI и независимость |
+| Подотчёт<br>`approvals.resolve_accountability`<br>[код](../../apps/backend/src/modules/approvals/approvals.service.ts#L398) | проверено частично | выбранные, все | Новая выдача закрыта | [E61](#e61), [E153](#e153), [E275](#e275), [E363](#e363), [E377](#e377), [E418](#e418) | Legacy/deny, запрет новой выдачи, UI и независимость |
+| Прошлые денежные исправления<br>`approvals.resolve_timesheet`<br>[код](../../apps/backend/src/modules/approvals/approvals.service.ts#L403) | проверено частично | выбранные, все | Новая выдача закрыта | [E02](#e02), [E03](#e03), [E61](#e61), [E123](#e123), [E153](#e153), [E275](#e275), [E363](#e363), [E377](#e377), [E418](#e418), [E470](#e470), [E471](#e471) | Legacy/deny, запрет новой выдачи, UI и независимость |
+| Отмена своей заявки<br>`approvals.cancel`<br>[код](../../apps/backend/src/modules/approvals/approvals.service.ts#L355) | проверено частично | выбранные, все | Персональное правило | [E13](#e13), [E61](#e61), [E153](#e153), [E275](#e275), [E277](#e277), [E283](#e283), [E287](#e287), [E288](#e288), [E363](#e363), [E377](#e377), [E418](#e418) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
 
 ### Чаты
 
 | Право и код | Статус | Области | Выдача / ограничение | Доказательства | Что проверить следующим |
 | --- | --- | --- | --- | --- | --- |
-| Чаты<br>`chat.access`<br>[код](../../apps/backend/src/modules/users-access/utils/auth-access-capabilities.util.ts#L73) | проверено частично | назначенные, выбранные, все | Персональное правило | [E16](#e16) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
-| Просмотр чатов<br>`chat.read`<br>[код](../../apps/backend/src/common/access/notification-chat-visibility.ts#L35) | проверено частично | назначенные, выбранные, все | Персональное правило | [E16](#e16), [E17](#e17) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
-| Поиск сообщений<br>`chat.search`<br>[код](../../apps/backend/src/modules/chats/chats.service.ts#L219) | не проверено | назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Личный чат<br>`chat.room.direct`<br>[код](../../apps/backend/src/modules/chats/chats.service.ts#L406) | не проверено | все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Групповой чат<br>`chat.room.group`<br>[код](../../apps/backend/src/modules/chats/chats.service.ts#L506) | не проверено | все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Изменение комнаты<br>`chat.room.update`<br>[код](../../apps/backend/src/modules/chats/chats.service.ts#L1939) | не проверено | назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Участники чата<br>`chat.room.manage_members`<br>[код](../../apps/backend/src/modules/chats/chats.service.ts#L1981) | не проверено | назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Скрытие чата<br>`chat.room.hide`<br>[код](../../apps/backend/src/modules/chats/chats.service.ts#L662) | не проверено | назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Показ скрытого чата<br>`chat.room.unhide`<br>[код](../../apps/backend/src/modules/chats/chats.service.ts#L702) | не проверено | назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Выход из чата<br>`chat.room.leave`<br>[код](../../apps/backend/src/modules/chats/chats.service.ts#L744) | не проверено | назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Закрытие чата<br>`chat.room.close_global`<br>[код](../../apps/backend/src/modules/chats/chats.service.ts#L793) | не проверено | назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Чтение сообщений<br>`chat.messages.read`<br>[код](../../apps/backend/src/common/access/notification-access.ts#L27) | проверено частично | назначенные, выбранные, все | Персональное правило | [E16](#e16), [E17](#e17) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
-| Отправка сообщения<br>`chat.messages.create`<br>[код](../../apps/backend/src/modules/chats/chats.service.ts#L1924) | не проверено | назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Редактирование своего сообщения<br>`chat.messages.edit`<br>[код](../../apps/backend/src/modules/chats/chats.service.ts#L1257) | не проверено | назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Удаление сообщения<br>`chat.messages.delete`<br>[код](../../apps/backend/src/modules/chats/chats.service.ts#L1355) | не проверено | назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Пересылка<br>`chat.messages.forward`<br>[код](../../apps/backend/src/modules/chats/chats.service.ts#L1435) | не проверено | назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Реакция<br>`chat.messages.react`<br>[код](../../apps/backend/src/modules/chats/chats.service.ts#L1543) | не проверено | назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Прочтение<br>`chat.read_receipts`<br>[код](../../apps/backend/src/modules/chats/chats.service.ts#L1600) | не проверено | назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Realtime комнаты<br>`chat.realtime`<br>[код](../../apps/backend/src/modules/chats/chat-realtime.service.ts#L273) | проверено частично | назначенные, выбранные, все | Персональное правило | [E16](#e16) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
+| Чаты<br>`chat.access`<br>[код](../../apps/backend/src/modules/users-access/utils/auth-access-capabilities.util.ts#L73) | проверено частично | назначенные, выбранные, все | Персональное правило | [E16](#e16), [E55](#e55), [E88](#e88), [E115](#e115), [E118](#e118), [E197](#e197), [E207](#e207), [E246](#e246), [E247](#e247), [E338](#e338), [E356](#e356), [E436](#e436), [E446](#e446) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
+| Просмотр чатов<br>`chat.read`<br>[код](../../apps/backend/src/common/access/notification-chat-visibility.ts#L35) | проверено частично | назначенные, выбранные, все | Персональное правило | [E16](#e16), [E17](#e17), [E55](#e55), [E88](#e88), [E115](#e115), [E118](#e118), [E197](#e197), [E202](#e202), [E207](#e207), [E213](#e213), [E218](#e218), [E220](#e220), [E223](#e223), [E338](#e338), [E339](#e339), [E356](#e356), [E377](#e377), [E390](#e390), [E415](#e415), [E446](#e446) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
+| Поиск сообщений<br>`chat.search`<br>[код](../../apps/backend/src/modules/chats/chats.service.ts#L219) | проверено частично | назначенные, выбранные, все | Персональное правило | [E56](#e56), [E89](#e89), [E207](#e207), [E212](#e212), [E338](#e338), [E356](#e356), [E377](#e377), [E390](#e390), [E415](#e415) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Личный чат<br>`chat.room.direct`<br>[код](../../apps/backend/src/modules/chats/chats.service.ts#L406) | проверено частично | все | Персональное правило | [E55](#e55), [E88](#e88), [E197](#e197), [E356](#e356), [E377](#e377), [E446](#e446) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Групповой чат<br>`chat.room.group`<br>[код](../../apps/backend/src/modules/chats/chats.service.ts#L506) | проверено частично | все | Персональное правило | [E55](#e55), [E88](#e88), [E197](#e197), [E356](#e356), [E377](#e377), [E446](#e446) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Изменение комнаты<br>`chat.room.update`<br>[код](../../apps/backend/src/modules/chats/chats.service.ts#L1939) | проверено частично | назначенные, выбранные, все | Персональное правило | [E55](#e55), [E88](#e88), [E197](#e197), [E356](#e356), [E377](#e377), [E463](#e463) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Участники чата<br>`chat.room.manage_members`<br>[код](../../apps/backend/src/modules/chats/chats.service.ts#L1981) | проверено частично | назначенные, выбранные, все | Персональное правило | [E55](#e55), [E88](#e88), [E197](#e197), [E356](#e356), [E364](#e364), [E377](#e377), [E463](#e463), [E471](#e471) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Скрытие чата<br>`chat.room.hide`<br>[код](../../apps/backend/src/modules/chats/chats.service.ts#L662) | проверено частично | назначенные, выбранные, все | Персональное правило | [E55](#e55), [E88](#e88), [E197](#e197), [E356](#e356), [E377](#e377), [E463](#e463) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Показ скрытого чата<br>`chat.room.unhide`<br>[код](../../apps/backend/src/modules/chats/chats.service.ts#L702) | проверено частично | назначенные, выбранные, все | Персональное правило | [E55](#e55), [E88](#e88), [E197](#e197), [E356](#e356), [E377](#e377), [E463](#e463) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Выход из чата<br>`chat.room.leave`<br>[код](../../apps/backend/src/modules/chats/chats.service.ts#L744) | проверено частично | назначенные, выбранные, все | Персональное правило | [E55](#e55), [E88](#e88), [E197](#e197), [E356](#e356), [E377](#e377), [E463](#e463), [E471](#e471) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Закрытие чата<br>`chat.room.close_global`<br>[код](../../apps/backend/src/modules/chats/chats.service.ts#L793) | проверено частично | назначенные, выбранные, все | Персональное правило | [E56](#e56), [E89](#e89), [E364](#e364), [E377](#e377), [E463](#e463), [E471](#e471) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Чтение сообщений<br>`chat.messages.read`<br>[код](../../apps/backend/src/common/access/notification-access.ts#L27) | проверено частично | назначенные, выбранные, все | Персональное правило | [E16](#e16), [E17](#e17), [E55](#e55), [E88](#e88), [E115](#e115), [E118](#e118), [E197](#e197), [E207](#e207), [E338](#e338), [E364](#e364), [E377](#e377), [E390](#e390), [E415](#e415), [E446](#e446) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
+| Отправка сообщения<br>`chat.messages.create`<br>[код](../../apps/backend/src/modules/chats/chats.service.ts#L1924) | проверено частично | назначенные, выбранные, все | Персональное правило | [E55](#e55), [E88](#e88), [E197](#e197), [E364](#e364), [E381](#e381), [E377](#e377), [E415](#e415) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Редактирование своего сообщения<br>`chat.messages.edit`<br>[код](../../apps/backend/src/modules/chats/chats.service.ts#L1257) | проверено частично | назначенные, выбранные, все | Персональное правило | [E55](#e55), [E88](#e88), [E197](#e197), [E364](#e364), [E377](#e377), [E463](#e463) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Удаление сообщения<br>`chat.messages.delete`<br>[код](../../apps/backend/src/modules/chats/chats.service.ts#L1355) | проверено частично | назначенные, выбранные, все | Персональное правило | [E55](#e55), [E88](#e88), [E197](#e197), [E364](#e364), [E377](#e377), [E463](#e463) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Пересылка<br>`chat.messages.forward`<br>[код](../../apps/backend/src/modules/chats/chats.service.ts#L1435) | проверено частично | назначенные, выбранные, все | Персональное правило | [E56](#e56), [E89](#e89), [E364](#e364), [E377](#e377), [E463](#e463) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Реакция<br>`chat.messages.react`<br>[код](../../apps/backend/src/modules/chats/chats.service.ts#L1543) | проверено частично | назначенные, выбранные, все | Персональное правило | [E56](#e56), [E89](#e89), [E364](#e364), [E377](#e377), [E463](#e463) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Прочтение<br>`chat.read_receipts`<br>[код](../../apps/backend/src/modules/chats/chats.service.ts#L1600) | проверено частично | назначенные, выбранные, все | Персональное правило | [E56](#e56), [E89](#e89), [E364](#e364), [E377](#e377), [E463](#e463) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Realtime комнаты<br>`chat.realtime`<br>[код](../../apps/backend/src/modules/chats/chat-realtime.service.ts#L273) | проверено частично | назначенные, выбранные, все | Персональное правило | [E16](#e16), [E56](#e56), [E89](#e89), [E118](#e118), [E364](#e364), [E381](#e381), [E377](#e377), [E390](#e390), [E415](#e415) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
 
 ### Уведомления
 
 | Право и код | Статус | Области | Выдача / ограничение | Доказательства | Что проверить следующим |
 | --- | --- | --- | --- | --- | --- |
-| Уведомления<br>`notifications.access`<br>[каталог](../../apps/backend/src/modules/users-access/access-action-catalog.ts) | проверено частично | свои, все | Персональное правило | [E17](#e17) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
-| Просмотр уведомлений<br>`notifications.read`<br>[код](../../apps/backend/src/common/access/notification-access.ts#L70) | проверено частично | свои, все | Персональное правило | [E13](#e13), [E15](#e15), [E17](#e17) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
-| Отметка прочтения<br>`notifications.mark_read`<br>[код](../../apps/backend/src/modules/notifications/notifications.service.ts#L190) | проверено частично | свои, все | Персональное правило | [E13](#e13), [E15](#e15) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
-| Скрытие прочитанного<br>`notifications.dismiss`<br>[код](../../apps/backend/src/modules/notifications/notifications.service.ts#L214) | не проверено | свои, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Доставка уведомлений<br>`notifications.realtime`<br>[код](../../apps/backend/src/modules/chats/chat-realtime.service.ts#L238) | не проверено | свои, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
+| Уведомления<br>`notifications.access`<br>[каталог](../../apps/backend/src/modules/users-access/access-action-catalog.ts) | подтверждено | свои, все | Персональное правило | [E17](#e17), [E45](#e45), [E84](#e84), [E118](#e118), [E199](#e199), [E209](#e209), [E228](#e228), [E231](#e231), [E293](#e293), [E376](#e376), [E381](#e381), [E390](#e390), [E412](#e412), [E429](#e429) | Оставшиеся роли, другие источники, связанные каналы и независимое ревью. |
+| Просмотр уведомлений<br>`notifications.read`<br>[код](../../apps/backend/src/common/access/notification-access.ts#L70) | подтверждено | свои, все | Персональное правило | [E13](#e13), [E15](#e15), [E17](#e17), [E45](#e45), [E76](#e76), [E84](#e84), [E118](#e118), [E199](#e199), [E205](#e205), [E207](#e207), [E209](#e209), [E213](#e213), [E218](#e218), [E220](#e220), [E223](#e223), [E224](#e224), [E226](#e226), [E229](#e229), [E230](#e230), [E364](#e364), [E381](#e381), [E377](#e377), [E390](#e390), [E412](#e412), [E429](#e429) | Проверить прочие источники уведомлений, системные баннеры на других ролях и провести независимое ревью. |
+| Отметка прочтения<br>`notifications.mark_read`<br>[код](../../apps/backend/src/modules/notifications/notifications.service.ts#L190) | подтверждено | свои, все | Персональное правило | [E13](#e13), [E15](#e15), [E45](#e45), [E76](#e76), [E84](#e84), [E199](#e199), [E209](#e209), [E228](#e228), [E231](#e231), [E232](#e232), [E293](#e293), [E364](#e364), [E381](#e381), [E390](#e390), [E413](#e413) | Оставшиеся роли, другие источники и независимое ревью. Отдельный контроль массовой отметки проведён на директоре. |
+| Скрытие прочитанного<br>`notifications.dismiss`<br>[код](../../apps/backend/src/modules/notifications/notifications.service.ts#L214) | подтверждено | свои, все | Персональное правило | [E45](#e45), [E76](#e76), [E84](#e84), [E199](#e199), [E209](#e209), [E228](#e228), [E231](#e231), [E293](#e293), [E376](#e376), [E381](#e381), [E390](#e390), [E413](#e413) | Оставшиеся роли, другие источники, повторная доставка уже скрытой записи и независимое ревью. |
+| Доставка уведомлений<br>`notifications.realtime`<br>[код](../../apps/backend/src/modules/chats/chat-realtime.service.ts#L238) | подтверждено | свои, все | Персональное правило | [E45](#e45), [E76](#e76), [E84](#e84), [E118](#e118), [E199](#e199), [E209](#e209), [E218](#e218), [E220](#e220), [E223](#e223), [E225](#e225), [E226](#e226), [E227](#e227), [E229](#e229), [E230](#e230), [E381](#e381), [E390](#e390), [E429](#e429) | Проверить прочие источники, другие окна между проверкой и публикацией, системные баннеры на других ролях и провести независимое ревью. |
 
 ### Поиск
 
 | Право и код | Статус | Области | Выдача / ограничение | Доказательства | Что проверить следующим |
 | --- | --- | --- | --- | --- | --- |
-| Поиск<br>`search.access`<br>[каталог](../../apps/backend/src/modules/users-access/access-action-catalog.ts) | не проверено | все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Поиск<br>`search.query`<br>[код](../../apps/backend/src/modules/search/search.service.ts#L74) | проверено частично | все | Персональное правило | [E15](#e15) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
-| Недавние результаты<br>`search.recent`<br>[код](../../apps/backend/src/modules/search/search.service.ts#L467) | проверено частично | все | Персональное правило | [E15](#e15) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
+| Поиск<br>`search.access`<br>[каталог](../../apps/backend/src/modules/users-access/access-action-catalog.ts) | подтверждено | все | Персональное правило | [E46](#e46), [E200](#e200), [E291](#e291), [E376](#e376), [E419](#e419) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Поиск<br>`search.query`<br>[код](../../apps/backend/src/modules/search/search.service.ts#L74) | подтверждено | все | Персональное правило | [E15](#e15), [E46](#e46), [E51](#e51), [E200](#e200), [E206](#e206), [E210](#e210), [E214](#e214), [E267](#e267), [E271](#e271), [E291](#e291), [E376](#e376), [E381](#e381), [E377](#e377), [E419](#e419) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
+| Недавние результаты<br>`search.recent`<br>[код](../../apps/backend/src/modules/search/search.service.ts#L467) | подтверждено | все | Персональное правило | [E15](#e15), [E46](#e46), [E51](#e51), [E200](#e200), [E210](#e210), [E214](#e214), [E291](#e291), [E376](#e376), [E381](#e381), [E377](#e377), [E419](#e419), [E426](#e426) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
 
 ### Файлы
 
+К2 (области) шести поддерживаемых файловых действий адресно закрыт API/БД прогоном [E99](#e99). Это не завершение К1–К7: интерфейс получателя, native picker, derivative jobs и применимые каналы остаются отдельными открытыми критериями.
+
 | Право и код | Статус | Области | Выдача / ограничение | Доказательства | Что проверить следующим |
 | --- | --- | --- | --- | --- | --- |
-| Файлы<br>`files.access`<br>[каталог](../../apps/backend/src/modules/users-access/access-action-catalog.ts) | не проверено | свои, назначенные, выбранные, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Чтение файла<br>`files.read`<br>[код](../../apps/backend/src/modules/files/files.service.ts#L566) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E12](#e12), [E15](#e15) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
-| Скачивание файла<br>`files.download`<br>[код](../../apps/backend/src/modules/files/files.service.ts#L395) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E12](#e12), [E15](#e15) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
-| Превью<br>`files.preview`<br>[код](../../apps/backend/src/modules/files/files.service.ts#L394) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E15](#e15) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
-| Повтор подготовки превью<br>`files.preview.retry`<br>[код](../../apps/backend/src/modules/files/files.service.ts#L396) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E15](#e15) | Закрыть пробелы сценариев E; UI получателя, области и отзыв |
-| Загрузка файла<br>`files.upload`<br>[код](../../apps/backend/src/modules/files/files.service.ts#L113) | не проверено | все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Отвязка файла<br>`files.detach`<br>[каталог](../../apps/backend/src/modules/users-access/access-action-catalog.ts) | не реализовано | свои, назначенные, выбранные, все | Нет отдельной операции | — | Отдельно принять действующие операции ниже |
+| Файлы<br>`files.access`<br>[каталог](../../apps/backend/src/modules/users-access/access-action-catalog.ts) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E48](#e48), [E91](#e91), [E96](#e96), [E99](#e99), [E115](#e115), [E116](#e116), [E129](#e129), [E132](#e132), [E198](#e198), [E208](#e208), [E364](#e364), [E389](#e389), [E390](#e390), [E412](#e412), [E433](#e433) | Интерфейс учредителя/получателя: выдача и отзыв root в открытом файловом меню; длинные имена, разные размеры, вложенные источники и каналы. |
+| Чтение файла<br>`files.read`<br>[код](../../apps/backend/src/modules/files/files.service.ts#L566) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E12](#e12), [E15](#e15), [E48](#e48), [E91](#e91), [E99](#e99), [E107](#e107), [E115](#e115), [E116](#e116), [E118](#e118), [E129](#e129), [E132](#e132), [E198](#e198), [E204](#e204), [E208](#e208), [E211](#e211), [E215](#e215), [E216](#e216), [E217](#e217), [E364](#e364), [E389](#e389), [E377](#e377), [E390](#e390), [E412](#e412), [E433](#e433), [E470](#e470), [E471](#e471) | Подтвердить scoped read в интерфейсе получателя и скрытие открытой карточки при отзыве; добавить вложенный источник и зависимые каналы. API областей — E99. |
+| Скачивание файла<br>`files.download`<br>[код](../../apps/backend/src/modules/files/files.service.ts#L395) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E12](#e12), [E15](#e15), [E48](#e48), [E91](#e91), [E99](#e99), [E129](#e129), [E198](#e198), [E208](#e208), [E211](#e211), [E215](#e215), [E216](#e216), [E217](#e217), [E221](#e221), [E222](#e222), [E364](#e364), [E389](#e389), [E390](#e390), [E412](#e412), [E433](#e433), [E470](#e470), [E471](#e471) | Открытое меню и поздний Blob после отзыва у получателя, контроль Б, недоступный source и независимый preview; повторить области в UI. API — E99. |
+| Превью<br>`files.preview`<br>[код](../../apps/backend/src/modules/files/files.service.ts#L394) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E15](#e15), [E48](#e48), [E91](#e91), [E99](#e99), [E129](#e129), [E198](#e198), [E208](#e208), [E211](#e211), [E215](#e215), [E216](#e216), [E217](#e217), [E219](#e219), [E364](#e364), [E389](#e389), [E390](#e390), [E412](#e412), [E433](#e433) | Настоящее image/PDF/Office derivative содержимое; отзыв в открытом viewer, независимое скачивание, вложенный источник, большой и узкий экран. API областей — E99. |
+| Повтор подготовки превью<br>`files.preview.retry`<br>[код](../../apps/backend/src/modules/files/files.service.ts#L396) | проверено частично | свои, назначенные, выбранные, все | Персональное правило | [E15](#e15), [E48](#e48), [E91](#e91), [E99](#e99), [E129](#e129), [E198](#e198), [E208](#e208), [E219](#e219), [E364](#e364), [E415](#e415), [E472](#e472) | Настоящий failed/pending derivative job, конкурентный retry без лишней очереди; кнопка получателя и отзыв до enqueue. API областей — E99, text retry не заменяет job. |
+| Загрузка файла<br>`files.upload`<br>[код](../../apps/backend/src/modules/files/files.service.ts#L113) | проверено частично | все | Персональное правило | [E48](#e48), [E91](#e91), [E94](#e94), [E95](#e95), [E96](#e96), [E97](#e97), [E99](#e99), [E198](#e198), [E364](#e364), [E375](#e375), [E385](#e385), [E390](#e390), [E433](#e433) | Реальная очередь получателя при отзыве/возврате, тот же upload ID и единственный file/attachment/audit; вложенный source и конкурентный upload. Root-own/selected API — E99. |
+| Отвязка файла<br>`files.detach`<br>[каталог](../../apps/backend/src/modules/users-access/access-action-catalog.ts) | не реализовано | свои, назначенные, выбранные, все | Нет отдельной операции |  | Отдельно принять действующие операции ниже |
 
 ### Вход и сессия
 
 | Право и код | Статус | Области | Выдача / ограничение | Доказательства | Что проверить следующим |
 | --- | --- | --- | --- | --- | --- |
-| Учётная запись<br>`auth.access`<br>[код](../../apps/backend/src/modules/auth/strategies/jwt.strategy.ts#L53) | не проверено | свои, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Вход<br>`auth.login`<br>[код](../../apps/backend/src/modules/auth/auth.service.ts#L86) | не проверено | свои, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Свой профиль<br>`auth.me`<br>[код](../../apps/backend/src/modules/auth/auth.service.ts#L153) | не проверено | свои, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Обновление сессии<br>`auth.refresh`<br>[код](../../apps/backend/src/modules/auth/auth.service.ts#L116) | не проверено | свои, все | Персональное правило | — | Прямой API и UI: allow/deny/default, области, отзыв |
-| Выход<br>`auth.logout`<br>[каталог](../../apps/backend/src/modules/users-access/access-action-catalog.ts) | не проверено | свои, все | Всегда доступен выход | — | Выход при любых ограничениях и завершение сессии |
+| Учётная запись<br>`auth.access`<br>[код](../../apps/backend/src/modules/auth/strategies/jwt.strategy.ts#L53) | подтверждено | свои, все | Персональное правило | [E52](#e52), [E150](#e150), [E260](#e260), [E261](#e261), [E270](#e270), [E286](#e286), [E321](#e321), [E374](#e374), [E393](#e393), [E377](#e377), [E403](#e403), [E407](#e407), [E397](#e397) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Вход<br>`auth.login`<br>[код](../../apps/backend/src/modules/auth/auth.service.ts#L86) | подтверждено | свои, все | Персональное правило | [E52](#e52), [E150](#e150), [E260](#e260), [E263](#e263), [E270](#e270), [E272](#e272), [E374](#e374), [E393](#e393), [E403](#e403), [E397](#e397) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Свой профиль<br>`auth.me`<br>[код](../../apps/backend/src/modules/auth/auth.service.ts#L153) | подтверждено | свои, все | Персональное правило | [E52](#e52), [E106](#e106), [E109](#e109), [E150](#e150), [E260](#e260), [E264](#e264), [E267](#e267), [E374](#e374), [E393](#e393), [E377](#e377), [E403](#e403), [E407](#e407), [E397](#e397) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Обновление сессии<br>`auth.refresh`<br>[код](../../apps/backend/src/modules/auth/auth.service.ts#L116) | подтверждено | свои, все | Персональное правило | [E52](#e52), [E150](#e150), [E260](#e260), [E263](#e263), [E265](#e265), [E268](#e268), [E269](#e269), [E374](#e374), [E393](#e393), [E403](#e403), [E409](#e409) | Прямой API и UI: allow/deny/default, области, отзыв |
+| Выход<br>`auth.logout`<br>[каталог](../../apps/backend/src/modules/users-access/access-action-catalog.ts) | подтверждено | свои, все | Всегда доступен выход | [E52](#e52), [E150](#e150), [E248](#e248), [E251](#e251), [E273](#e273), [E374](#e374) | Выход при любых ограничениях и завершение сессии |
 
 ### Настройки
 
 | Право и код | Статус | Области | Выдача / ограничение | Доказательства | Что проверить следующим |
 | --- | --- | --- | --- | --- | --- |
-| Настройки<br>`settings.access`<br>[каталог](../../apps/backend/src/modules/users-access/access-action-catalog.ts) | не реализовано | все | Нет отдельной операции | — | Отдельно принять действующие операции ниже |
+| Настройки<br>`settings.access`<br>[каталог](../../apps/backend/src/modules/users-access/access-action-catalog.ts) | не реализовано | все | Нет отдельной операции |  | Отдельно принять действующие операции ниже |
 
 ### Пользователи и доступы
 
 | Право и код | Статус | Области | Выдача / ограничение | Доказательства | Что проверить следующим |
 | --- | --- | --- | --- | --- | --- |
-| Пользователи и доступы<br>`users_access.access`<br>[код](../../apps/backend/src/modules/users-access/access-admin.service.ts#L515) | проверено частично | все | Только учредитель | [E01](#e01), [E20](#e20) | Закрыть оставшиеся области/каналы и К1–К7 по E20/E21 |
-| Управление доступами<br>`users_access.manage`<br>[код](../../apps/backend/src/modules/users-access/access-admin.service.ts#L117) | проверено частично | все | Только учредитель | [E01](#e01), [E18](#e18), [E20](#e20) | Закрыть оставшиеся области/каналы и К1–К7 по E20/E21 |
+| Пользователи и доступы<br>`users_access.access`<br>[код](../../apps/backend/src/modules/users-access/access-admin.service.ts#L515) | подтверждено | все | Только учредитель | [E01](#e01), [E20](#e20), [E27](#e27), [E148](#e148), [E149](#e149), [E262](#e262), [E243](#e243), [E285](#e285), [E374](#e374), [E393](#e393), [E403](#e403), [E397](#e397) | Закрыть оставшиеся области/каналы и К1–К7 по E20/E21 |
+| Управление доступами<br>`users_access.manage`<br>[код](../../apps/backend/src/modules/users-access/access-admin.service.ts#L130) | подтверждено | все | Только учредитель | [E01](#e01), [E18](#e18), [E20](#e20), [E24](#e24), [E27](#e27), [E133](#e133), [E134](#e134), [E135](#e135), [E147](#e147), [E148](#e148), [E149](#e149), [E236](#e236), [E262](#e262), [E266](#e266), [E243](#e243), [E276](#e276), [E374](#e374), [E393](#e393), [E403](#e403), [E397](#e397) | Адресно проверены медленные HTTP preview/save без двойной записи; остаются прочие UI/каналы и К1–К7 |
 
 ## Доказательства: фактический объём и ограничения
 
@@ -749,8 +753,8 @@
 ### Открытые вопросы полноты
 
 1. Все 291 строки охвачены; это не доказывает, что в коде нигде не осталось незарегистрированного условия. Динамические сборки, фактическую БД и жёсткие ветви надо сверять адресно по существующему ledger, без новой карты всей кодовой базы.
-2. Для 198 строк нет достаточного принятого адресного результата; существующие файлы-кандидаты не объявлены успешными автоматически.
-3. Для 85 частичных строк нужно закрыть ровно перечисленные границы и К1–К7; не повторять общую unit-проверку вместо реальной операции.
+2. Для 158 строк нет достаточного принятого адресного результата; существующие файлы-кандидаты не объявлены успешными автоматически.
+3. Для 125 частичных строк нужно закрыть ровно перечисленные границы и К1–К7; не повторять общую unit-проверку вместо реальной операции.
 4. Для 8 самостоятельных переключателей нужно либо принять работу через канонические действия, либо отдельно утвердить новую самостоятельную операцию. Обычный allow сейчас не должен обещать несуществующий результат.
 5. Конкретный серверный случай выплаты/расхода двух менеджеров не установлен и не сертифицирован исправленным локальными денежными регрессиями.
 
@@ -765,7 +769,99 @@
 В первоначальную сборку матрицы не входили внедрение, выдача прав, тестовые записи, коммит и развёртывание. Последующая ограниченная приёмка описана ниже; production не затронут.
 
 
+## Продолжение — оборудование и живой календарный проход
+
+Усиленный конкурентный календарный набор повторно прошёл 4/4. Расширенный кандидатский набор (17) не принят: воспроизведены P2028 при создании фикстур и timeout; исправления ещё проверяются. Исторический исходный 12/12 не подменяет этот повтор.
+
+### E32
+
+- Тип: HTTP + изолированная БД оборудования.
+- Прогон: 2026-11-08: исходный набор 4/4, ноль skipped/cancelled; перед последующими audit/read-deny исправлениями.
+- Наблюдение: 11 адресных действий: каталог и единицы, selected A/control B, чтение/история, break/repair/repair-return, отзыв/default/deny, эффекты и аудит. Запреты не изменяют склад, approvals и вложения.
+- Ограничения: **Read сохраняет унаследованный grant. Не все области, роли и браузер. После прогона runtime изменён для атомарности аудита и read-deny: новую версию проверяют отдельные ещё не принятые наборы. Остальные пять поддерживаемых movement leafs пока не засчитаны.**
+- Файл: [access-control-equipment-grants.integration.test.ts](../../apps/backend/test/access-control-equipment-grants.integration.test.ts).
+
+### E33
+
+- Тип: Живая сессия получателя + admin API + сверка локальной БД.
+- Прогон: 2026-11-08: временный deputy, порты 3017/4017, собственная схема acl_acceptance_20261107_18595; завершена и удалена с проверкой маркера владельца.
+- Наблюдение: Selected A создаётся/меняется, Б readonly. Приватная причина скрыта без права; metadata сохраняет её. Отзыв открытого черновика блокирует запись и сохраняет поля, regrant+refresh разрешает сохранить без входа. Private revoke скрывает поле и подсказки; regrant возвращает несохранённый текст, не записанный в БД. Delete-only без update/create скрывает только тестовую запись, сохраняет deletedAt и ровно одно событие истории; Б неизменна.
+- Ограничения: **Один deputy и экран 1280x720, selected scope. Права выдавались founder preview/save API, не окном учредителя. Не все роли/размеры/каналы, view_all не переключался. Не полная К1–К7 приёмка.**
+- Файл: [access-control-followup-2026-11-08.md](../../docs/product/access-control-followup-2026-11-08.md).
+
+
+## Продолжение — жизненный цикл сотрудников, календарь и кандидаты
+
+### E29
+
+- Тип: HTTP + изолированная БД.
+- Прогон: 2026-11-08: 7/7, ноль skipped/cancelled.
+- Наблюдение: Выбранный A/контрольный B, отзыв/запрет родителя, архив/восстановление/удаление; ограничения сохранения истории и удаление ошибочного назначения. Денежные и attendance записи не изменены.
+- Ограничения: **Не все области, исходное расширение чтения и роли; окно учредителя и браузер получателя не проверены этим набором.**
+- Файл: [access-control-employee-lifecycle-grants.integration.test.ts](../../apps/backend/test/access-control-employee-lifecycle-grants.integration.test.ts).
+
+### E30
+
+- Тип: HTTP + изолированная БД; управляемый порядок двух запросов.
+- Прогон: 2026-11-08: 4/4. Дополнительно основной calendar-grants набор 10/10 после добавления target/item capabilities.
+- Наблюдение: Metadata PATCH сохраняет параллельную приватную причину; явный null без права 403 без эффектов, с правом очищает с аудитом. Неактивный пользователь доступен для чтения без действий и отсутствует в выборе. Target/item flags проверены независимо для create/update/delete/private.
+- Ограничения: **Браузер ещё не принят. После успешного прогона усилены проверки полного audit payload/count: новая версия этих утверждений требует повторного запуска.**
+- Файл: [access-control-calendar-concurrency.integration.test.ts](../../apps/backend/test/access-control-calendar-concurrency.integration.test.ts).
+
+### E31
+
+- Тип: HTTP + изолированная БД.
+- Прогон: 2026-11-08: 12/12, ноль skipped/cancelled, после исправления двух ошибок DTO тестовой фикстуры.
+- Наблюдение: update/status/archive/restore/manage: own/assigned/selected/all; control B, отзыв, parent deny. Отдельно создание, SLA/назначения, ответ и перевод в Employee без создания User и назначения. candidates.denied сильнее allow. Первый 500 в подготовке назначения не воспроизвёлся в диагностическом прогоне: причина не установлена.
+- Ограничения: **Положительное расширение access/view и некоторые области assignments/respond/convert ещё не покрыты; агент расширяет следующий набор. Нет браузера/окна учредителя; частичное, не полное подтверждение.**
+- Файл: [access-control-candidate-grants.integration.test.ts](../../apps/backend/test/access-control-candidate-grants.integration.test.ts).
+
+
+## Продолжение — административный механизм и кадровые операции
+
+E27 учитывается как общий механизм отдельно от выполнения предметной операции. E28 добавляет адресное частичное покрытие девяти кадровых действий. Кандидатский запуск неуспешен: его прохождение пока не засчитано; отдельные обнаруженные ошибки фикстуры и неустановленная причина 500 расследуются.
+
+### E27
+
+- Тип: Общий административный HTTP + изолированная БД.
+- Прогон: 2026-11-08: 297/297, ноль skipped/cancelled, в успешном последовательном запуске 315 проверок / 3 схемы.
+- Наблюдение: Все 291 определения получены по HTTP; 265 управляемых кодов сохраняются allow и отражаются положительным effective при разрешённой роли; каждый одиночный deny preview отрицателен поверх иначе разрешённого каталога. Отдельно пакетные deny/default, отказ по 26 ограниченным кодам, роли/назначения/членство неизменны, точный аудит/версия/одноразовость; прежняя cookie получает новые rules, auth deny её блокирует, logout доступен.
+- Ограничения: **Это общий административный слой, не реальный DTO/мутация каждого модуля и не браузер. Одиночные deny проверены в preview; сохранение deny отдельно пакетное. All scope административного набора не закрывает прочие области предметных действий. Первый подготовительный запуск остановился на ошибке имени delegate нового теста, не считается успешным.**
+- Файл: [access-control-catalog-admin.integration.test.ts](../../apps/backend/test/access-control-catalog-admin.integration.test.ts).
+
+### E28
+
+- Тип: HTTP + изолированная БД кадрового контура.
+- Прогон: 2026-11-08: 9/9 (8 дочерних сценариев + родитель), ноль skipped/cancelled, в запуске 315 / 3 схемы.
+- Наблюдение: Отдельные view/access/attendance read, global create, selected A/control B для edit/documents/assignments/availability/substitutions; deny/default и отзыв со старой cookie, parent deny, точные записи/аудит, нет изменений attendance/payroll. Создание недоступности теперь аудируется в одной транзакции; искусственная ошибка AuditService подтверждает откат строки реальной БД.
+- Ограничения: **Подготовка правил напрямую в собственной БД, без окна учредителя. Read берётся из прежнего manager grant: расширение из read-denied baseline не доказано. Не все области/роли/каналы, браузер, гонки; четыре lifecycle права проверяются другим ещё не завершённым набором. Документы требуют также право edit, а не заменяют его.**
+- Файл: [access-control-employee-grants.integration.test.ts](../../apps/backend/test/access-control-employee-grants.integration.test.ts).
+
+
+## Продолжение полного прохода — общий механизм и календарь
+
+Общий resolver E25 учитывается отдельно в `mechanismEvidenceIds`: его успех не переводит 198 доменных строк в проверенные. После адресного календарного HTTP/DB-повтора E26 восемь строк перешли в «проверено частично». Полной приёмки и production-проверки по-прежнему нет.
+
+### E25
+
+- Тип: Общий resolver contract с синтетическим list adapter.
+- Прогон: 2026-11-08: 292/292 на обновлённом наборе; dot reporter, exit 0.
+- Наблюдение: 291 именованный код плюс целостность; сверка со снимком матрицы; default, declared scopes, allow/deny, родительский deny, domain invariant и неактивность; отдельно detail и synthetic list.
+- Ограничения: **Не HTTP, не реальный SQL/адаптер каждого раздела и не UI. Снимок фиксирует принятую регистрацию, не доказывает правильность исходного бизнес-решения. Не повышает доменный статус строки.**
+- Файл: [access-control-catalog-contract.test.ts](../../apps/backend/test/access-control-catalog-contract.test.ts).
+
+### E26
+
+- Тип: HTTP + изолированная БД календаря.
+- Прогон: 2026-11-08: повтор после runtime-исправления 9/9 (8 сценариев + родитель), ноль skipped/cancelled.
+- Наблюдение: Все 8 календарных действий: own/selected/all где заявлены, контроль Б, allow/deny/default и отзыв с прежней cookie, private reasons, DTO/списки/справочник, записи/аудит и отсутствие эффектов отказа. Обнаружен и исправлен transformed PATCH: пропущенная причина сохраняется, явная очистка требует отдельного права; отдельно 5 controlled service/DTO регрессий прошли.
+- Ограничения: **Правила подготовлены фикстурой в собственной БД, не окном учредителя. Нет браузера получателя/открытого черновика, всех ролей и всех каналов. Не доказаны гонки/все ошибки и отсутствие эффектов во всех модулях. Первоначальный календарный запуск был неуспешным, 7 passed / 2 failed; здесь принят только повтор.**
+- Файл: [access-control-calendar-grants.integration.test.ts](../../apps/backend/test/access-control-calendar-grants.integration.test.ts).
+
+
 ## Дополнение 8 ноября — фактическая локальная приёмка
+
+Следующий адресный проход: [исправления сессии/подписи и расширение проверки табеля](access-control-followup-2026-11-08.md). Добавлены own/assigned, revoke/regrant и потеря отношения в прежней cookie: 13/13 интеграционных проверок. Статусы каталога не повышены; это не полная браузерная приёмка.
 
 [Полный отчёт первого блока](access-control-acceptance-pilot-2026-11-08.md): 36 повторных интеграционных проверок, 16 frontend-проверок, оба typecheck и реальные браузерные цепочки. Приложение в этом блоке не менялось. Статусы обновлены только адресно; полная приёмка не заявляется.
 
@@ -783,3 +879,3801 @@
 - Ограничения: **Это тестовые пользователи/деньги, не конкретный серверный случай. Не все личные allow/deny/default и области каждого права. Счёт/приход/состав — подготовка фикстуры; подтверждение через API, не UI учредителя.**
 - Доказательства и воспроизведение: [отчёт пилота](access-control-acceptance-pilot-2026-11-08.md#e21--разовый-менеджер--склад-и-расход--независимое-подтверждение).
 
+### E22
+
+- Тип: UI получателя + независимый admin API + собственная тестовая БД.
+- Результат: own/assigned ограничивают прямую правку объектом А, Б остаётся 0; отзыв блокирует сохранение открытого черновика. Повторная выдача и явное обновление сохраняют форму/причину и возвращают запись без повторного входа. Исправлено устаревшее предупреждение, адресно перепроверено сохранение 2100.
+- Ограничения: один deputy_director, А одновременно собственный/назначенный; выдача через API, не UI учредителя. Не фоновый push/focus, не floating popover, не все роли/размеры/каналы. Статус не повышен до «подтверждено».
+- Воспроизведение и снимки: [продолжение приёмки](access-control-followup-2026-11-08.md#e22--продолжение-своиназначенные-и-повторная-выдача-в-открытой-форме).
+
+### E24
+
+- Тип: HTTP + собственная БД; отдельный unit-тест транзакционной ошибки.
+- Результат: admin/scoped 15/15; preview/save с задержкой baseline 5200 мс проходят, baseline один на операцию, сохранение ровно один раз. Прежние защиты токена/версии/учредителя сохранены. Unit 4/4 проверяет bounded timeout, 409 для P2028/P2034 и отсутствие autoretry.
+- Граница: не браузерная приёмка всех административных операций и не гарантия успеха при любой нагрузке; новый 15-секундный deadline реально не исчерпывался.
+- Подробности: [административная транзакция](access-control-followup-2026-11-08.md#e24--административная-транзакция-на-свежих-исходниках).
+
+### E23
+
+- Тип: HTTP и реальные сохранённые версии/аудиты в собственной БД, 16/16 проверок после исправления типизации нового теста.
+- Результат: selected leaf позволяет менять будущую defaults-ставку или фонд только А; Б403 без эффектов, отзыв и parent deny в прежней cookie, requestKey без дублей, отмена будущей ставки один раз. Исторические начисления/attendance/manual snapshots сохранены.
+- Граница: фонд без распределений, не все бюджетные статьи; одна роль manager/selected, не own/assigned/all, не UI/файлы/экспорт/уведомления/realtime. Статусы остаются частичными.
+- Подробности: [финансовые записи](access-control-followup-2026-11-08.md#e23--реальные-записи-ставок-и-командного-фонда).
+
+
+### E34
+
+- Тип: HTTP + изолированная БД, управляемая ошибка после реального аудита.
+- Прогон: 2026-11-08: 3/3, ноль skipped/cancelled, первый этап отдельного последовательного пакета; последующий counterparty этап пакета неуспешен и не засчитан.
+- Наблюдение: Create с задержкой 5,1 секунды доходит до намеренной ошибки аудита, candidate/assignments/audit/notifications/outbox полностью откатываются. Явный успешный повтор создаёт ровно одного кандидата и два назначения. Внутри той же транзакции source-denied HR не получает notification/outbox, разрешённый HR получает по одной строке.
+- Ограничения: **Это адресный create/transaction/source-notification сценарий, не повтор полного расширенного candidate grants набора и не гарантия успеха при любой нагрузке. Direct assignment notifications и публикация realtime полностью не сертифицированы.**
+- Файл: [access-control-candidate-atomicity.integration.test.ts](../../apps/backend/test/access-control-candidate-atomicity.integration.test.ts).
+
+Общий boundary повтор после выравнивания malformed selected deny: 302/302. Это не повышение поимённых статусов.
+
+### E35
+
+- Тип: HTTP + собственная изолированная локальная БД.
+- Прогон: 2026-11-08: 17/17; последовательный пакет из 18 независимых файлов. Пакет в целом не принят: counterparty-grants, employee-read-expansion, substitution-grants и inventory-grants требуют исправлений/повтора.
+- Наблюдение: Реальные candidate CRUD, назначения, ответы, конверсия; повтор после исправления transaction/source notification границы прошёл. Предыдущий неуспешный прогон E31 сохранён как история.
+- Ограничения: **Только описанный API/БД сценарий; не полная К1–К7 приёмка, не интерфейс всех ролей/размеров и не production. Не покрытые данным файлом гонки, вложения, экспорты и доставка realtime остаются открытыми.**
+- Файл: [access-control-candidate-grants.integration.test.ts](../../apps/backend/test/access-control-candidate-grants.integration.test.ts).
+
+### E36
+
+- Тип: HTTP + собственная изолированная локальная БД.
+- Прогон: 2026-11-08: 10/10; последовательный пакет из 18 независимых файлов. Пакет в целом не принят: counterparty-grants, employee-read-expansion, substitution-grants и inventory-grants требуют исправлений/повтора.
+- Наблюдение: Контролируемая ошибка после реального аудита откатывает create/update/archive/link/unlink, включая оба журнала. Создание нечитаемой карточки откатывается; явный разрешённый повтор успешен.
+- Ограничения: **Только описанный API/БД сценарий; не полная К1–К7 приёмка, не интерфейс всех ролей/размеров и не production. Не покрытые данным файлом гонки, вложения, экспорты и доставка realtime остаются открытыми.**
+- Файл: [access-control-counterparty-atomicity.integration.test.ts](../../apps/backend/test/access-control-counterparty-atomicity.integration.test.ts).
+
+### E37
+
+- Тип: HTTP + собственная изолированная локальная БД.
+- Прогон: 2026-11-08: 5/5; последовательный пакет из 18 независимых файлов. Пакет в целом не принят: counterparty-grants, employee-read-expansion, substitution-grants и inventory-grants требуют исправлений/повтора.
+- Наблюдение: Конкурирующие link/unlink/relink/archive сериализуются блокировками; устаревший запрос не затирает новое состояние, архивированный контрагент не принимает связь.
+- Ограничения: **Только описанный API/БД сценарий; не полная К1–К7 приёмка, не интерфейс всех ролей/размеров и не production. Не покрытые данным файлом гонки, вложения, экспорты и доставка realtime остаются открытыми.**
+- Файл: [access-control-counterparty-concurrency.integration.test.ts](../../apps/backend/test/access-control-counterparty-concurrency.integration.test.ts).
+
+### E38
+
+- Тип: HTTP + собственная изолированная локальная БД.
+- Прогон: 2026-11-08: 5/5; последовательный пакет из 18 независимых файлов. Пакет в целом не принят: counterparty-grants, employee-read-expansion, substitution-grants и inventory-grants требуют исправлений/повтора.
+- Наблюдение: Ошибка реального аудита откатывает модель/движение/статус/approval; selected read deny побеждает запись и удаление до эффекта, контроль Б сохранён.
+- Ограничения: **Только описанный API/БД сценарий; не полная К1–К7 приёмка, не интерфейс всех ролей/размеров и не production. Не покрытые данным файлом гонки, вложения, экспорты и доставка realtime остаются открытыми.**
+- Файл: [access-control-equipment-atomicity.integration.test.ts](../../apps/backend/test/access-control-equipment-atomicity.integration.test.ts).
+
+### E39
+
+- Тип: HTTP + собственная изолированная локальная БД.
+- Прогон: 2026-11-08: 5/5; последовательный пакет из 18 независимых файлов. Пакет в целом не принят: counterparty-grants, employee-read-expansion, substitution-grants и inventory-grants требуют исправлений/повтора.
+- Наблюдение: Scoped assign/return возвращают только id/movementId/status; запреты до раскрытия состояния, конкурирующая смена состояния под row lock, HR без глобального equipment read получает минимальную квитанцию.
+- Ограничения: **Только описанный API/БД сценарий; не полная К1–К7 приёмка, не интерфейс всех ролей/размеров и не production. Не покрытые данным файлом гонки, вложения, экспорты и доставка realtime остаются открытыми.**
+- Файл: [access-control-equipment-scoped-boundary.integration.test.ts](../../apps/backend/test/access-control-equipment-scoped-boundary.integration.test.ts).
+
+### E40
+
+- Тип: HTTP + собственная изолированная локальная БД.
+- Прогон: 2026-11-08: 5/5; последовательный пакет из 18 независимых файлов. Пакет в целом не принят: counterparty-grants, employee-read-expansion, substitution-grants и inventory-grants требуют исправлений/повтора.
+- Наблюдение: Scoped object/order assign/return: реальные ошибки аудита откатывают движение и состояние, retry применяет один эффект; запрет чтения блокирует запись.
+- Ограничения: **Только описанный API/БД сценарий; не полная К1–К7 приёмка, не интерфейс всех ролей/размеров и не production. Не покрытые данным файлом гонки, вложения, экспорты и доставка realtime остаются открытыми.**
+- Файл: [access-control-equipment-scoped-atomicity.integration.test.ts](../../apps/backend/test/access-control-equipment-scoped-atomicity.integration.test.ts).
+
+### E41
+
+- Тип: HTTP + собственная изолированная локальная БД.
+- Прогон: 2026-11-08: 7/7; последовательный пакет из 18 независимых файлов. Пакет в целом не принят: counterparty-grants, employee-read-expansion, substitution-grants и inventory-grants требуют исправлений/повтора.
+- Наблюдение: Пять movement leafs: selected А/Б, deny/default/revoke, родительские запреты, persisted movement/state и pending writeoff. Unsupported move проверен через реальные issue/return, самостоятельная операция не включается.
+- Ограничения: **Только описанный API/БД сценарий; не полная К1–К7 приёмка, не интерфейс всех ролей/размеров и не production. Не покрытые данным файлом гонки, вложения, экспорты и доставка realtime остаются открытыми.**
+- Файл: [access-control-equipment-movements.integration.test.ts](../../apps/backend/test/access-control-equipment-movements.integration.test.ts).
+
+### E42
+
+- Тип: HTTP + собственная изолированная локальная БД.
+- Прогон: 2026-11-08: 4/4; последовательный пакет из 18 независимых файлов. Пакет в целом не принят: counterparty-grants, employee-read-expansion, substitution-grants и inventory-grants требуют исправлений/повтора.
+- Наблюдение: Повтор исходного equipment grants после scoped/atomicity исправлений прошёл.
+- Ограничения: **Только описанный API/БД сценарий; не полная К1–К7 приёмка, не интерфейс всех ролей/размеров и не production. Не покрытые данным файлом гонки, вложения, экспорты и доставка realtime остаются открытыми.**
+- Файл: [access-control-equipment-grants.integration.test.ts](../../apps/backend/test/access-control-equipment-grants.integration.test.ts).
+
+### E43
+
+- Тип: HTTP + собственная изолированная локальная БД.
+- Прогон: 2026-11-08: Файл завершился с exitCode 0; последовательный пакет из 18 независимых файлов. Пакет в целом не принят: counterparty-grants, employee-read-expansion, substitution-grants и inventory-grants требуют исправлений/повтора.
+- Наблюдение: Планы, посещения, отчёты, история и options проверены через HTTP с областью конкретного managerUserId; selected grant не открывает чужой план.
+- Ограничения: **Только описанный API/БД сценарий; не полная К1–К7 приёмка, не интерфейс всех ролей/размеров и не production. Не покрытые данным файлом гонки, вложения, экспорты и доставка realtime остаются открытыми.**
+- Файл: [access-control-visit-plan-grants.integration.test.ts](../../apps/backend/test/access-control-visit-plan-grants.integration.test.ts).
+
+### E44
+
+- Тип: HTTP + собственная изолированная локальная БД.
+- Прогон: 2026-11-08: 13/13; последовательный пакет из 18 независимых файлов. Пакет в целом не принят: counterparty-grants, employee-read-expansion, substitution-grants и inventory-grants требуют исправлений/повтора.
+- Наблюдение: Все 15 действующих task actions: чтение/изменение, назначения, отдельные completion stages, review transitions, история, текущая cookie и parent deny. Unsupported status не заменяет lifecycle routes.
+- Ограничения: **Только описанный API/БД сценарий; не полная К1–К7 приёмка, не интерфейс всех ролей/размеров и не production. Не покрытые данным файлом гонки, вложения, экспорты и доставка realtime остаются открытыми.**
+- Файл: [access-control-task-grants.integration.test.ts](../../apps/backend/test/access-control-task-grants.integration.test.ts).
+
+### E45
+
+- Тип: HTTP + собственная изолированная локальная БД.
+- Прогон: 2026-11-08: 9/9; последовательный пакет из 18 независимых файлов. Пакет в целом не принят: counterparty-grants, employee-read-expansion, substitution-grants и inventory-grants требуют исправлений/повтора.
+- Наблюдение: Все пять notification actions: recipient ownership, read/dismiss/bulk/idempotency, source deny до total/pagination, текущая cookie. Realtime проверен только как eligibility в БД, не доставка сокета.
+- Ограничения: **Только описанный API/БД сценарий; не полная К1–К7 приёмка, не интерфейс всех ролей/размеров и не production. Не покрытые данным файлом гонки, вложения, экспорты и доставка realtime остаются открытыми.**
+- Файл: [access-control-notification-grants.integration.test.ts](../../apps/backend/test/access-control-notification-grants.integration.test.ts).
+
+### E46
+
+- Тип: HTTP + собственная изолированная локальная БД.
+- Прогон: 2026-11-08: 8/8; последовательный пакет из 18 независимых файлов. Пакет в целом не принят: counterparty-grants, employee-read-expansion, substitution-grants и inventory-grants требуют исправлений/повтора.
+- Наблюдение: Query/recent/access, запреты объектов/заказов/задач/кандидатов, selected source grants, stale/forged recent refs и фильтрация до limit. Дополнительный equipment/counterparty поиск ещё проверяется отдельно.
+- Ограничения: **Только описанный API/БД сценарий; не полная К1–К7 приёмка, не интерфейс всех ролей/размеров и не production. Не покрытые данным файлом гонки, вложения, экспорты и доставка realtime остаются открытыми.**
+- Файл: [access-control-search-grants.integration.test.ts](../../apps/backend/test/access-control-search-grants.integration.test.ts).
+
+### E47
+
+- Тип: HTTP + собственная изолированная локальная БД.
+- Прогон: 2026-11-08: 11/11; последовательный пакет из 18 независимых файлов. Пакет в целом не принят: counterparty-grants, employee-read-expansion, substitution-grants и inventory-grants требуют исправлений/повтора.
+- Наблюдение: Все шесть dashboard actions, четыре реальных варианта DTO, foreign-role grants, source deny удаляет строки и суммы без изменения бизнес-данных.
+- Ограничения: **Только описанный API/БД сценарий; не полная К1–К7 приёмка, не интерфейс всех ролей/размеров и не production. Не покрытые данным файлом гонки, вложения, экспорты и доставка realtime остаются открытыми.**
+- Файл: [access-control-dashboard-grants.integration.test.ts](../../apps/backend/test/access-control-dashboard-grants.integration.test.ts).
+
+### E48
+
+- Тип: HTTP + собственная изолированная локальная БД.
+- Прогон: 2026-11-08: 8/8; последовательный пакет из 18 независимых файлов. Пакет в целом не принят: counterparty-grants, employee-read-expansion, substitution-grants и inventory-grants требуют исправлений/повтора.
+- Наблюдение: Все шесть действующих file actions: настоящая загрузка/чтение/скачивание маленького текста в локальном MinIO, selected/source/parent denies, revoke, отсутствие обращения к storage при отказе. Удалены только точные собственные тестовые ключи.
+- Ограничения: **Только описанный API/БД сценарий; не полная К1–К7 приёмка, не интерфейс всех ролей/размеров и не production. Не покрытые данным файлом гонки, вложения, экспорты и доставка realtime остаются открытыми.**
+- Файл: [access-control-file-grants.integration.test.ts](../../apps/backend/test/access-control-file-grants.integration.test.ts).
+
+### E49
+
+- Тип: HTTP + собственная изолированная локальная БД.
+- Прогон: 2026-11-08: 13/13; второй последовательный пакет из 10 файлов. Пакет в целом не принят: employee-read-expansion, chat-grants, inventory-remaining, one-time-order-grants и order-workforce-grants требуют исправлений/повтора.
+- Наблюдение: Полный адресный counterparty grants повтор после исправления собственных фикстур прошёл: все десять действий, filtered child counts, записи, два журнала, deny/revoke, контроль Б. Ранние неуспешные попытки не скрыты.
+- Ограничения: **Только описанный API/БД сценарий; не полная К1–К7 приёмка, не интерфейс всех ролей/размеров и не production. Не покрытые данным файлом гонки, вложения, экспорты и доставка realtime остаются открытыми.**
+- Файл: [access-control-counterparty-grants.integration.test.ts](../../apps/backend/test/access-control-counterparty-grants.integration.test.ts).
+
+### E50
+
+- Тип: HTTP + собственная изолированная локальная БД.
+- Прогон: 2026-11-08: 10/10; второй последовательный пакет из 10 файлов. Пакет в целом не принят: employee-read-expansion, chat-grants, inventory-remaining, one-time-order-grants и order-workforce-grants требуют исправлений/повтора.
+- Наблюдение: Все пять substitution действий: границы каждого объекта, нельзя передавать заимствованные права, selected administration с global create не открывает Б; options фильтруются до 100; own/assigned parent deny и точный аудит отклонённой пересылки.
+- Ограничения: **Только описанный API/БД сценарий; не полная К1–К7 приёмка, не интерфейс всех ролей/размеров и не production. Не покрытые данным файлом гонки, вложения, экспорты и доставка realtime остаются открытыми.**
+- Файл: [access-control-substitution-grants.integration.test.ts](../../apps/backend/test/access-control-substitution-grants.integration.test.ts).
+
+### E51
+
+- Тип: HTTP + собственная изолированная локальная БД.
+- Прогон: 2026-11-08: 8/8; второй последовательный пакет из 10 файлов. Пакет в целом не принят: employee-read-expansion, chat-grants, inventory-remaining, one-time-order-grants и order-workforce-grants требуют исправлений/повтора.
+- Наблюдение: Поиск/недавние equipment соблюдают запреты объекта/заказа; счётчик объектов контрагента исключает hidden/deleted и изменяется 2→1→0→восстановление после parent deny.
+- Ограничения: **Только описанный API/БД сценарий; не полная К1–К7 приёмка, не интерфейс всех ролей/размеров и не production. Не покрытые данным файлом гонки, вложения, экспорты и доставка realtime остаются открытыми.**
+- Файл: [access-control-search-related-resources.integration.test.ts](../../apps/backend/test/access-control-search-related-resources.integration.test.ts).
+
+### E52
+
+- Тип: HTTP + собственная изолированная локальная БД.
+- Прогон: 2026-11-08: 13/13; второй последовательный пакет из 10 файлов. Пакет в целом не принят: employee-read-expansion, chat-grants, inventory-remaining, one-time-order-grants и order-workforce-grants требуют исправлений/повтора.
+- Наблюдение: Пять auth actions через реальные cookies: own/all allow/deny/default, stale cookie, refresh rotation/replay, inactive и credentials, logout не блокируется. Это не браузерный cookie jar и не обещание отзыва access JWT после logout.
+- Ограничения: **Только описанный API/БД сценарий; не полная К1–К7 приёмка, не интерфейс всех ролей/размеров и не production. Не покрытые данным файлом гонки, вложения, экспорты и доставка realtime остаются открытыми.**
+- Файл: [access-control-auth-grants.integration.test.ts](../../apps/backend/test/access-control-auth-grants.integration.test.ts).
+
+### E53
+
+- Тип: HTTP + собственная изолированная локальная БД.
+- Прогон: 2026-11-08: 12/12; второй последовательный пакет из 10 файлов. Пакет в целом не принят: employee-read-expansion, chat-grants, inventory-remaining, one-time-order-grants и order-workforce-grants требуют исправлений/повтора.
+- Наблюдение: Основные действия объектов: HTTP/DTO/записи/два аудита, own/assigned независимо, старые cookies и родители; lifecycle создаёт только pending, не применяет решение. Create + read deny откатывается и не возвращает карточку.
+- Ограничения: **Только описанный API/БД сценарий; не полная К1–К7 приёмка, не интерфейс всех ролей/размеров и не production. Не покрытые данным файлом гонки, вложения, экспорты и доставка realtime остаются открытыми.**
+- Файл: [access-control-object-core-grants.integration.test.ts](../../apps/backend/test/access-control-object-core-grants.integration.test.ts).
+
+### E54
+
+- Тип: HTTP + собственная изолированная локальная БД.
+- Прогон: 2026-11-08: 4/4; третий последовательный пакет из 14 файлов. Пакет в целом не принят: materials-grants, accountability-grants, order-calendar-grants и object-operations-grants требуют исправлений/повтора. Изменения общего inventory notification predicate после предварительной типизации требуют отдельной окончательной перепроверки.
+- Наблюдение: Адресная выдача view пользователю без inherited HR view, независимый root gate, selected/all и отзыв, attendance dependency; фикстуры восстанавливают единственное правило, не создают две записи user/action.
+- Ограничения: **Только описанный API/БД сценарий; не полная К1–К7 приёмка, не интерфейс всех ролей/размеров и не production. Не покрытые данным файлом гонки, вложения, экспорты и доставка realtime остаются открытыми.**
+- Файл: [access-control-employee-read-expansion.integration.test.ts](../../apps/backend/test/access-control-employee-read-expansion.integration.test.ts).
+
+### E55
+
+- Тип: HTTP + собственная изолированная локальная БД.
+- Прогон: 2026-11-08: 8/8; третий последовательный пакет из 14 файлов. Пакет в целом не принят: materials-grants, accountability-grants, order-calendar-grants и object-operations-grants требуют исправлений/повтора. Изменения общего inventory notification predicate после предварительной типизации требуют отдельной окончательной перепроверки.
+- Наблюдение: Реальные group/direct/member/message/read/hide/leave действия, персональные запреты и отзыв, недоступная чужая комната не изменяется. GET правильных default rooms не обновляет updatedAt; изначальные провалы зафиксированы отдельно.
+- Ограничения: **Только описанный API/БД сценарий; не полная К1–К7 приёмка, не интерфейс всех ролей/размеров и не production. Не покрытые данным файлом гонки, вложения, экспорты и доставка realtime остаются открытыми.**
+- Файл: [access-control-chat-grants.integration.test.ts](../../apps/backend/test/access-control-chat-grants.integration.test.ts).
+
+### E56
+
+- Тип: HTTP + собственная изолированная локальная БД.
+- Прогон: 2026-11-08: 8/8; третий последовательный пакет из 14 файлов. Пакет в целом не принят: materials-grants, accountability-grants, order-calendar-grants и object-operations-grants требуют исправлений/повтора. Изменения общего inventory notification predicate после предварительной типизации требуют отдельной окончательной перепроверки.
+- Наблюдение: Остальные шесть chat actions: поиск, forward с обоими источниками, реакции, read receipts, отдельное close_global и DB realtime eligibility. Контролируемая committed leave/removal перед rename блокирует запись; competing rename даёт свежий old-title в аудите. Socket delivery не проверена.
+- Ограничения: **Только описанный API/БД сценарий; не полная К1–К7 приёмка, не интерфейс всех ролей/размеров и не production. Не покрытые данным файлом гонки, вложения, экспорты и доставка realtime остаются открытыми.**
+- Файл: [access-control-chat-remaining.integration.test.ts](../../apps/backend/test/access-control-chat-remaining.integration.test.ts).
+
+### E57
+
+- Тип: HTTP + собственная изолированная локальная БД.
+- Прогон: 2026-11-08: 13/13; третий последовательный пакет из 14 файлов. Пакет в целом не принят: materials-grants, accountability-grants, order-calendar-grants и object-operations-grants требуют исправлений/повтора. Изменения общего inventory notification predicate после предварительной типизации требуют отдельной окончательной перепроверки.
+- Наблюдение: Четырнадцать складских действий: реальные каталог/движения/остатки/цены, selected/assigned/all где указано, отдельный read источника, parent denies, approve bridge и cross-leaf inventory.read до update/receipt. Исправлены только неверные фикстуры source visibility и HTTP-статуса; запреты и zero-effects не ослаблены.
+- Ограничения: **Только описанный API/БД сценарий; не полная К1–К7 приёмка, не интерфейс всех ролей/размеров и не production. Не покрытые данным файлом гонки, вложения, экспорты и доставка realtime остаются открытыми.**
+- Файл: [access-control-inventory-grants.integration.test.ts](../../apps/backend/test/access-control-inventory-grants.integration.test.ts).
+
+### E58
+
+- Тип: HTTP + собственная изолированная локальная БД.
+- Прогон: 2026-11-08: 10/10; третий последовательный пакет из 14 файлов. Пакет в целом не принят: materials-grants, accountability-grants, order-calendar-grants и object-operations-grants требуют исправлений/повтора. Изменения общего inventory notification predicate после предварительной типизации требуют отдельной окончательной перепроверки.
+- Наблюдение: References не расширяют scope; correction сохраняет исходный ledger и создаёт один compensating return. Direct/shared missing-photo self approval запрещены без эффектов; inventory.read deny блокирует correction и resolution. Новая расширенная source/notification race проверяется отдельно.
+- Ограничения: **Только описанный API/БД сценарий; не полная К1–К7 приёмка, не интерфейс всех ролей/размеров и не production. Не покрытые данным файлом гонки, вложения, экспорты и доставка realtime остаются открытыми.**
+- Файл: [access-control-inventory-remaining.integration.test.ts](../../apps/backend/test/access-control-inventory-remaining.integration.test.ts).
+
+### E59
+
+- Тип: HTTP + собственная изолированная локальная БД.
+- Прогон: 2026-11-08: 5/5; третий последовательный пакет из 14 файлов. Пакет в целом не принят: materials-grants, accountability-grants, order-calendar-grants и object-operations-grants требуют исправлений/повтора. Изменения общего inventory notification predicate после предварительной типизации требуют отдельной окончательной перепроверки.
+- Наблюдение: Контролируемая ошибка после настоящего audit INSERT откатывает каталог/версию/приход/цену/остаток; явный повтор единичный. Create + read deny не сохраняет и не раскрывает карточку с новым ID.
+- Ограничения: **Только описанный API/БД сценарий; не полная К1–К7 приёмка, не интерфейс всех ролей/размеров и не production. Не покрытые данным файлом гонки, вложения, экспорты и доставка realtime остаются открытыми.**
+- Файл: [access-control-inventory-atomicity.integration.test.ts](../../apps/backend/test/access-control-inventory-atomicity.integration.test.ts).
+
+### E60
+
+- Тип: HTTP + собственная изолированная локальная БД.
+- Прогон: 2026-11-08: 11/11; третий последовательный пакет из 14 файлов. Пакет в целом не принят: materials-grants, accountability-grants, order-calendar-grants и object-operations-grants требуют исправлений/повтора. Изменения общего inventory notification predicate после предварительной типизации требуют отдельной окончательной перепроверки.
+- Наблюдение: Все пять policy-locked global действий: admin allow/deny отвергаются, default reset не создаёт полномочия, leadership CRUD/template/archive реальны, snapshot текста в заказах не переписывается. Это не успешная новая выдача заблокированных полномочий.
+- Ограничения: **Только описанный API/БД сценарий; не полная К1–К7 приёмка, не интерфейс всех ролей/размеров и не production. Не покрытые данным файлом гонки, вложения, экспорты и доставка realtime остаются открытыми.**
+- Файл: [access-control-spec-catalog-grants.integration.test.ts](../../apps/backend/test/access-control-spec-catalog-grants.integration.test.ts).
+
+### E61
+
+- Тип: HTTP + собственная изолированная локальная БД.
+- Прогон: 2026-11-08: 8/8; третий последовательный пакет из 14 файлов. Пакет в целом не принят: materials-grants, accountability-grants, order-calendar-grants и object-operations-grants требуют исправлений/повтора. Изменения общего inventory notification predicate после предварительной типизации требуют отдельной окончательной перепроверки.
+- Наблюдение: Восемь approval actions: OQ-153 чтение selected/all без права решения, legacy resolver authority с персональным deny, source/root gates, independent monetary approval и собственная pending cancellation. Новые resolver grants не расширяют круг.
+- Ограничения: **Только описанный API/БД сценарий; не полная К1–К7 приёмка, не интерфейс всех ролей/размеров и не production. Не покрытые данным файлом гонки, вложения, экспорты и доставка realtime остаются открытыми.**
+- Файл: [access-control-approval-grants.integration.test.ts](../../apps/backend/test/access-control-approval-grants.integration.test.ts).
+
+### E62
+
+- Тип: HTTP + собственная изолированная локальная БД.
+- Прогон: 2026-11-08: 12/12; третий последовательный пакет из 14 файлов. Пакет в целом не принят: materials-grants, accountability-grants, order-calendar-grants и object-operations-grants требуют исправлений/повтора. Изменения общего inventory notification predicate после предварительной типизации требуют отдельной окончательной перепроверки.
+- Наблюдение: Все девять кодов сверены; unsupported aliases не создают операций. Реальные read/overview/export XLSX и corrections, own/assigned/selected/all, closed period, отдельные compensation breakdown denies. Amount edit здесь только на границе, без новой успешной денежной записи.
+- Ограничения: **Только описанный API/БД сценарий; не полная К1–К7 приёмка, не интерфейс всех ролей/размеров и не production. Не покрытые данным файлом гонки, вложения, экспорты и доставка realtime остаются открытыми.**
+- Файл: [access-control-timesheet-read-grants.integration.test.ts](../../apps/backend/test/access-control-timesheet-read-grants.integration.test.ts).
+
+### E63
+
+- Тип: HTTP + собственная изолированная локальная БД.
+- Прогон: 2026-11-08: 4/4; третий последовательный пакет из 14 файлов. Пакет в целом не принят: materials-grants, accountability-grants, order-calendar-grants и object-operations-grants требуют исправлений/повтора. Изменения общего inventory notification predicate после предварительной типизации требуют отдельной окончательной перепроверки.
+- Наблюдение: Ошибки после обоих настоящих audit INSERT откатывают объект/назначения/notification outbox/историю; create+read deny без утечки; явный retry единичный. System chat post-commit failure остаётся вне этой проверки.
+- Ограничения: **Только описанный API/БД сценарий; не полная К1–К7 приёмка, не интерфейс всех ролей/размеров и не production. Не покрытые данным файлом гонки, вложения, экспорты и доставка realtime остаются открытыми.**
+- Файл: [access-control-object-create-atomicity.integration.test.ts](../../apps/backend/test/access-control-object-create-atomicity.integration.test.ts).
+
+### E64
+
+- Тип: HTTP + собственная изолированная локальная БД.
+- Прогон: 2026-11-08: 11/11; четвёртый последовательный пакет: 16 файлов, 9 прошли, 7 не приняты. Успешный повтор notifications 9/9 уже представлен E45. Новые общие predicate/UI изменения требуют финального повтора.
+- Наблюдение: Реальные состав, условия оплаты, выходы, XLSX, сопровождение и видимые расходы; selected/all, отзыв с исходной cookie, контроль Б и parent denies. Выплата остаётся одним независимо согласуемым расходом, без чужого подотчёта.
+- Ограничения: **Ограниченное API/БД доказательство, не полная К1–К7 приёмка и не production. Незаявленные области, гонки, фактическая доставка сокета и все браузерные экраны не подтверждены.**
+- Файл: [access-control-order-workforce-grants.integration.test.ts](../../apps/backend/test/access-control-order-workforce-grants.integration.test.ts).
+
+### E65
+
+- Тип: HTTP + собственная изолированная локальная БД.
+- Прогон: 2026-11-08: 6/6; четвёртый последовательный пакет: 16 файлов, 9 прошли, 7 не приняты. Успешный повтор notifications 9/9 уже представлен E45. Новые общие predicate/UI изменения требуют финального повтора.
+- Наблюдение: Фото CRUD сохраняет File/историю; повтор спецификационного вложения не обходит назначение и запреты, detach удаляет только точную связь. Scoped inventory/equipment read не меняет остатки. Файловые metadata синтетические: новый binary upload этим файлом не проверен.
+- Ограничения: **Ограниченное API/БД доказательство, не полная К1–К7 приёмка и не production. Незаявленные области, гонки, фактическая доставка сокета и все браузерные экраны не подтверждены.**
+- Файл: [access-control-order-media-scope-grants.integration.test.ts](../../apps/backend/test/access-control-order-media-scope-grants.integration.test.ts).
+
+### E66
+
+- Тип: HTTP + собственная изолированная локальная БД.
+- Прогон: 2026-11-08: 5/5; четвёртый последовательный пакет: 16 файлов, 9 прошли, 7 не приняты. Успешный повтор notifications 9/9 уже представлен E45. Новые общие predicate/UI изменения требуют финального повтора.
+- Наблюдение: Policy-locked управление ТЗ: все четыре leadership default, настоящие CRUD/reorder, персональный deny, admin reject новой выдачи, каталог и прошлые snapshot. Круг руководителей не расширен.
+- Ограничения: **Ограниченное API/БД доказательство, не полная К1–К7 приёмка и не production. Незаявленные области, гонки, фактическая доставка сокета и все браузерные экраны не подтверждены.**
+- Файл: [access-control-order-spec-management.integration.test.ts](../../apps/backend/test/access-control-order-spec-management.integration.test.ts).
+
+### E67
+
+- Тип: HTTP + собственная изолированная локальная БД.
+- Прогон: 2026-11-08: 10/10; четвёртый последовательный пакет: 16 файлов, 9 прошли, 7 не приняты. Успешный повтор notifications 9/9 уже представлен E45. Новые общие predicate/UI изменения требуют финального повтора.
+- Наблюдение: Шесть точных действий: own/assigned/selected/all где заявлено, версии графиков, назначение Employee независимо от User, существующие условия оплаты, выходы без автоматического создания денежных фактов при чтении.
+- Ограничения: **Ограниченное API/БД доказательство, не полная К1–К7 приёмка и не production. Незаявленные области, гонки, фактическая доставка сокета и все браузерные экраны не подтверждены.**
+- Файл: [access-control-object-staffing-schedule-grants.integration.test.ts](../../apps/backend/test/access-control-object-staffing-schedule-grants.integration.test.ts).
+
+### E68
+
+- Тип: HTTP + собственная изолированная локальная БД.
+- Прогон: 2026-11-08: 7/7; четвёртый последовательный пакет: 16 файлов, 9 прошли, 7 не приняты. Успешный повтор notifications 9/9 уже представлен E45. Новые общие predicate/UI изменения требуют финального повтора.
+- Наблюдение: Прибытие, комментарии, связанные заказы и read-only HR-ветвь проверены HTTP/БД; positive grant, отрицания, отзыв, контроль Б и независимые источники. HR-просмотр не стал операционным редактированием.
+- Ограничения: **Ограниченное API/БД доказательство, не полная К1–К7 приёмка и не production. Незаявленные области, гонки, фактическая доставка сокета и все браузерные экраны не подтверждены.**
+- Файл: [access-control-object-daily-grants.integration.test.ts](../../apps/backend/test/access-control-object-daily-grants.integration.test.ts).
+
+### E69
+
+- Тип: HTTP + собственная изолированная локальная БД.
+- Прогон: 2026-11-08: 10/10; четвёртый последовательный пакет: 16 файлов, 9 прошли, 7 не приняты. Успешный повтор notifications 9/9 уже представлен E45. Новые общие predicate/UI изменения требуют финального повтора.
+- Наблюдение: Все семь кодов ковров: каталог, количество, стоимость, отдельная история, даты DTO сверены с БД; версия цены не переписывает quantity snapshot, родительские запреты сохраняются, legacy write остаётся 410.
+- Ограничения: **Ограниченное API/БД доказательство, не полная К1–К7 приёмка и не production. Незаявленные области, гонки, фактическая доставка сокета и все браузерные экраны не подтверждены.**
+- Файл: [access-control-materials-grants.integration.test.ts](../../apps/backend/test/access-control-materials-grants.integration.test.ts).
+
+### E70
+
+- Тип: HTTP + собственная изолированная локальная БД.
+- Прогон: 2026-11-08: 18/18; четвёртый последовательный пакет: 16 файлов, 9 прошли, 7 не приняты. Успешный повтор notifications 9/9 уже представлен E45. Новые общие predicate/UI изменения требуют финального повтора.
+- Наблюдение: Все 15 кодов: выбранный User, review/read parity, выдача, внешнее поступление и корректировка с reversal, собственные расходы, сверки и единственная выплата уборщице. Четыре policy-locked решения не выдаются заново через admin; независимый legacy reviewer и персональный deny проверены.
+- Ограничения: **Ограниченное API/БД доказательство, не полная К1–К7 приёмка и не production. Незаявленные области, гонки, фактическая доставка сокета и все браузерные экраны не подтверждены.**
+- Файл: [access-control-accountability-grants.integration.test.ts](../../apps/backend/test/access-control-accountability-grants.integration.test.ts).
+
+### E71
+
+- Тип: HTTP + собственная изолированная локальная БД.
+- Прогон: 2026-11-08: 7/7; четвёртый последовательный пакет: 16 файлов, 9 прошли, 7 не приняты. Успешный повтор notifications 9/9 уже представлен E45. Новые общие predicate/UI изменения требуют финального повтора.
+- Наблюдение: Чтение и XLSX по manager IDs, own availability, selected manage и отмена approved А без глобального Б; overlap/state ограничения и независимый руководящий approve. Новый target-specific UI contract после этого прогона проверяется отдельно.
+- Ограничения: **Ограниченное API/БД доказательство, не полная К1–К7 приёмка и не production. Незаявленные области, гонки, фактическая доставка сокета и все браузерные экраны не подтверждены.**
+- Файл: [access-control-order-calendar-grants.integration.test.ts](../../apps/backend/test/access-control-order-calendar-grants.integration.test.ts).
+
+### E72
+
+- Тип: HTTP + собственная изолированная локальная БД.
+- Прогон: 2026-11-08: 6/6; пятый последовательный пакет: 7 файлов, 6 прошли, 1 не принят. Финансовый пакет требует уточнения ожидания нормализации копии и её точного системного аудита. Последующие изменения UI/capabilities и legacy finance требуют окончательного повтора.
+- Наблюдение: Generated-card read deny откатывает employee/candidate/order create без эффектов, отсутствие положительного employee view не подменяется одним create grant. Повтор создания заказа повторно проверяет текущее чтение и не возвращает запрещённую сохранённую карточку.
+- Ограничения: **Ограниченное API/БД доказательство, не полная К1–К7 приёмка и не production. Незаявленные области, гонки, фактическая доставка сокета и все браузерные экраны не подтверждены.**
+- Файл: [access-control-create-read-boundary.integration.test.ts](../../apps/backend/test/access-control-create-read-boundary.integration.test.ts).
+
+### E73
+
+- Тип: HTTP + собственная изолированная локальная БД.
+- Прогон: 2026-11-08: 15/15; пятый последовательный пакет: 7 файлов, 6 прошли, 1 не принят. Финансовый пакет требует уточнения ожидания нормализации копии и её точного системного аудита. Последующие изменения UI/capabilities и legacy finance требуют окончательного повтора.
+- Наблюдение: Раздельные create/read/root/action, selected/all, живой отзыв, назначение для исполнения ТЗ, точные побочные эффекты и связанные объекты. Глобальный section deny даёт 403, selected deny вычитает только соответствующие строки до total/limit.
+- Ограничения: **Ограниченное API/БД доказательство, не полная К1–К7 приёмка и не production. Незаявленные области, гонки, фактическая доставка сокета и все браузерные экраны не подтверждены.**
+- Файл: [access-control-one-time-order-grants.integration.test.ts](../../apps/backend/test/access-control-one-time-order-grants.integration.test.ts).
+
+### E74
+
+- Тип: HTTP + собственная изолированная локальная БД.
+- Прогон: 2026-11-08: 5/5; пятый последовательный пакет: 7 файлов, 6 прошли, 1 не принят. Финансовый пакет требует уточнения ожидания нормализации копии и её точного системного аудита. Последующие изменения UI/capabilities и legacy finance требуют окончательного повтора.
+- Наблюдение: Коэффициент и optimistic version, redaction сумм, независимый past extra_work approve, запрет self/ordinary actor, selected/root/read/compensation-manage deny и stale source conflict. Legacy attendance — отдельный новый тест, этим evidence не закрыт.
+- Ограничения: **Ограниченное API/БД доказательство, не полная К1–К7 приёмка и не production. Незаявленные области, гонки, фактическая доставка сокета и все браузерные экраны не подтверждены.**
+- Файл: [access-control-object-financial-grants.integration.test.ts](../../apps/backend/test/access-control-object-financial-grants.integration.test.ts).
+
+### E75
+
+- Тип: HTTP + собственная изолированная локальная БД.
+- Прогон: 2026-11-08: 10/10; пятый последовательный пакет: 7 файлов, 6 прошли, 1 не принят. Финансовый пакет требует уточнения ожидания нормализации копии и её точного системного аудита. Последующие изменения UI/capabilities и legacy finance требуют окончательного повтора.
+- Наблюдение: Public query order ID не создаёт scope, положительное чтение источника отдельно от выдачи, item/object/order denies до paging/count и mutation, direct/shared independent bridge approval после отзыва deny. Не создаёт User assignment.
+- Ограничения: **Ограниченное API/БД доказательство, не полная К1–К7 приёмка и не production. Незаявленные области, гонки, фактическая доставка сокета и все браузерные экраны не подтверждены.**
+- Файл: [access-control-inventory-source-boundary.integration.test.ts](../../apps/backend/test/access-control-inventory-source-boundary.integration.test.ts).
+
+### E76
+
+- Тип: HTTP + собственная изолированная локальная БД.
+- Прогон: 2026-11-08: 16/16; пятый последовательный пакет: 7 файлов, 6 прошли, 1 не принят. Финансовый пакет требует уточнения ожидания нормализации копии и её точного системного аудита. Последующие изменения UI/capabilities и legacy finance требуют окончательного повтора.
+- Наблюдение: Реальный inventory source, положительное чтение связанного источника, generic null-source control, counts/bulk/dismiss и DB eligibility. Контролируемая вставка нового reference после lookup остаётся непроверенной и скрытой. Фактическая socket delivery не проверена.
+- Ограничения: **Ограниченное API/БД доказательство, не полная К1–К7 приёмка и не production. Незаявленные области, гонки, фактическая доставка сокета и все браузерные экраны не подтверждены.**
+- Файл: [access-control-notification-inventory-source.integration.test.ts](../../apps/backend/test/access-control-notification-inventory-source.integration.test.ts).
+
+### E77
+
+- Тип: HTTP + собственная изолированная локальная БД.
+- Прогон: 2026-11-08: 12/12; пятый последовательный пакет: 7 файлов, 6 прошли, 1 не принят. Финансовый пакет требует уточнения ожидания нормализации копии и её точного системного аудита. Последующие изменения UI/capabilities и legacy finance требуют окончательного повтора.
+- Наблюдение: Точные object leaves: CRUD контактов, instructions, draft/publication и корректировка только ссылки с сохранением файла/истории, issue с pending approval, без автоматического решения. Законный точный аудит системного сообщения проверяется отдельно, а не исключается широко.
+- Ограничения: **Ограниченное API/БД доказательство, не полная К1–К7 приёмка и не production. Незаявленные области, гонки, фактическая доставка сокета и все браузерные экраны не подтверждены.**
+- Файл: [access-control-object-operations-grants.integration.test.ts](../../apps/backend/test/access-control-object-operations-grants.integration.test.ts).
+
+### E78
+
+- Тип: HTTP + собственная изолированная локальная БД.
+- Прогон: 2026-11-08: 7/7; шестой пакет (6 файлов: 5 прошли, 1 не принят) и седьмой повтор (4/4 файлов прошли). Финансовый пакет принят только после последнего полного повтора. Позднейшие UI/notification/correction изменения требуют окончательных проверок.
+- Наблюдение: Настоящая HTTP-заявка legacy_attendance, отдельный руководитель, точные финансовые/root/read запреты А с успешным Б, отказ без изменения начислений/аудита/approval, отзыв с прежней cookie и единственное применение без повторных эффектов.
+- Ограничения: **Ограниченное API/БД доказательство, не полная К1–К7 приёмка и не production. Незаявленные области, гонки, фактическая доставка сокета и все браузерные экраны не подтверждены.**
+- Файл: [access-control-legacy-compensation-grants.integration.test.ts](../../apps/backend/test/access-control-legacy-compensation-grants.integration.test.ts).
+
+### E79
+
+- Тип: HTTP + собственная изолированная локальная БД.
+- Прогон: 2026-11-08: 12/12; шестой пакет (6 файлов: 5 прошли, 1 не принят) и седьмой повтор (4/4 файлов прошли). Финансовый пакет принят только после последнего полного повтора. Позднейшие UI/notification/correction изменения требуют окончательных проверок.
+- Наблюдение: Повтор реальных XLSX/read/corrections; отдельно canExport в overview: selected deny А false, независимый Б true, all-deny false. История и обычная детализация не становятся одним разрешением. Браузерный detail/error flow проверяется отдельно.
+- Ограничения: **Ограниченное API/БД доказательство, не полная К1–К7 приёмка и не production. Незаявленные области, гонки, фактическая доставка сокета и все браузерные экраны не подтверждены.**
+- Файл: [access-control-timesheet-read-grants.integration.test.ts](../../apps/backend/test/access-control-timesheet-read-grants.integration.test.ts).
+
+### E80
+
+- Тип: HTTP + собственная изолированная локальная БД.
+- Прогон: 2026-11-08: 11/11; шестой пакет (6 файлов: 5 прошли, 1 не принят) и седьмой повтор (4/4 файлов прошли). Финансовый пакет принят только после последнего полного повтора. Позднейшие UI/notification/correction изменения требуют окончательных проверок.
+- Наблюдение: Все десять оставшихся financial/review кодов: selected/all, собственные ledger recipients, version/cycle, immutable reversal/replacement, независимые create/copy/manager actions, read/root отрицания и отзыв. Копия с completed input остаётся new; точно один copy audit и два сопоставленных системных chat audit, без completion/payment эффектов.
+- Ограничения: **Ограниченное API/БД доказательство, не полная К1–К7 приёмка и не production. Незаявленные области, гонки, фактическая доставка сокета и все браузерные экраны не подтверждены.**
+- Файл: [access-control-order-finance-grants.integration.test.ts](../../apps/backend/test/access-control-order-finance-grants.integration.test.ts).
+
+### E81
+
+- Тип: HTTP + собственная изолированная локальная БД.
+- Прогон: 2026-11-08: 7/7; шестой пакет (6 файлов: 5 прошли, 1 не принят) и седьмой повтор (4/4 файлов прошли). Финансовый пакет принят только после последнего полного повтора. Позднейшие UI/notification/correction изменения требуют окончательных проверок.
+- Наблюдение: Повтор после общего availability helper и расширения DTO: own pending против foreign approved, target-specific manage/cancel, policy-locked approve, точные read/export scope. UI-черновики и responsive проверяются отдельно.
+- Ограничения: **Ограниченное API/БД доказательство, не полная К1–К7 приёмка и не production. Незаявленные области, гонки, фактическая доставка сокета и все браузерные экраны не подтверждены.**
+- Файл: [access-control-order-calendar-grants.integration.test.ts](../../apps/backend/test/access-control-order-calendar-grants.integration.test.ts).
+
+### E82
+
+- Тип: HTTP + собственная изолированная локальная БД.
+- Прогон: 2026-11-08: 10/10; шестой пакет (6 файлов: 5 прошли, 1 не принят) и седьмой повтор (4/4 файлов прошли). Финансовый пакет принят только после последнего полного повтора. Позднейшие UI/notification/correction изменения требуют окончательных проверок.
+- Наблюдение: Повтор после shared history authorization и canReadHistory flags в catalog/object aggregate. DTO/endpoint parity, selected/all/own/assigned где заявлено, цены/версии/quantity history и parent lifecycle сохранены.
+- Ограничения: **Ограниченное API/БД доказательство, не полная К1–К7 приёмка и не production. Незаявленные области, гонки, фактическая доставка сокета и все браузерные экраны не подтверждены.**
+- Файл: [access-control-materials-grants.integration.test.ts](../../apps/backend/test/access-control-materials-grants.integration.test.ts).
+
+### E83
+
+- Тип: HTTP + собственная изолированная локальная БД.
+- Прогон: 2026-11-08: 6/6; шестой пакет (6 файлов: 5 прошли, 1 не принят) и седьмой повтор (4/4 файлов прошли). Финансовый пакет принят только после последнего полного повтора. Позднейшие UI/notification/correction изменения требуют окончательных проверок.
+- Наблюдение: Реальные own/selected manager discovery и direct day, Б контроль, прежняя cookie после grant/revoke/restore, активный eligible manager, root deny. Discovery/read не разрешают create/add-entry/visit/report mutations.
+- Ограничения: **Ограниченное API/БД доказательство, не полная К1–К7 приёмка и не production. Незаявленные области, гонки, фактическая доставка сокета и все браузерные экраны не подтверждены.**
+- Файл: [access-control-visit-discovery.integration.test.ts](../../apps/backend/test/access-control-visit-discovery.integration.test.ts).
+
+### E84
+
+- Тип: HTTP + собственная изолированная локальная БД.
+- Прогон: 2026-11-08: 5/5; восьмой пакет 4/4 файлов прошёл; девятый ещё выполняется и содержит непринятый correction-grants. Указан результат конкретного файла, не всего пакета.
+- Наблюдение: Неизвестные, неполные и отсутствующие источники скрыты из list/count/read/dismiss/bulk и DB eligibility realtime; настоящие null/null и readable object сохранены. Запрет ковров не обращается к несуществующему quantity.id. Записи не удалены. Реальный сокет не проверен.
+- Ограничения: **Ограниченное адресное API/БД доказательство, не полная К1–К7 приёмка. Production не затронут; все браузерные роли/размеры и фактическая доставка realtime этим файлом не подтверждены.**
+- Файл: [access-control-notification-fail-closed.integration.test.ts](../../apps/backend/test/access-control-notification-fail-closed.integration.test.ts).
+
+### E85
+
+- Тип: HTTP + собственная изолированная локальная БД.
+- Прогон: 2026-11-08: 11/11; восьмой пакет 4/4 файлов прошёл; девятый ещё выполняется и содержит непринятый correction-grants. Указан результат конкретного файла, не всего пакета.
+- Наблюдение: Повтор после principal discovery: только реальные собственные effective ACL исходного пользователя, canonical wide-role branch, выбранные объекты управляющего, source deny, borrowed exclusion, стабильный поиск дальше первой сотни. POST ограничения сохранены. Новый foreign selector прошёл лишь отдельные структурные тесты, не живой браузер.
+- Ограничения: **Ограниченное адресное API/БД доказательство, не полная К1–К7 приёмка. Production не затронут; все браузерные роли/размеры и фактическая доставка realtime этим файлом не подтверждены.**
+- Файл: [access-control-substitution-grants.integration.test.ts](../../apps/backend/test/access-control-substitution-grants.integration.test.ts).
+
+### E86
+
+- Тип: HTTP + собственная изолированная локальная БД.
+- Прогон: 2026-11-08: 5/5; восьмой пакет 4/4 файлов прошёл; девятый ещё выполняется и содержит непринятый correction-grants. Указан результат конкретного файла, не всего пакета.
+- Наблюдение: Четыре реальные ветви необходимости замещения: read+action, только read, только action, полностью свои grants. DTO не пишет usage; POST фиксирует только действительно необходимое замещение. Это отдельный успешный файл; соседний correction-grants в девятом пакете пока не принят.
+- Ограничения: **Ограниченное адресное API/БД доказательство, не полная К1–К7 приёмка. Production не затронут; все браузерные роли/размеры и фактическая доставка realtime этим файлом не подтверждены.**
+- Файл: [access-control-inventory-correction-delegation.integration.test.ts](../../apps/backend/test/access-control-inventory-correction-delegation.integration.test.ts).
+
+### E87
+
+- Тип: HTTP + собственная изолированная локальная БД.
+- Прогон: 2026-11-08: 7/7; восьмой пакет 4/4 файлов прошёл; девятый ещё выполняется и содержит непринятый correction-grants. Указан результат конкретного файла, не всего пакета.
+- Наблюдение: Reference DTO сверены с настоящими generic POST: positive source reads, selected/own/assigned и HR basic, родительские запреты, nonglobal order issuer остаётся scoped-only с request ID, terminal order link не даёт issue. При отказе нет записи.
+- Ограничения: **Ограниченное адресное API/БД доказательство, не полная К1–К7 приёмка. Production не затронут; все браузерные роли/размеры и фактическая доставка realtime этим файлом не подтверждены.**
+- Файл: [access-control-inventory-form-capabilities.integration.test.ts](../../apps/backend/test/access-control-inventory-form-capabilities.integration.test.ts).
+
+### E88
+
+- Тип: HTTP + собственная изолированная локальная БД.
+- Прогон: 2026-11-08: 8/8; девятый и десятый пакеты по 5/6 файлов прошли, один файл каждого первоначально не принят. Одиннадцатый — 2/4. Результаты новых исправлений принимаются по полному повтору конкретного файла; lifecycle успешно повторён в двенадцатом пакете.
+- Наблюдение: Повтор реальных membership/author/selected границ после расширения room child DTO: rename/member/message/hide/leave не создают членство, авторство и историю задним числом; stale preflight не меняет чужую комнату.
+- Ограничения: **Ограниченное адресное API/БД доказательство, не полная К1–К7 приёмка. Production не затронут; все браузерные роли/размеры и фактическая доставка realtime этим файлом не подтверждены.**
+- Файл: [access-control-chat-grants.integration.test.ts](../../apps/backend/test/access-control-chat-grants.integration.test.ts).
+
+### E89
+
+- Тип: HTTP + собственная изолированная локальная БД.
+- Прогон: 2026-11-08: 9/9; девятый и десятый пакеты по 5/6 файлов прошли, один файл каждого первоначально не принят. Одиннадцатый — 2/4. Результаты новых исправлений принимаются по полному повтору конкретного файла; lifecycle успешно повторён в двенадцатом пакете.
+- Наблюдение: Новые canSearch/canReadReceipts/canForwardToRoom совпадают с отдельными API gates; независимые запреты, контроль Б и default/revoke. Поиск фильтрует до cursor, forwarding проверяет обе комнаты, DB realtime eligibility не выдаётся за публикацию сокета.
+- Ограничения: **Ограниченное адресное API/БД доказательство, не полная К1–К7 приёмка. Production не затронут; все браузерные роли/размеры и фактическая доставка realtime этим файлом не подтверждены.**
+- Файл: [access-control-chat-remaining.integration.test.ts](../../apps/backend/test/access-control-chat-remaining.integration.test.ts).
+
+### E90
+
+- Тип: HTTP + собственная изолированная локальная БД.
+- Прогон: 2026-11-08: 14/14; девятый и десятый пакеты по 5/6 файлов прошли, один файл каждого первоначально не принят. Одиннадцатый — 2/4. Результаты новых исправлений принимаются по полному повтору конкретного файла; lifecycle успешно повторён в двенадцатом пакете.
+- Наблюдение: После отдельного canCreateCompletionDraft и files.upload: комментарий можно отправить без создания нового draft, существующий draft не теряется, новые вложения требуют своих полномочий. Личные assignments, confirmation и lifecycle остаются независимыми; unsupported status не обходит этапы.
+- Ограничения: **Ограниченное адресное API/БД доказательство, не полная К1–К7 приёмка. Production не затронут; все браузерные роли/размеры и фактическая доставка realtime этим файлом не подтверждены.**
+- Файл: [access-control-task-grants.integration.test.ts](../../apps/backend/test/access-control-task-grants.integration.test.ts).
+
+### E91
+
+- Тип: HTTP + собственная изолированная локальная БД.
+- Прогон: 2026-11-08: 8/8; девятый и десятый пакеты по 5/6 файлов прошли, один файл каждого первоначально не принят. Одиннадцатый — 2/4. Результаты новых исправлений принимаются по полному повтору конкретного файла; lifecycle успешно повторён в двенадцатом пакете.
+- Наблюдение: Повтор direct text content/view/download/preview/retry/upload в собственной storage fixture. Авторизация повторного upload ID проверяется до idempotent replay, source write отдельно от files.upload, hidden object/task/order не открываются файловым allow. Собственные/назначенные leaf scopes и настоящий derivative worker этим файлом не закрыты.
+- Ограничения: **Ограниченное адресное API/БД доказательство, не полная К1–К7 приёмка. Production не затронут; все браузерные роли/размеры и фактическая доставка realtime этим файлом не подтверждены.**
+- Файл: [access-control-file-grants.integration.test.ts](../../apps/backend/test/access-control-file-grants.integration.test.ts).
+
+### E92
+
+- Тип: HTTP + собственная изолированная локальная БД.
+- Прогон: 2026-11-08: 9/9; девятый и десятый пакеты по 5/6 файлов прошли, один файл каждого первоначально не принят. Одиннадцатый — 2/4. Результаты новых исправлений принимаются по полному повтору конкретного файла; lifecycle успешно повторён в двенадцатом пакете.
+- Наблюдение: После actual source locks: correction-only grant выбранного расходника работает у неназначенного и HR basic-read пользователя без выдачи issue; отдельные section/read grants не подменяются коррекцией. Parent deny/отзыв/неактивный объект сохраняют ledger, отмена и точный compensating return выполняются однократно.
+- Ограничения: **Ограниченное адресное API/БД доказательство, не полная К1–К7 приёмка. Production не затронут; все браузерные роли/размеры и фактическая доставка realtime этим файлом не подтверждены.**
+- Файл: [access-control-inventory-correction-grants.integration.test.ts](../../apps/backend/test/access-control-inventory-correction-grants.integration.test.ts).
+
+### E93
+
+- Тип: HTTP + собственная изолированная локальная БД.
+- Прогон: 2026-11-08: 5/5; девятый и десятый пакеты по 5/6 файлов прошли, один файл каждого первоначально не принят. Одиннадцатый — 2/4. Результаты новых исправлений принимаются по полному повтору конкретного файла; lifecycle успешно повторён в двенадцатом пакете.
+- Наблюдение: Реальные order complete и independently-approved object freeze в обоих порядках относительно correction. Source lock и последующее перечитывание дают 403 без эффектов либо допустимое выполнение до перехода; correction-first подтверждён pg_blocking_pids, не задержкой. Global exceptions сохранены. Это не доказательство сериализации assignment revoke, applied reversal race или отсутствия всех deadlock.
+- Ограничения: **Ограниченное адресное API/БД доказательство, не полная К1–К7 приёмка. Production не затронут; все браузерные роли/размеры и фактическая доставка realtime этим файлом не подтверждены.**
+- Файл: [access-control-inventory-correction-lifecycle.integration.test.ts](../../apps/backend/test/access-control-inventory-correction-lifecycle.integration.test.ts).
+
+### E94
+
+- Тип: Адресное pure/controlled/структурное доказательство.
+- Прогон: 2026-11-08: 3/3; main выполнил явно указанный файл, не весь сквозной workflow.
+- Наблюдение: Исполнение настоящего transpiled клиента с контролируемым fetcher: тот же File/target повторяет upload ID после потери подтверждения, другая цель/field/new File имеет отдельный ID. Не браузер и не настоящая сеть/storage.
+- Ограничения: **Не К4 browser acceptance и не полная К1–К7 приёмка; реальные cookie, бинарное хранилище, server-side race и production этим unit-файлом не подтверждены.**
+- Файл: [file-client.test.mjs](../../apps/frontend/src/entities/file/api/file-client.test.mjs).
+
+### E95
+
+- Тип: Адресное pure/controlled/структурное доказательство.
+- Прогон: 2026-11-08: 5/5; main выполнил явно указанный файл, не весь сквозной workflow.
+- Наблюдение: Pure последовательная очередь: запрет до старта, остановка после отзыва, сохранение failures при новом выборе, явный retry без повтора успешных callbacks. Структурная проверка picker не является mounted/native UI.
+- Ограничения: **Не К4 browser acceptance и не полная К1–К7 приёмка; реальные cookie, бинарное хранилище, server-side race и production этим unit-файлом не подтверждены.**
+- Файл: [media-upload-batch.test.mjs](../../apps/frontend/src/shared/ui/media-entry/media-upload-batch.test.mjs).
+
+### E96
+
+- Тип: Адресное pure/controlled/структурное доказательство.
+- Прогон: 2026-11-08: 22/22 файла, из них один адресный file-upload тест; main выполнил явно указанный файл, не весь сквозной workflow.
+- Наблюдение: Настоящий /me capability helper с owner-context нового файла: leaf deny/default, root all/own deny и selected deny существующего файла без глобального запрета новых upload. Не новый upload API и не UI.
+- Ограничения: **Не К4 browser acceptance и не полная К1–К7 приёмка; реальные cookie, бинарное хранилище, server-side race и production этим unit-файлом не подтверждены.**
+- Файл: [access-control-ui-capabilities.test.ts](../../apps/backend/test/access-control-ui-capabilities.test.ts).
+
+### E97
+
+- Тип: Адресное pure/controlled/структурное доказательство.
+- Прогон: 2026-11-08: 12/12; main выполнил явно указанный файл, не весь сквозной workflow.
+- Наблюдение: Контролируемое исполнение обработчиков: undo после confirmation проверяет актуальные право/generation/task/mounted; target-switch с файлами требует явного согласия, cancel сохраняет A+файлы, revoke/regrant одной цели не очищает их. Не mounted browser.
+- Ограничения: **Не К4 browser acceptance и не полная К1–К7 приёмка; реальные cookie, бинарное хранилище, server-side race и production этим unit-файлом не подтверждены.**
+- Файл: [task-acl-handlers.test.mjs](../../apps/frontend/src/features/task-form/ui/task-acl-handlers.test.mjs).
+
+### E98
+
+- Тип: HTTP + собственная изолированная локальная БД.
+- Прогон: 2026-11-08: 10/10; двенадцатый пакет 2/2 файла прошёл; тринадцатый 1/2, новый correction/approval race не принят (реальные HTTP 500), исправление ещё требуется. Указан успешный результат именно этого файла.
+- Наблюдение: Полный повтор после source locks и исправления ожиданий: all-grant доходит до business 400 для receipt, отдельный read deny даёт 403; оба отказа сохраняют ledger/audit. Коррекции pending/applied и независимые прямые/shared photo approvals не расширяют круг согласующих. Гонка correction/approval этим файлом не закрыта.
+- Ограничения: **Ограниченное адресное API/БД доказательство, не полная К1–К7 приёмка. Production не затронут; все браузерные роли/размеры и фактическая доставка realtime этим файлом не подтверждены.**
+- Файл: [access-control-inventory-remaining.integration.test.ts](../../apps/backend/test/access-control-inventory-remaining.integration.test.ts).
+
+### E99
+
+- Тип: HTTP + собственная изолированная локальная БД.
+- Прогон: 2026-11-08: 7/7; двенадцатый пакет 2/2 файла прошёл; тринадцатый 1/2, новый correction/approval race не принят (реальные HTTP 500), исправление ещё требуется. Указан успешный результат именно этого файла.
+- Наблюдение: Настоящие founder preview/save/default для own/assigned/selected/all пяти scoped файловых действий и global upload. Уploader owner отделён от assignment источника; личная выдача не создаёт назначения. Root-own блокирует generated upload/replay, selected existing-file deny не становится глобальным. Глобальные file allow не открывают hidden source C. Tiny-text retry не является derivative job.
+- Ограничения: **Ограниченное адресное API/БД доказательство, не полная К1–К7 приёмка. Production не затронут; все браузерные роли/размеры и фактическая доставка realtime этим файлом не подтверждены.**
+- Файл: [access-control-file-scopes.integration.test.ts](../../apps/backend/test/access-control-file-scopes.integration.test.ts).
+
+### E100
+
+- Тип: HTTP + собственная изолированная локальная БД.
+- Прогон: 2026-11-08: 3/3; пакет 14, все 3 файла прошли.
+- Наблюдение: Реальная воспроизведённая ранее гонка correction/shared approval давала HTTP 500 и PostgreSQL deadlock. После общего порядка item → movement → approval проверены оба первых владельца блокировки через pg_blocking_pids: approval-first затем точный compensating return; correction-first отменяет pending approval, позднее решение 409. Один ledger/audit, без двойного применения и без нового автоматического retry. Не доказательство всех гонок отзыва назначений.
+- Ограничения: **Ограниченное адресное доказательство. Полная К1–К7 приёмка, все роли/области/размеры/каналы этим результатом не закрыты. Production не затронут.**
+- Файл: [access-control-inventory-correction-approval-race.integration.test.ts](../../apps/backend/test/access-control-inventory-correction-approval-race.integration.test.ts).
+
+### E101
+
+- Тип: HTTP + собственная изолированная локальная БД.
+- Прогон: 2026-11-08: 12/12; пакет 16.
+- Наблюдение: Generated task проходит настоящий SQL read guard внутри транзакции до публикации истории/уведомлений. Own/assigned/all parent deny и selected existing-ID контролируются отдельно; при отказе весь граф откатывается, после разрешённого чтения создание возвращает читаемую задачу.
+- Ограничения: **Ограниченное адресное доказательство. Полная К1–К7 приёмка, все роли/области/размеры/каналы этим результатом не закрыты. Production не затронут.**
+- Файл: [access-control-task-create-read-grants.integration.test.ts](../../apps/backend/test/access-control-task-create-read-grants.integration.test.ts).
+
+### E102
+
+- Тип: HTTP + собственная изолированная локальная БД.
+- Прогон: 2026-11-08: 7/7; пакет 16.
+- Наблюдение: Положительное чтение новой номенклатуры обязательно до аудита/commit. HR с одним create и selected чтением старой A не получает новую карточку; all read позволяет точное создание, отзыв запрещает без эффектов. Настоящий founder preview/save/default и контроль B. Own для inventory_item не поддерживается каталогом: malformed allow не выдаёт права, deny fail-closed глобально, область не расширялась.
+- Ограничения: **Ограниченное адресное доказательство. Полная К1–К7 приёмка, все роли/области/размеры/каналы этим результатом не закрыты. Production не затронут.**
+- Файл: [access-control-inventory-owner-grants.integration.test.ts](../../apps/backend/test/access-control-inventory-owner-grants.integration.test.ts).
+
+### E103
+
+- Тип: HTTP + собственная изолированная локальная БД.
+- Прогон: 2026-11-08: 11/11; пакет 18 (3/3 файла прошли).
+- Наблюдение: Generated unit не возвращается без положительного чтения. Selected A/root deny проверены на своих и чужих единицах; control B и независимые leaf сохранены. Malformed own не создаёт новую область. History при отсутствии read сравнивается с неизменным baseline 200/[], а не искусственно требуемым 403.
+- Ограничения: **Ограниченное адресное доказательство. Полная К1–К7 приёмка, все роли/области/размеры/каналы этим результатом не закрыты. Production не затронут.**
+- Файл: [access-control-equipment-owner.integration.test.ts](../../apps/backend/test/access-control-equipment-owner.integration.test.ts).
+
+### E104
+
+- Тип: HTTP + собственная изолированная локальная БД.
+- Прогон: 2026-11-08: 4/4; пакет 18 (3/3 файла прошли).
+- Наблюдение: После ранней delete-authority проверки отозванный leaf и global root deny дают 403 даже для отсутствующего ID; полный parent context повторно проверяется под блокировкой. Selected A/delete/movement-history blockers, break/repair/return сохраняют control B и точный audit/movement.
+- Ограничения: **Ограниченное адресное доказательство. Полная К1–К7 приёмка, все роли/области/размеры/каналы этим результатом не закрыты. Production не затронут.**
+- Файл: [access-control-equipment-grants.integration.test.ts](../../apps/backend/test/access-control-equipment-grants.integration.test.ts).
+
+### E105
+
+- Тип: HTTP + собственная изолированная локальная БД.
+- Прогон: 2026-11-08: 1/1; пакет 18 (3/3 файла прошли).
+- Наблюдение: Настоящий POST creation-capabilities и base-only POST личного create manager. Независимые ставки, setup role guard, пустые instructionSteps, unknown employee и generated owner-read deny не обходятся формой. Успешный минимальный объект без setup; явные запрещённые ключи дают 403. Team selector references этим прогоном не проверены; позднее ревью нашло отдельную недоступность опций для личного grant.
+- Ограничения: **Ограниченное адресное доказательство. Полная К1–К7 приёмка, все роли/области/размеры/каналы этим результатом не закрыты. Production не затронут.**
+- Файл: [access-control-object-create-wizard.integration.test.ts](../../apps/backend/test/access-control-object-create-wizard.integration.test.ts).
+
+### E106
+
+- Тип: Pure/controlled frontend, без браузера.
+- Прогон: 2026-11-08: 5/5 в общем frontend 275/275.
+- Наблюдение: Controlled actual shell output: неизвестные актуальные права скрывают subtree, сохраняют providers/черновики, ручное recovery и независимый logout; ошибка не выводит внутренние сведения. Независимое чтение shell, двух body-portal consumers и теста не нашло нового source blocker после исправлений. Не настоящий DOM/mount/portal/browser.
+- Ограничения: **Ограниченное адресное доказательство. Полная К1–К7 приёмка, все роли/области/размеры/каналы этим результатом не закрыты. Production не затронут.**
+- Файл: [authenticated-app-shell.test.mjs](../../apps/frontend/src/shared/ui/app-shell/authenticated-app-shell.test.mjs).
+
+### E107
+
+- Тип: Pure/controlled frontend, без браузера.
+- Прогон: 2026-11-08: 28/28 в общем frontend 275/275.
+- Наблюдение: Controlled actual task page callbacks проверяют read-revision concealment, актуальный leaf/target/generation до и после подтверждения; retained private reason не теряется и не отправляется автоматически после regrant. Не mounted React, не браузерная приёмка.
+- Ограничения: **Ограниченное адресное доказательство. Полная К1–К7 приёмка, все роли/области/размеры/каналы этим результатом не закрыты. Production не затронут.**
+- Файл: [task-detail-access.test.mjs](../../apps/frontend/src/features/task-form/ui/task-detail-access.test.mjs).
+
+### E108
+
+- Тип: Pure/controlled frontend, без браузера.
+- Прогон: 2026-11-08: 5/5 в общем frontend 275/275.
+- Наблюдение: Pure actual payload projection не вычисляет запрещённые группы, сохраняет 0/null/[] только для разрешённых, не меняет личный черновик, исключает запрещённые назначения и позиции с висячими contour-ссылками. Не доказательство загрузки selector options, dialog recovery или HTTP каждого назначения.
+- Ограничения: **Ограниченное адресное доказательство. Полная К1–К7 приёмка, все роли/области/размеры/каналы этим результатом не закрыты. Production не затронут.**
+- Файл: [object-create-access.test.mjs](../../apps/frontend/src/features/object-create/model/object-create-access.test.mjs).
+
+## Адресная проверка критериев задач — 8 ноября
+
+Критерии К1–К7 для всех 16 task-кодов записаны в JSON отдельно от итогового статуса. Только К3 `tasks.create` закрыт адресным E101 API/БД результатом; остальные критерии частичны, не проверены либо явно неприменимы для отключённой standalone операции. К4 всех действующих task-прав остаётся не проверен. Общие resolver/frontend сценарии не повышают доменную строку до полной приёмки.
+
+### E109
+
+- Тип: Pure/controlled, без браузера.
+- Прогон: 2026-11-08: 8/8 в общем frontend 311/311.
+- Наблюдение: Controlled actual NavLink/chat menu: blocked/revision suppress body portal before effects, exact listener/rAF/timer cleanup, stale callbacks and parent-honoured close cannot auto-reopen. Fake hooks/DOM/scheduler, не настоящий DOM или browser.
+- Ограничения: **Ограниченный адресный результат; не полная К1–К7 приёмка. Browser, реальные Redis/MinIO каналы и production этим доказательством не подтверждены.**
+- Файл: [portal-access.test.mjs](../../apps/frontend/src/shared/ui/app-shell/portal-access.test.mjs).
+
+### E110
+
+- Тип: Pure/controlled, без браузера.
+- Прогон: 2026-11-08: В составе frontend 311/311; отдельное независимое ревью исправлений продолжается.
+- Наблюдение: Actual controlled handlers: CP relation, contact delete/save, issue continuation and report attachment correction recheck leaf/target/generation after awaits. Actual reason hook preserves unfinished text; suspension cancels logical prompt wait, staging remains busy until acknowledgement, queues/IDs retained. Не DOM, HTTP или нативный picker.
+- Ограничения: **Ограниченный адресный результат; не полная К1–К7 приёмка. Browser, реальные Redis/MinIO каналы и production этим доказательством не подтверждены.**
+- Файл: [k5-acl-handlers.test.mjs](../../apps/frontend/src/features/object-report/ui/k5-acl-handlers.test.mjs).
+
+### E111
+
+- Тип: Pure/controlled, без браузера.
+- Прогон: 2026-11-08: В составе frontend 311/311; независимое повторное чтение продолжается.
+- Наблюдение: Controlled actual closures check stale confirmations, cancellation/ref invalidation, scope/target/generation, copy finance projection, specification read readiness/comments and candidate response freshness. Не mounted React, HTTP или браузер.
+- Ограничения: **Ограниченный адресный результат; не полная К1–К7 приёмка. Browser, реальные Redis/MinIO каналы и production этим доказательством не подтверждены.**
+- Файл: [order-candidate-confirmation.test.mjs](../../apps/frontend/src/features/one-time-order-list/ui/order-candidate-confirmation.test.mjs).
+
+### E112
+
+- Тип: Pure/controlled, без браузера.
+- Прогон: 2026-11-08: 7/7 в полном backend unit 500/500, 24 файла.
+- Наблюдение: Independent specification leaf flags follow selected A/control B deny/regrant/default; grant does not manufacture assignment, active identity or open lifecycle. Leadership structural-management policy preserved. Controlled helper projection, не endpoint/SQL или browser.
+- Ограничения: **Ограниченный адресный результат; не полная К1–К7 приёмка. Browser, реальные Redis/MinIO каналы и production этим доказательством не подтверждены.**
+- Файл: [one-time-order-specification-capabilities.test.ts](../../apps/backend/test/one-time-order-specification-capabilities.test.ts).
+
+### E113
+
+- Тип: HTTP + собственная изолированная локальная БД.
+- Прогон: 2026-11-08: 1/1 в пакете 19; пакет 2/4 файлов, следующие два не дошли до тестов из-за Docker/DB outage.
+- Наблюдение: Повтор после новых create references и generated initial-assignment guards. Minimal personal-create-only, separate reference failures, own/assigned initial manager/responsible deny, generated owner/root read, omitted/forbidden fields and exact rollback checked. Поздние existing-object reference изменения сюда не засчитываются.
+- Ограничения: **Ограниченный адресный результат; не полная К1–К7 приёмка. Browser, реальные Redis/MinIO каналы и production этим доказательством не подтверждены.**
+- Файл: [access-control-object-create-wizard.integration.test.ts](../../apps/backend/test/access-control-object-create-wizard.integration.test.ts).
+
+### E114
+
+- Тип: HTTP + собственная изолированная локальная БД.
+- Прогон: 2026-11-08: 4/4 в пакете 19; пакет 2/4 файлов, следующие два не дошли до тестов из-за Docker/DB outage.
+- Наблюдение: Оба настоящих INSERT audit failure откатывают бизнес-граф; read deny prevents generated-card leak/commit; один разрешённый retry создаёт ровно один объект и оба аудита/outbox. Не идемпотентность двух разрешённых POST.
+- Ограничения: **Ограниченный адресный результат; не полная К1–К7 приёмка. Browser, реальные Redis/MinIO каналы и production этим доказательством не подтверждены.**
+- Файл: [access-control-object-create-atomicity.integration.test.ts](../../apps/backend/test/access-control-object-create-atomicity.integration.test.ts).
+
+## Адресный обзор критериев: equipment — 8 ноября
+
+17 кодов × К1–К7 записаны в JSON. По критериям: verified 0, partial 94, not_verified 20, not_applicable 5. Это сверка существующих адресных доказательств, не новый запуск и не полная приёмка прав. Итоговые статусы действий не повышались; неприменимость имеет отдельную причину.
+
+## Адресный обзор критериев: objects — 8 ноября
+
+47 кодов × К1–К7 записаны в JSON. По критериям: verified 0, partial 240, not_verified 82, not_applicable 7. Это сверка существующих адресных доказательств, не новый запуск и не полная приёмка прав. Итоговые статусы действий не повышались; неприменимость имеет отдельную причину.
+
+## Адресный обзор критериев: inventory — 8 ноября
+
+17 кодов × К1–К7 записаны в JSON. По критериям: verified 7, partial 98, not_verified 14, not_applicable 0. Это сверка существующих адресных доказательств, не новый запуск и не полная приёмка прав. Итоговые статусы действий не повышались; неприменимость имеет отдельную причину.
+
+## Адресный обзор критериев: chat — 8 ноября
+
+19 кодов × К1–К7 записаны в JSON. По критериям: verified 0, partial 111, not_verified 22, not_applicable 0. Это сверка существующих адресных доказательств, не новый запуск и не полная приёмка прав. Итоговые статусы действий не повышались; неприменимость имеет отдельную причину.
+
+## Адресный обзор критериев: cp-candidate — 8 ноября
+
+22 кодов × К1–К7 записаны в JSON. По критериям: verified 0, partial 132, not_verified 22, not_applicable 0. Это сверка существующих адресных доказательств, не новый запуск и не полная приёмка прав. Итоговые статусы действий не повышались; неприменимость имеет отдельную причину.
+
+## Адресный обзор критериев: people-planning — 8 ноября
+
+32 кодов × К1–К7 записаны в JSON. По критериям: verified 0, partial 185, not_verified 39, not_applicable 0. Это сверка существующих адресных доказательств, не новый запуск и не полная приёмка прав. Итоговые статусы действий не повышались; неприменимость имеет отдельную причину.
+
+## Адресный обзор критериев: discovery — 8 ноября
+
+21 кодов × К1–К7 записаны в JSON. По критериям: verified 0, partial 116, not_verified 31, not_applicable 0. Это сверка существующих адресных доказательств, не новый запуск и не полная приёмка прав. Итоговые статусы действий не повышались; неприменимость имеет отдельную причину.
+
+## Адресный обзор критериев: order — 8 ноября
+
+53 кодов × К1–К7 записаны в JSON. По критериям: verified 0, partial 312, not_verified 59, not_applicable 0. Это сверка существующих адресных доказательств, не новый запуск и не полная приёмка прав. Итоговые статусы действий не повышались; неприменимость имеет отдельную причину.
+
+## Адресный обзор критериев: system-timesheet — 8 ноября
+
+18 кодов × К1–К7 записаны в JSON. По критериям: verified 14, partial 83, not_verified 15, not_applicable 14. Это сверка существующих адресных доказательств, не новый запуск и не полная приёмка прав. Итоговые статусы действий не повышались; неприменимость имеет отдельную причину.
+
+## Адресный обзор критериев: approvals-accountability — 8 ноября
+
+23 кодов × К1–К7 записаны в JSON. По критериям: verified 0, partial 141, not_verified 20, not_applicable 0. Это сверка существующих адресных доказательств, не новый запуск и не полная приёмка прав. Итоговые статусы действий не повышались; неприменимость имеет отдельную причину.
+
+<!-- access-criterion-summary:start -->
+## Покритериальная сводка всех прав
+
+«Подтв.» подтверждает только этот критерий, а не право целиком. «Частично» означает ограниченное доказательство; «Не проверено» — отсутствие принятой адресной проверки; «Н/П» — явную неприменимость с причиной в JSON. Итоговые статусы прав выше остаются самостоятельными. Коды отключённых операций не становятся реализованными из-за неприменимости критериев.
+
+### Рабочий стол
+
+| Код и право | К1 | К2 | К3 | К4 | К5 | К6 | К7 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `dashboard.access` — Рабочий стол | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. |
+| `dashboard.view` — Просмотр рабочего стола | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. |
+| `dashboard.leadership.view` — Рабочий стол руководства | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. |
+| `dashboard.manager.view` — Рабочий стол менеджера | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. |
+| `dashboard.hr.view` — Рабочий стол HR | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. |
+| `dashboard.operations.view` — Рабочий стол операционного менеджера | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. |
+
+### Объекты
+
+| Код и право | К1 | К2 | К3 | К4 | К5 | К6 | К7 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `objects.access` — Объекты | Подтв. | Подтв. | Подтв. | Частично | Частично | Частично | Не проверено |
+| `objects.read` — Просмотр объекта | Подтв. | Подтв. | Подтв. | Частично | Частично | Частично | Подтв. |
+| `objects.create` — Создание объекта | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Частично |
+| `objects.update` — Изменение объекта | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Не проверено |
+| `objects.status` — Изменение статуса | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Частично |
+| `objects.freeze` — Заморозка объекта | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Частично |
+| `objects.archive` — Архивирование объекта | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Частично |
+| `objects.restore` — Восстановление объекта | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Частично |
+| `objects.responsibles.manage` — Ответственные объекта | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Частично |
+| `objects.managers.manage` — Менеджеры объекта | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Частично |
+| `objects.history` — История объекта | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Подтв. |
+| `objects.contacts.read` — Чтение контактов | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Подтв. |
+| `objects.contacts.manage` — Изменение контактов | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Частично |
+| `objects.materials.read` — Чтение материалов | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Подтв. |
+| `objects.materials.manage` — Материалы и инструкции | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Частично |
+| `objects.arrival.read` — Чтение фото прибытия | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Подтв. |
+| `objects.arrival.create` — Фото прибытия | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Частично | Подтв. |
+| `objects.reports.read` — Чтение отчётов | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Подтв. |
+| `objects.reports.update` — Черновик отчёта | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Частично | Подтв. |
+| `objects.reports.submit` — Отправка отчёта | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Частично | Подтв. |
+| `objects.reports.attachments.correct` — Исправление вложений отчёта | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Подтв. |
+| `objects.comments.read` — Чтение комментариев | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Подтв. |
+| `objects.comments.create` — Комментарий объекта | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Частично | Частично |
+| `objects.staffing.read` — Просмотр состава | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Подтв. |
+| `objects.staffing.manage` — Изменение состава | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Частично |
+| `objects.attendance.read` — Просмотр посещаемости | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Подтв. |
+| `objects.attendance.edit` — Отметки посещаемости | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Частично |
+| `objects.rates.read` — Просмотр ставок | Подтв. | Подтв. | Подтв. | Не проверено | Не проверено | Частично | Подтв. |
+| `objects.rates.manage` — Управление ставками | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Частично |
+| `objects.budget.read` — Просмотр бюджета | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Подтв. |
+| `objects.budget.edit` — Изменение бюджета | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Частично |
+| `objects.coefficient.edit` — Коэффициент | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Частично |
+| `objects.contract_amount.read` — Договорная сумма | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Подтв. |
+| `objects.planning.manage` — Настройки планирования | Н/П | Н/П | Н/П | Н/П | Н/П | Н/П | Н/П |
+| `objects.schedules.read` — Просмотр позиций и графика | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Подтв. |
+| `objects.schedules.manage` — Позиции и группы графика | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Частично |
+| `objects.pay_conditions.select` — Выбор готового условия оплаты | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Частично |
+| `objects.compensation.read` — Расшифровка начислений | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Подтв. |
+| `objects.compensation.manage` — Версии условий и фонд команды | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Частично |
+| `objects.compensation.adjust` — Допработа и цена выхода | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Частично |
+| `objects.compensation.correct_past` — Заявка на прошлое исправление | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Частично |
+| `objects.inventory.read` — Расходники объекта | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Подтв. |
+| `objects.inventory.issue` — Выдача расходников на объект | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Частично | Частично |
+| `objects.equipment.read` — Оборудование объекта | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Частично | Подтв. |
+| `objects.linked_orders.read` — Связанные заказы | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Частично | Подтв. |
+| `objects.hr_reports_view` — HR-просмотр отчётов | Подтв. | Подтв. | Подтв. | Не проверено | Не проверено | Частично | Подтв. |
+| `objects.view_hr` — HR-профиль объекта | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Подтв. |
+
+### Разовые заказы
+
+| Код и право | К1 | К2 | К3 | К4 | К5 | К6 | К7 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `one_time_orders.access` — Разовые заказы | Подтв. | Подтв. | Подтв. | Частично | Частично | Частично | Частично |
+| `one_time_orders.read` — Просмотр заказа | Подтв. | Подтв. | Подтв. | Частично | Частично | Частично | Частично |
+| `one_time_orders.create` — Создание заказа | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Подтв. |
+| `one_time_orders.update` — Изменение заказа | Подтв. | Подтв. | Подтв. | Не проверено | Подтв. | Частично | Подтв. |
+| `one_time_orders.copy` — Копирование заказа | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Частично |
+| `one_time_orders.status` — Статус заказа | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Подтв. |
+| `one_time_orders.complete` — Завершение заказа | Подтв. | Подтв. | Подтв. | Не проверено | Подтв. | Частично | Подтв. |
+| `one_time_orders.reopen` — Повторное открытие | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Подтв. |
+| `one_time_orders.managers.manage` — Менеджеры заказа | Подтв. | Подтв. | Подтв. | Не проверено | Подтв. | Частично | Подтв. |
+| `one_time_orders.finance.read` — Финансы заказа | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Частично |
+| `one_time_orders.payments.create` — Регистрация оплаты | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Частично |
+| `one_time_orders.payments.correct` — Исправление оплаты | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Подтв. |
+| `one_time_orders.history` — История заказа | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Частично |
+| `one_time_orders.review.edit` — Изменение отзыва | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Подтв. |
+| `one_time_orders.review.delete` — Удаление отзыва | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Подтв. |
+| `one_time_orders.review.view_all` — Все отзывы | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Частично |
+| `one_time_orders.comments.read` — Чтение комментариев | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Частично |
+| `one_time_orders.comments.create` — Добавление комментария | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Частично |
+| `one_time_orders.reports.read` — Просмотр отчёта | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Частично |
+| `one_time_orders.reports.update` — Изменение отчёта | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Частично |
+| `one_time_orders.photos.read` — Просмотр фото | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Частично |
+| `one_time_orders.photos.create` — Добавление фото | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Частично |
+| `one_time_orders.photos.delete` — Удаление фото | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Частично |
+| `one_time_orders.photos.restore` — Восстановление фото | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Частично |
+| `one_time_orders.specification.read` — Просмотр ТЗ | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Частично |
+| `one_time_orders.specification.manage` — Состав и текст ТЗ | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Подтв. |
+| `one_time_orders.specification.execute` — Выполнение пункта ТЗ | Подтв. | Подтв. | Подтв. | Частично | Подтв. | Частично | Подтв. |
+| `one_time_orders.specification.comments` — Комментарии пункта ТЗ | Подтв. | Подтв. | Подтв. | Не проверено | Подтв. | Частично | Подтв. |
+| `one_time_orders.specification.attachments` — Вложения пункта ТЗ | Подтв. | Подтв. | Частично | Не проверено | Частично | Частично | Частично |
+| `one_time_orders.specification.detach` — Отвязка вложения ТЗ | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Подтв. |
+| `one_time_orders.employees.read` — Состав команды заказа | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Частично | Частично |
+| `one_time_orders.employees.manage` — Изменение команды | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Частично | Частично |
+| `one_time_orders.employees.payment.edit` — Договорные суммы сотрудника | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Частично | Частично |
+| `one_time_orders.attendance.read` — Посещаемость заказа | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Частично | Частично |
+| `one_time_orders.attendance.edit` — Отметки посещаемости заказа | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Частично | Частично |
+| `one_time_orders.timesheet.read` — Табель заказа | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Частично | Частично |
+| `one_time_orders.timesheet.export` — Выгрузка табеля заказа | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Частично | Частично |
+| `one_time_orders.payouts.read` — Выплаты по заказу | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Частично |
+| `one_time_orders.inventory.read` — Расходники заказа | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Частично |
+| `one_time_orders.equipment.read` — Оборудование заказа | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Частично |
+| `one_time_orders.escorts.manage` — Сопровождающие | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Частично |
+
+### Календарь разовых заказов
+
+| Код и право | К1 | К2 | К3 | К4 | К5 | К6 | К7 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `one_time_order_calendar.access` — Календарь разовых заказов | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Частично |
+| `one_time_order_calendar.read` — Просмотр календаря заказов | Подтв. | Подтв. | Подтв. | Частично | Частично | Частично | Частично |
+| `one_time_order_calendar.export` — Выгрузка календаря | Подтв. | Подтв. | Подтв. | Не проверено | Подтв. | Частично | Частично |
+| `one_time_order_calendar.manage` — Управление календарём | Подтв. | Н/П | Н/П | Н/П | Н/П | Н/П | Н/П |
+| `one_time_order_calendar.availability.own` — Своя доступность | Подтв. | Подтв. | Подтв. | Не проверено | Подтв. | Частично | Частично |
+| `one_time_order_calendar.availability.manage` — Доступность менеджеров | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Частично | Подтв. |
+| `one_time_order_calendar.availability.approve` — Согласование доступности | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Частично |
+
+### Каталог ТЗ
+
+| Код и право | К1 | К2 | К3 | К4 | К5 | К6 | К7 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `specification_catalog.access` — Каталог ТЗ | Подтв. | Подтв. | Подтв. | Подтв. | Частично | Частично | Частично |
+| `specification_catalog.read` — Чтение каталога | Подтв. | Подтв. | Подтв. | Подтв. | Частично | Частично | Подтв. |
+| `specification_catalog.create` — Создание пункта или шаблона | Подтв. | Подтв. | Подтв. | Подтв. | Частично | Подтв. | Подтв. |
+| `specification_catalog.update` — Изменение пункта или шаблона | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. |
+| `specification_catalog.archive` — Архивирование пункта или шаблона | Подтв. | Подтв. | Подтв. | Подтв. | Частично | Подтв. | Подтв. |
+
+### Контрагенты
+
+| Код и право | К1 | К2 | К3 | К4 | К5 | К6 | К7 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `counterparties.access` — Контрагенты | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. |
+| `counterparties.read` — Просмотр контрагента | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. |
+| `counterparties.create` — Создание контрагента | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. |
+| `counterparties.update` — Изменение контрагента | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. |
+| `counterparties.archive` — Архивирование | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. |
+| `counterparties.restore` — Восстановление | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. |
+| `counterparties.history` — История контрагента | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. |
+| `counterparties.objects.link` — Связь с объектом | Подтв. | Подтв. | Подтв. | Не проверено | Подтв. | Подтв. | Подтв. |
+| `counterparties.master_object.manage` — Мастер-объект | Подтв. | Подтв. | Подтв. | Не проверено | Подтв. | Подтв. | Подтв. |
+| `counterparties.inventory.read` — Агрегированная история расходников | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. |
+
+### Склад и расходники
+
+| Код и право | К1 | К2 | К3 | К4 | К5 | К6 | К7 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `inventory.access` — Склад | Подтв. | Подтв. | Подтв. | Частично | Частично | Подтв. | Подтв. |
+| `inventory.read` — Просмотр каталога | Подтв. | Подтв. | Подтв. | Частично | Подтв. | Подтв. | Подтв. |
+| `inventory.catalog.create` — Создание номенклатуры | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. |
+| `inventory.catalog.update` — Изменение номенклатуры | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. |
+| `inventory.catalog.delete` — Удаление номенклатуры | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. |
+| `inventory.catalog.restore` — Восстановление номенклатуры | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. |
+| `inventory.movements.read` — История движений | Подтв. | Подтв. | Подтв. | Не проверено | Подтв. | Подтв. | Подтв. |
+| `inventory.receipt` — Приход | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Частично | Подтв. |
+| `inventory.issue_to_object` — Выдача на объект | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Частично | Частично |
+| `inventory.issue_to_one_time_order` — Отгрузка в разовый заказ | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Частично | Подтв. |
+| `inventory.return` — Возврат | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. |
+| `inventory.writeoff` — Списание | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Частично | Подтв. |
+| `inventory.adjustment` — Корректировка остатка | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Частично | Подтв. |
+| `inventory.movement.correct` — Исправление выдачи | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Подтв. | Подтв. |
+| `inventory.reports` — Складские отчёты | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Подтв. | Подтв. |
+| `inventory.resolve_missing_photo` — Исключение без фото | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Подтв. | Подтв. |
+| `inventory.references.read` — Выбор складских целей | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Подтв. | Подтв. |
+
+### Оборудование
+
+| Код и право | К1 | К2 | К3 | К4 | К5 | К6 | К7 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `equipment.access` — Оборудование | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Подтв. | Подтв. |
+| `equipment.read` — Просмотр оборудования | Подтв. | Подтв. | Подтв. | Частично | Частично | Подтв. | Подтв. |
+| `equipment.catalog.read` — Каталог оборудования | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Подтв. | Подтв. |
+| `equipment.catalog.create` — Создание модели | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Подтв. | Подтв. |
+| `equipment.catalog.delete` — Удаление модели | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Подтв. | Подтв. |
+| `equipment.unit.create` — Создание единицы | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. |
+| `equipment.unit.delete` — Удаление ошибочной единицы | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Подтв. | Подтв. |
+| `equipment.history` — История оборудования | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Подтв. | Подтв. |
+| `equipment.assign_object` — Выдача на объект | Подтв. | Подтв. | Подтв. | Подтв. | Частично | Частично | Частично |
+| `equipment.assign_order` — Выдача на заказ | Подтв. | Подтв. | Подтв. | Подтв. | Частично | Частично | Подтв. |
+| `equipment.return` — Возврат | Подтв. | Подтв. | Подтв. | Подтв. | Частично | Частично | Частично |
+| `equipment.move` — Перемещение | Н/П | Н/П | Н/П | Н/П | Н/П | Н/П | Н/П |
+| `equipment.broken` — Поломка | Подтв. | Подтв. | Подтв. | Подтв. | Частично | Частично | Подтв. |
+| `equipment.repair` — В ремонт | Подтв. | Подтв. | Подтв. | Подтв. | Частично | Частично | Подтв. |
+| `equipment.repair_return` — Из ремонта | Подтв. | Подтв. | Подтв. | Подтв. | Частично | Частично | Подтв. |
+| `equipment.lost` — Утрата | Подтв. | Подтв. | Подтв. | Подтв. | Частично | Частично | Подтв. |
+| `equipment.writeoff` — Списание | Подтв. | Подтв. | Подтв. | Подтв. | Частично | Частично | Частично |
+
+### Ковры
+
+| Код и право | К1 | К2 | К3 | К4 | К5 | К6 | К7 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `mats.access` — Ковры | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Подтв. | Подтв. |
+| `mats.read` — Просмотр ковров | Подтв. | Подтв. | Подтв. | Частично | Частично | Подтв. | Подтв. |
+| `mats.catalog.read` — Каталог размеров | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Подтв. | Подтв. |
+| `mats.catalog.create` — Создание размера | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Подтв. | Подтв. |
+| `mats.cost.edit` — Стоимость замены | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. |
+| `mats.quantity.edit` — Количество на объекте | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. |
+| `mats.history` — История ковров | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. |
+
+### Задачи
+
+| Код и право | К1 | К2 | К3 | К4 | К5 | К6 | К7 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `tasks.access` — Задачи | Подтв. | Подтв. | Подтв. | Частично | Частично | Подтв. | Частично |
+| `tasks.read` — Просмотр задачи | Подтв. | Подтв. | Подтв. | Частично | Частично | Подтв. | Частично |
+| `tasks.create` — Создание задачи | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Частично |
+| `tasks.update` — Изменение задачи | Подтв. | Подтв. | Подтв. | Частично | Подтв. | Подтв. | Подтв. |
+| `tasks.status` — Изменение статуса | Н/П | Н/П | Н/П | Н/П | Н/П | Н/П | Н/П |
+| `tasks.assignees.manage` — Исполнители | Подтв. | Подтв. | Подтв. | Частично | Частично | Частично | Частично |
+| `tasks.result.submit` — Отправка результата | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Частично |
+| `tasks.completion.draft` — Черновик выполнения | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Частично |
+| `tasks.completion.submit` — Отметка выполнения | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Частично |
+| `tasks.completion.undo` — Отмена выполнения | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Частично |
+| `tasks.confirm` — Подтверждение результата | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Частично |
+| `tasks.complete_now` — Немедленное завершение | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Частично |
+| `tasks.return` — Возврат в работу | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Частично |
+| `tasks.reopen` — Повторное открытие | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Частично |
+| `tasks.cancel` — Отмена задачи | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Частично |
+| `tasks.history` — История задачи | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Подтв. | Не проверено |
+
+### Табель
+
+| Код и право | К1 | К2 | К3 | К4 | К5 | К6 | К7 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `timesheet.access` — Табель объектов | Подтв. | Подтв. | Подтв. | Подтв. | Частично | Частично | Частично |
+| `timesheet.read` — Просмотр табеля | Подтв. | Подтв. | Подтв. | Подтв. | Частично | Частично | Частично |
+| `timesheet.overview` — Сводный табель | Подтв. | Подтв. | Подтв. | Подтв. | Частично | Частично | Частично |
+| `timesheet.export` — Выгрузка табеля | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Частично | Частично |
+| `timesheet.attendance.edit` — Посещаемость | Подтв. | Н/П | Н/П | Н/П | Н/П | Н/П | Н/П |
+| `timesheet.amount.edit` — Корректировка суммы в табеле | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Частично | Подтв. |
+| `timesheet.manual_correction` — Ручная корректировка | Подтв. | Н/П | Н/П | Н/П | Н/П | Н/П | Н/П |
+| `timesheet.exceptions.create` — Заявка на исключение | Подтв. | Подтв. | Подтв. | Подтв. | Частично | Частично | Подтв. |
+| `timesheet.corrections.read` — История исправлений | Подтв. | Подтв. | Подтв. | Подтв. | Частично | Частично | Частично |
+
+### Подотчёт
+
+| Код и право | К1 | К2 | К3 | К4 | К5 | К6 | К7 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `accountability.access` — Подотчёт | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Частично | Частично |
+| `accountability.read` — Просмотр счёта | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Частично | Частично |
+| `accountability.review` — Сверка счетов | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Частично | Частично |
+| `accountability.issue_cash` — Выдача подотчётных средств | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Частично | Частично |
+| `accountability.external_receipt` — Свободный приход на свой счёт | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. |
+| `accountability.correct_receipt` — Сторно прихода | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. |
+| `accountability.expenses.create` — Новый расход | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Частично | Подтв. |
+| `accountability.expenses.update` — Изменение черновика расхода | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Частично | Подтв. |
+| `accountability.expenses.submit` — Отправка расхода | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Частично | Подтв. |
+| `accountability.expenses.approve` — Подтверждение расхода | Подтв. | Подтв. | Подтв. | Подтв. | Частично | Частично | Частично |
+| `accountability.expenses.reject` — Отклонение расхода | Подтв. | Подтв. | Подтв. | Подтв. | Частично | Частично | Частично |
+| `accountability.closure.request` — Отправка сверки | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Частично | Подтв. |
+| `accountability.closure.approve` — Подтверждение сверки | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Подтв. |
+| `accountability.closure.reject` — Отклонение сверки | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Подтв. |
+| `accountability.order_summary.read` — Сводка заказа | Подтв. | Подтв. | Подтв. | Подтв. | Частично | Частично | Частично |
+
+### Отсутствия и календарь пользователей
+
+| Код и право | К1 | К2 | К3 | К4 | К5 | К6 | К7 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `user_absences.access` — Календарь пользователей | Подтв. | Подтв. | Подтв. | Частично | Частично | Частично | Не проверено |
+| `user_absences.read` — Просмотр своего календаря | Подтв. | Подтв. | Подтв. | Частично | Частично | Частично | Не проверено |
+| `user_absences.view_all` — Занятость коллег | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Не проверено |
+| `user_absences.create` — Создание своего события | Подтв. | Подтв. | Подтв. | Частично | Частично | Частично | Частично |
+| `user_absences.update` — Изменение своего события | Подтв. | Подтв. | Подтв. | Частично | Подтв. | Частично | Частично |
+| `user_absences.delete` — Удаление своего события | Подтв. | Подтв. | Подтв. | Частично | Частично | Частично | Частично |
+| `user_absences.manage` — Редактирование календарей коллег | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Частично |
+| `user_absences.view_private_reasons` — Приватные причины | Подтв. | Подтв. | Подтв. | Частично | Частично | Частично | Частично |
+
+### План посещений
+
+| Код и право | К1 | К2 | К3 | К4 | К5 | К6 | К7 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `visit_plans.access` — Дневные планы | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Подтв. |
+| `visit_plans.read` — Просмотр плана | Подтв. | Подтв. | Подтв. | Частично | Частично | Частично | Подтв. |
+| `visit_plans.manage` — Формирование планов | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Подтв. |
+| `visit_plans.visits.manage` — Отметки посещений | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Подтв. |
+| `visit_plans.reports.manage` — Отчёт посещения | Подтв. | Подтв. | Подтв. | Не проверено | Подтв. | Частично | Подтв. |
+| `visit_plans.history` — История плана | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Подтв. |
+
+### Замещения
+
+| Код и право | К1 | К2 | К3 | К4 | К5 | К6 | К7 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `user_substitutions.access` — Объектные замещения | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Не проверено |
+| `user_substitutions.read` — Просмотр замещений | Подтв. | Подтв. | Подтв. | Частично | Частично | Частично | Подтв. |
+| `user_substitutions.create` — Создание своего замещения | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Частично |
+| `user_substitutions.manage` — Администрирование замещений | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Частично |
+| `user_substitutions.revoke` — Отзыв замещения | Подтв. | Подтв. | Подтв. | Не проверено | Подтв. | Частично | Частично |
+
+### Кандидаты
+
+| Код и право | К1 | К2 | К3 | К4 | К5 | К6 | К7 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `candidates.access` — Кандидаты | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Частично |
+| `candidates.view` — Просмотр кандидатов | Подтв. | Подтв. | Подтв. | Частично | Частично | Частично | Частично |
+| `candidates.manage` — Управление кандидатами | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Частично |
+| `candidates.create` — Создание кандидата | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Частично |
+| `candidates.update` — Редактирование кандидата | Подтв. | Подтв. | Подтв. | Частично | Подтв. | Частично | Подтв. |
+| `candidates.status` — Смена статуса | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. |
+| `candidates.archive` — Архивирование | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. |
+| `candidates.restore` — Восстановление | Подтв. | Частично | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. |
+| `candidates.assignments.manage` — Ответственные менеджеры | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Подтв. |
+| `candidates.respond` — Ответ менеджера | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Подтв. |
+| `candidates.convert_employee` — Оформить сотрудником | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. |
+| `candidates.denied` — Прежний персональный запрет кандидатов | Частично | Подтв. | Подтв. | Не проверено | Частично | Частично | Частично |
+
+### Сотрудники
+
+| Код и право | К1 | К2 | К3 | К4 | К5 | К6 | К7 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `employees.access` — Сотрудники | Подтв. | Подтв. | Подтв. | Частично | Частично | Подтв. | Не проверено |
+| `employees.view` — Просмотр сотрудника | Подтв. | Подтв. | Подтв. | Частично | Частично | Подтв. | Частично |
+| `employees.create` — Создание сотрудника | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Частично |
+| `employees.edit` — Изменение сотрудника | Подтв. | Подтв. | Подтв. | Частично | Подтв. | Подтв. | Не проверено |
+| `employees.archive` — Архивирование | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. |
+| `employees.restore` — Восстановление | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. |
+| `employees.delete_permanently` — Удаление ошибочной записи | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Частично |
+| `employees.assignments.manage` — Назначения на объекты | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Подтв. | Частично |
+| `employees.assignments.delete_as_error` — Ошибочное назначение | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Частично |
+| `employees.availability.manage` — Недоступность сотрудника | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Подтв. | Частично |
+| `employees.substitutions.manage` — Подмены сотрудника | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Частично |
+| `employees.attendance.read` — Выходы сотрудника | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Частично | Не проверено |
+| `employees.documents.edit` — Отметки документов | Подтв. | Подтв. | Подтв. | Не проверено | Частично | Подтв. | Не проверено |
+
+### Согласования
+
+| Код и право | К1 | К2 | К3 | К4 | К5 | К6 | К7 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `approvals.access` — Согласования | Подтв. | Подтв. | Подтв. | Подтв. | Частично | Частично | Частично |
+| `approvals.read` — Просмотр согласований | Подтв. | Подтв. | Подтв. | Подтв. | Частично | Частично | Частично |
+| `approvals.resolve_task_result` — Результат задачи | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Частично | Частично |
+| `approvals.resolve_object_change` — Изменение объекта | Подтв. | Подтв. | Подтв. | Подтв. | Частично | Частично | Частично |
+| `approvals.resolve_inventory_exception` — Исключение склада | Подтв. | Подтв. | Подтв. | Подтв. | Частично | Частично | Частично |
+| `approvals.resolve_accountability` — Подотчёт | Подтв. | Подтв. | Подтв. | Подтв. | Частично | Частично | Частично |
+| `approvals.resolve_timesheet` — Прошлые денежные исправления | Подтв. | Подтв. | Подтв. | Подтв. | Частично | Частично | Подтв. |
+| `approvals.cancel` — Отмена своей заявки | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Частично | Частично |
+
+### Чаты
+
+| Код и право | К1 | К2 | К3 | К4 | К5 | К6 | К7 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `chat.access` — Чаты | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Частично |
+| `chat.read` — Просмотр чатов | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Частично |
+| `chat.search` — Поиск сообщений | Подтв. | Подтв. | Подтв. | Частично | Подтв. | Подтв. | Частично |
+| `chat.room.direct` — Личный чат | Подтв. | Подтв. | Подтв. | Подтв. | Частично | Частично | Частично |
+| `chat.room.group` — Групповой чат | Подтв. | Подтв. | Подтв. | Подтв. | Частично | Частично | Частично |
+| `chat.room.update` — Изменение комнаты | Подтв. | Подтв. | Подтв. | Подтв. | Частично | Частично | Частично |
+| `chat.room.manage_members` — Участники чата | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Частично | Частично |
+| `chat.room.hide` — Скрытие чата | Подтв. | Подтв. | Подтв. | Подтв. | Частично | Не проверено | Частично |
+| `chat.room.unhide` — Показ скрытого чата | Подтв. | Подтв. | Подтв. | Подтв. | Частично | Не проверено | Частично |
+| `chat.room.leave` — Выход из чата | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Частично | Частично |
+| `chat.room.close_global` — Закрытие чата | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Частично | Частично |
+| `chat.messages.read` — Чтение сообщений | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Частично |
+| `chat.messages.create` — Отправка сообщения | Подтв. | Подтв. | Подтв. | Подтв. | Частично | Частично | Частично |
+| `chat.messages.edit` — Редактирование своего сообщения | Подтв. | Подтв. | Подтв. | Подтв. | Частично | Частично | Частично |
+| `chat.messages.delete` — Удаление сообщения | Подтв. | Подтв. | Подтв. | Подтв. | Частично | Частично | Частично |
+| `chat.messages.forward` — Пересылка | Подтв. | Подтв. | Подтв. | Подтв. | Частично | Частично | Частично |
+| `chat.messages.react` — Реакция | Подтв. | Подтв. | Подтв. | Подтв. | Частично | Частично | Частично |
+| `chat.read_receipts` — Прочтение | Подтв. | Подтв. | Подтв. | Подтв. | Частично | Частично | Частично |
+| `chat.realtime` — Realtime комнаты | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Частично |
+
+### Уведомления
+
+| Код и право | К1 | К2 | К3 | К4 | К5 | К6 | К7 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `notifications.access` — Уведомления | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. |
+| `notifications.read` — Просмотр уведомлений | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. |
+| `notifications.mark_read` — Отметка прочтения | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. |
+| `notifications.dismiss` — Скрытие прочитанного | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. |
+| `notifications.realtime` — Доставка уведомлений | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. |
+
+### Поиск
+
+| Код и право | К1 | К2 | К3 | К4 | К5 | К6 | К7 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `search.access` — Поиск | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. |
+| `search.query` — Поиск | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. |
+| `search.recent` — Недавние результаты | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. |
+
+### Файлы
+
+| Код и право | К1 | К2 | К3 | К4 | К5 | К6 | К7 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `files.access` — Файлы | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Частично |
+| `files.read` — Чтение файла | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Частично | Подтв. |
+| `files.download` — Скачивание файла | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Частично | Подтв. |
+| `files.preview` — Превью | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Частично |
+| `files.preview.retry` — Повтор подготовки превью | Подтв. | Подтв. | Подтв. | Подтв. | Частично | Подтв. | Частично |
+| `files.upload` — Загрузка файла | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Частично |
+| `files.detach` — Отвязка файла | Подтв. | Н/П | Н/П | Н/П | Н/П | Н/П | Н/П |
+
+### Вход и сессия
+
+| Код и право | К1 | К2 | К3 | К4 | К5 | К6 | К7 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `auth.access` — Учётная запись | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. |
+| `auth.login` — Вход | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. |
+| `auth.me` — Свой профиль | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. |
+| `auth.refresh` — Обновление сессии | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. |
+| `auth.logout` — Выход | Подтв. | Н/П | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. |
+
+### Настройки
+
+| Код и право | К1 | К2 | К3 | К4 | К5 | К6 | К7 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `settings.access` — Настройки | Подтв. | Н/П | Н/П | Н/П | Н/П | Н/П | Н/П |
+
+### Пользователи и доступы
+
+| Код и право | К1 | К2 | К3 | К4 | К5 | К6 | К7 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `users_access.access` — Пользователи и доступы | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. |
+| `users_access.manage` — Управление доступами | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. | Подтв. |
+
+<!-- access-criterion-summary:end -->
+
+### E115
+
+- Тип: Pure/controlled, без HTTP/БД/браузера.
+- Прогон: 2026-11-08: 7/7 отдельный controlled прогон; позднее включён в полный unit runner.
+- Наблюдение: Actual shared chat mapper: actual uploader for own; actual room participants for assigned; selected/all deny and restoration; parent/root deny; no mutation of cached arrays; unrelated polymorphic attachment links removed. Fake populated context, not membership authorization, HTTP/SQL, Redis, storage or browser.
+- Ограничения: **Ограниченное адресное доказательство. Не закрывает К1–К7 целиком, сквозную выдачу учредителем, фактический API/UI, живой отзыв, production или ещё не исполненные integration fixtures.**
+- Файл: [access-control-chat-file-dto.test.ts](../../apps/backend/test/access-control-chat-file-dto.test.ts).
+
+### E116
+
+- Тип: Pure/controlled, без HTTP/БД/браузера.
+- Прогон: 2026-11-08: 38/38 в адресном последовательном прогоне двух файлов, общий результат 68/68.
+- Наблюдение: Actual service controlled transaction/file mapping: completion and paginated result files use uploader/real parent context; tasks.history before count/query; read predicates before draft/submit/result effects, original assignment/lifecycle/retry identity retained. Four outdated result expectations corrected to accept earlier preflight denial; separate phase-change test retains fresh transaction rejection. Not HTTP, actual SQL, concurrent DB, browser or full policy acceptance.
+- Ограничения: **Ограниченное адресное доказательство. Не закрывает К1–К7 целиком, сквозную выдачу учредителем, фактический API/UI, живой отзыв, production или ещё не исполненные integration fixtures.**
+- Файл: [access-control-task-completion-policy.test.ts](../../apps/backend/test/access-control-task-completion-policy.test.ts).
+
+### E117
+
+- Тип: Pure/controlled, без HTTP/БД/браузера.
+- Прогон: 2026-11-08: 30/30 в адресном последовательном прогоне двух файлов, общий результат 68/68.
+- Наблюдение: Actual central assertTaskAction and undo/cancel/add/remove handlers: own/assigned/selected/all read deny dominates leaf allow before effects on caller transaction; default positive path, denied leaf and absent positive visibility controls; active assignee/terminal/last-assignee invariants retained. Controlled client predicates/effects, not executed SQL or HTTP. Post-mutation loss-of-read response contract remains an explicitly separate open decision.
+- Ограничения: **Ограниченное адресное доказательство. Не закрывает К1–К7 целиком, сквозную выдачу учредителем, фактический API/UI, живой отзыв, production или ещё не исполненные integration fixtures.**
+- Файл: [access-control-task-write-read-guard.test.ts](../../apps/backend/test/access-control-task-write-read-guard.test.ts).
+
+### E118
+
+- Тип: Real loopback HTTP/auth + isolated PostgreSQL16 + actual TCP WebSocket frames; isolated in-memory Redis adapter.
+- Прогон: 2026-11-08: 6/6 (5 addressed subtests + parent), no skipped/cancelled; one isolated schema. Native disposable PostgreSQL cluster, not Docker or production.
+- Наблюдение: Original recipient cookies and already-open sockets: selected chat realtime/read/message/root deny, control B, regrant/default; notification realtime/read/root all denies; queued object source selected read deny and root all deny; foreign recipients/stored recipient/hidden sources and membership invariants. Actual HTTP message producer emits only messageId. files.read all deny removes nested filename/URL metadata from direct and room-list chat DTO and rejects direct file metadata. Negative wire assertions now use stable event identities, positive payload assertions stay exact. Own synthetic schema removed by runner; separate pg_namespace query found no remaining integration schema; own native server stopped afterwards.
+- Ограничения: **Not real Redis/outbox publication, MinIO/binary durability, browser/UI or all scope/role/lifecycle/concurrency combinations. Direct persisted fixture rules, not founder preview/save. Stable identity matcher does not certify malformed events whose type/ID itself changes or disappears. No broad K1–K7 or whole-right acceptance.**
+- Файл: [access-control-realtime-delivery.integration.test.ts](../../apps/backend/test/access-control-realtime-delivery.integration.test.ts).
+
+### E119
+
+- Тип: Real loopback HTTP/auth + isolated Docker PostgreSQL.
+- Прогон: 2026-11-08: 3/3 passed, no skipped/cancelled.
+- Наблюдение: Both lock orders: independently approved issue versus correction; correct waiting, no HTTP 500, no duplicate compensation.
+- Ограничения: **Addressed fixture and scopes only. Not general UI, production, all roles or all lifecycle and delivery combinations. No whole-right acceptance.**
+- Файл: [access-control-inventory-correction-approval-race.integration.test.ts](../../apps/backend/test/access-control-inventory-correction-approval-race.integration.test.ts).
+
+### E120
+
+- Тип: Real loopback HTTP/auth + isolated Docker PostgreSQL.
+- Прогон: 2026-11-08: 13/13 passed, no skipped/cancelled.
+- Наблюдение: Actual catalog/movement/report policy checks and business invariants on isolated Docker PostgreSQL.
+- Ограничения: **Addressed fixture and scopes only. Not general UI, production, all roles or all lifecycle and delivery combinations. No whole-right acceptance.**
+- Файл: [access-control-inventory-grants.integration.test.ts](../../apps/backend/test/access-control-inventory-grants.integration.test.ts).
+
+### E121
+
+- Тип: Real loopback HTTP/auth + isolated Docker PostgreSQL.
+- Прогон: 2026-11-08: 10/10 passed, no skipped/cancelled.
+- Наблюдение: References revoke/regrant, precise reversal, read-deny, direct and shared independent photo approval, no price or balance corruption.
+- Ограничения: **Addressed fixture and scopes only. Not general UI, production, all roles or all lifecycle and delivery combinations. No whole-right acceptance.**
+- Файл: [access-control-inventory-remaining.integration.test.ts](../../apps/backend/test/access-control-inventory-remaining.integration.test.ts).
+
+### E122
+
+- Тип: Real loopback HTTP/auth + isolated Docker PostgreSQL.
+- Прогон: 2026-11-08: 9/9 passed, no skipped/cancelled.
+- Наблюдение: Both operation managers and legacy manager baseline, original-session deny/default, assignment removal, closed order, idempotency and concurrent stock competition.
+- Ограничения: **Addressed fixture and scopes only. Not general UI, production, all roles or all lifecycle and delivery combinations. No whole-right acceptance.**
+- Файл: [access-control-order-inventory.integration.test.ts](../../apps/backend/test/access-control-order-inventory.integration.test.ts).
+
+### E123
+
+- Тип: Real loopback HTTP/auth + isolated Docker PostgreSQL.
+- Прогон: 2026-11-08: 13/13 passed, no skipped/cancelled.
+- Наблюдение: Selected/all plus independent own/assigned A/B, actual object relation and revoke/regrant with original cookie; direct/exception distinction, independent prior-day approval and closed-period denial.
+- Ограничения: **Addressed fixture and scopes only. Not general UI, production, all roles or all lifecycle and delivery combinations. No whole-right acceptance.**
+- Файл: [access-control-timesheet-enforcement.integration.test.ts](../../apps/backend/test/access-control-timesheet-enforcement.integration.test.ts).
+
+### E124
+
+- Тип: Real loopback HTTP/auth + isolated Docker PostgreSQL.
+- Прогон: 2026-11-08: 1/1 passed, no skipped/cancelled.
+- Наблюдение: Exact eligible and active-assigned reference users; delegated B independent of A, actual manager/responsible assignment and audit, denied writes leave all inspected rows unchanged.
+- Ограничения: **Addressed fixture and scopes only. Not general UI, production, all roles or all lifecycle and delivery combinations. No whole-right acceptance.**
+- Файл: [access-control-object-team-references.integration.test.ts](../../apps/backend/test/access-control-object-team-references.integration.test.ts).
+
+### E125
+
+- Тип: Real loopback HTTP/auth + isolated Docker PostgreSQL.
+- Прогон: 2026-11-08: 1/1 passed, no skipped/cancelled.
+- Наблюдение: Independent search/selectedId cases; eligible target, original-session deny/default and independent B; snapshots unchanged on denied writes.
+- Ограничения: **Addressed fixture and scopes only. Not general UI, production, all roles or all lifecycle and delivery combinations. No whole-right acceptance.**
+- Файл: [access-control-order-team-references.integration.test.ts](../../apps/backend/test/access-control-order-team-references.integration.test.ts).
+
+### E126
+
+- Тип: Real loopback HTTP/auth + isolated Docker PostgreSQL.
+- Прогон: 2026-11-08: 16/16 passed, no skipped/cancelled.
+- Наблюдение: Founder preview/save/audit for all four scopes and allow/deny/default; actor cookie unchanged. Separate creator/assignee/nonmember/control fixtures, list/count/pagination/detail/history and unchanged identity/membership. Additional canonical role controls.
+- Ограничения: **Addressed fixture and scopes only. Not general UI, production, all roles or all lifecycle and delivery combinations. No whole-right acceptance.**
+- Файл: [access-control-task-read-scopes.integration.test.ts](../../apps/backend/test/access-control-task-read-scopes.integration.test.ts).
+
+### E127
+
+- Тип: Real loopback HTTP/auth + isolated Docker PostgreSQL.
+- Прогон: 2026-11-08: 8/8 passed, no skipped/cancelled.
+- Наблюдение: Selected read deny dominates leaf for undo/cancel/add/remove. Actual founder grant, self-removal returns only receipt and commits one history event; target deny prevents relink; actual founder revoke after request authentication and before transaction guard leaves snapshot unchanged.
+- Ограничения: **Addressed fixture and scopes only. Not general UI, production, all roles or all lifecycle and delivery combinations. No whole-right acceptance.**
+- Файл: [access-control-task-write-read-guard.integration.test.ts](../../apps/backend/test/access-control-task-write-read-guard.integration.test.ts).
+
+### E128
+
+- Тип: Actual recipient browser → API → isolated database → browser.
+- Прогон: 2026-11-08: one isolated IAB self-removal flow, synthetic deputy and task, 127.0.0.1 only.
+- Наблюдение: Confirmed own assignee removal. The page shows “Изменение сохранено” and link to the list; original task title/details absent. Direct reload shows “Карточка задачи недоступна”. Owner-checked DB query: actor inactive, one remaining active assignee, exactly one removal event. Screenshot task-saved-without-access-20261108.jpg saved outside repo. Owned pilot schema removed.
+- Ограничения: **Only this recipient and task flow; seeded selected grant, not browser founder grant/revoke. Founder preview/save, transaction-time revoke and source deny tested separately in E127. No production or complete K4/K5 claim.**
+- Файл: [page.tsx](../../apps/frontend/src/app/(app)/tasks/[id]/page.tsx).
+
+### E129
+
+- Тип: Real loopback HTTP/auth + isolated Docker PostgreSQL.
+- Прогон: 2026-11-08: 9/9 passed; no skips.
+- Наблюдение: Actual image derivative bytes and retry; four scope boundaries, parent denies, live revoke while job queued, no exposure while denied.
+- Ограничения: **Storage and preview queue controlled in memory; Sharp conversion invoked explicitly. Not real MinIO/queue delivery, office conversions, or recipient UI.**
+- Файл: [access-control-file-derivatives.integration.test.ts](../../apps/backend/test/access-control-file-derivatives.integration.test.ts).
+
+### E130
+
+- Тип: Real loopback HTTP/auth + isolated Docker PostgreSQL.
+- Прогон: 2026-11-08: 3/3 passed; no skips.
+- Наблюдение: Cancelled movement is not resolved; newly committed assigned-object denial is rechecked in the locked source before effects.
+- Ограничения: **Two direct lifecycle cases only; no independent-assignment lock-order guarantee for every concurrency interleave.**
+- Файл: [access-control-inventory-direct-photo-lifecycle.integration.test.ts](../../apps/backend/test/access-control-inventory-direct-photo-lifecycle.integration.test.ts).
+
+### E131
+
+- Тип: Real loopback HTTP/auth + isolated Docker PostgreSQL.
+- Прогон: 2026-11-08: 7/7 passed; no skips.
+- Наблюдение: Source/leaf/default controls; independent comment and detach flags, exact link removal preserving file metadata/history, photo idempotency, scoped inventory/equipment read with no stock changes.
+- Ограничения: **Selected/baseline coverage; attachment replay is not first-upload I/O or proof of general UI.**
+- Файл: [access-control-order-media-scope-grants.integration.test.ts](../../apps/backend/test/access-control-order-media-scope-grants.integration.test.ts).
+
+### E132
+
+- Тип: Real loopback HTTP/auth + isolated Docker PostgreSQL.
+- Прогон: 2026-11-08: 47/47 passed; no skips.
+- Наблюдение: After correcting the HTTP-envelope oracle, 24 parent/leaf deny plus B and regrant flows, 6 assignment invariants and scoped nested attachment/history filtering. Strict generic denial permits only the caller-supplied URL in path; no task payload or side effects.
+- Ограничения: **Read result/file metadata checks, not browser or binary storage. Scoped fixture cases, not all criteria.**
+- Файл: [access-control-task-completion-parent.integration.test.ts](../../apps/backend/test/access-control-task-completion-parent.integration.test.ts).
+
+### E133
+
+- Тип: Браузер учредителя и получателя + сверка изолированной локальной БД.
+- Прогон: 2026-11-08. Выдача, отзыв, открытая форма и прямая ссылка. Все семь изменений правил имеют запись истории от имени тестового учредителя.
+- Наблюдение: Учредитель проверил и сохранил выдачу на выбранный объект A, затем сохранил запрет. До сохранения правила ячейка была доступна только для чтения. В той же сессии получателя после обновления A позволил сохранить 1 200 ₽, B остался без редактирования. После отзыва отправка открытого черновика 9 999 ₽ отклонена. Форма показала объяснение на русском, сохранила черновик и заблокировала ввод и сохранение. По прямой ссылке ячейка A доступна только для чтения. База подтвердила 1 200 ₽ на A и 0 ₽ на B.
+- Ограничения: **Заместитель директора, выбранный объект и текущий период. Проверялся отзыв записи при сохранённом чтении, один размер окна.**
+- Файл: [page.tsx](<../../apps/frontend/src/app/(app)/timesheet/page.tsx>).
+
+### E134
+
+- Тип: Браузер учредителя и получателя + сверка изолированной локальной БД.
+- Прогон: 2026-11-08. Выдача, отзыв, открытая форма и прямая ссылка. Все семь изменений правил имеют запись истории от имени тестового учредителя.
+- Наблюдение: Учредитель выдал и запретил приход в области «Все». В той же сессии менеджера по прямой ссылке после выдачи сохранился приход 2 единиц, остаток вырос с 10 до 12. При отзыве в открытой форме сервер отклонил приход 7 единиц, журнал и остаток не изменились. После обновления прямая ссылка на карточку доступна, формы создания движения нет.
+- Ограничения: **Один менеджер, одна позиция и область «Все». Дефект К4/К5: открытая форма показывает Inventory movement creation denied и оставляет «Создать движение» активной после отказа.**
+- Файл: [page.tsx](<../../apps/frontend/src/app/(app)/inventory/[id]/page.tsx>).
+
+### E135
+
+- Тип: Браузер учредителя и получателя + сверка изолированной локальной БД.
+- Прогон: 2026-11-08. Выдача, отзыв, открытая форма и прямая ссылка. Все семь изменений правил имеют запись истории от имени тестового учредителя.
+- Наблюдение: Учредитель запретил, выдал, затем отозвал отгрузку для выбранного заказа A. В исходной сессии менеджера выдача позволила провести 2 единицы в A. После отзыва отправка открытого черновика на 3 единицы отклонена, запись в журнале отсутствует. После закрытия черновика и обновления прямой ссылки в A кнопки отгрузки нет. В контрольном назначенном заказе B кнопка доступна.
+- Ограничения: **Менеджер, два назначенных заказа, область «Выбранные». Дефект К4/К5: открытая форма показывает Inventory issue to order denied и оставляет «Записать отгрузку» активной после отказа.**
+- Файл: [one-time-order-inventory-issue-form.tsx](<../../apps/frontend/src/features/one-time-order-inventory/ui/one-time-order-inventory-issue-form.tsx>).
+
+### E136
+
+- Тип: Браузер учредителя и получателя + сверка изолированной локальной БД.
+- Прогон: 2026-11-08. Повторная проверка исправления открытой формы, прямой ссылки и отсутствия записи при отказе.
+- Наблюдение: Учредитель выдал приход в области «Все». Менеджер сохранил приход 2 единиц. После отзыва в исходной сессии форма показала «Недостаточно прав, чтобы оформить приход на склад», сохранила количество 7, цену 63 и комментарий. Кнопка стала недоступна. После Enter новых записей нет. По прямой ссылке карточка читается, формы движения нет. Сверка БД подтвердила только разрешённый приход.
+- Ограничения: **Один менеджер, одна позиция, область «Все», один размер окна. Черновик сохраняется в открытой форме.**
+- Файл: [inventory-movement-form.tsx](../../apps/frontend/src/features/inventory-movement-form/ui/inventory-movement-form.tsx#L250).
+
+### E137
+
+- Тип: Браузер учредителя и получателя + сверка изолированной локальной БД.
+- Прогон: 2026-11-08. Повторная проверка исправления открытой формы, прямой ссылки и отсутствия записи при отказе.
+- Наблюдение: Менеджер сохранил отгрузку 2 единиц по назначению. Учредитель отозвал право для выбранного заказа при открытой форме. Форма показала «Недостаточно прав, чтобы отгрузить расходники в этот заказ», сохранила расходник, количество 3 и комментарий. Кнопка стала недоступна. После Enter новых записей нет. По прямой ссылке отгрузка скрыта в целевом заказе и доступна в контрольном. Сверка БД подтвердила только разрешённую отгрузку.
+- Ограничения: **Один менеджер, два назначенных заказа, область «Выбранные», один размер окна. Черновик сохраняется в открытой форме.**
+- Файл: [one-time-order-inventory-issue-form.tsx](../../apps/frontend/src/features/one-time-order-inventory/ui/one-time-order-inventory-issue-form.tsx#L108).
+
+### E138
+
+- Тип: Две локальные браузерные сессии + сверка изолированной БД.
+- Прогон: 2026-11-08. Отзыв, отказ при отправке и повторная выдача в исходной сессии при открытом черновике с синтетическим PNG.
+- Наблюдение: Учредитель вернул право в области «Все». В исходной открытой форме остались количество 7, цена 63, комментарий и файл. На новой странице той же сессии доступна форма прихода, но исходная кнопка отправки осталась заблокирована. Enter запись не создал. База подтвердила разрешение и отсутствие новых движений, файлов и привязок.
+- Ограничения: **Сценарий не принят: ручная отправка открытого черновика после повторной выдачи заблокирована. Проверка ровно одной записи и одного вложения требует восстановления формы без сброса черновика и без автоматической отправки.**
+- Файл: [inventory-movement-form.tsx](../../apps/frontend/src/features/inventory-movement-form/ui/inventory-movement-form.tsx#L181).
+
+### E139
+
+- Тип: Две локальные браузерные сессии + сверка изолированной БД.
+- Прогон: 2026-11-08. Отзыв, отказ при отправке и повторная выдача в исходной сессии при открытом черновике с синтетическим PNG.
+- Наблюдение: Учредитель вернул право в области «Выбранные», один назначенный заказ. В исходной открытой форме остались выбранный расходник, количество 3, комментарий и файл. На новой странице той же сессии доступна кнопка отгрузки, но исходная кнопка отправки осталась заблокирована. Enter запись не создал. База подтвердила разрешение и отсутствие новых движений, файлов и привязок.
+- Ограничения: **Сценарий не принят: ручная отправка открытого черновика после повторной выдачи заблокирована. Проверка ровно одной записи и одного вложения требует восстановления формы без сброса черновика и без автоматической отправки.**
+- Файл: [one-time-order-inventory-issue-form.tsx](../../apps/frontend/src/features/one-time-order-inventory/ui/one-time-order-inventory-issue-form.tsx#L75).
+
+### E140
+
+- Тип: Браузер учредителя и получателя + изолированная локальная БД и хранилище.
+- Прогон: 2026-11-08. Повторная приёмка после добавления «Проверить доступ».
+- Наблюдение: В открытой форме прихода проверка при действующем запрете не разблокировала запись. После выдачи в области «Все» отдельная проверка разблокировала кнопку и сохранила количество 4, цену 61, комментарий и PNG в исходной сессии заместителя директора. БД до ручного нажатия осталась без нового движения и файла. После нажатия записалось одно движение с одним вложением. Содержимое PNG в локальном хранилище совпало с исходным.
+- Ограничения: **Карточка одной позиции, один размер окна. У операционного менеджера приход 7 единиц по персональному праву записался один раз, но отдельное ролевое ограничение загрузки к приходу отклонило фото. Файл остался в форме, текст отказа технический. Сценарий успешной загрузки требует действующего права на вложение.**
+- Файл: [inventory-movement-form.tsx](../../apps/frontend/src/features/inventory-movement-form/ui/inventory-movement-form.tsx#L167).
+
+### E141
+
+- Тип: Браузер учредителя и получателя + изолированная локальная БД и хранилище.
+- Прогон: 2026-11-08. Повторная приёмка после добавления «Проверить доступ».
+- Наблюдение: При действующем запрете проверка оставила отгрузку заблокированной. После повторной выдачи на выбранный заказ менеджер проверил доступ в той же форме. Сохранились выбранный расходник, количество 3, комментарий и PNG. До ручного нажатия отсутствовали новое движение и файл. Одно отдельное нажатие создало одно движение и одно вложение именно в этот заказ. Содержимое PNG в локальном хранилище совпало с исходным.
+- Ограничения: **Один менеджер, выбранный назначенный заказ и один размер окна. Остальные роли, области и сценарии жизненного цикла этим прогоном не проверялись.**
+- Файл: [one-time-order-inventory-issue-form.tsx](../../apps/frontend/src/features/one-time-order-inventory/ui/one-time-order-inventory-issue-form.tsx#L78).
+
+### E142
+
+- Тип: Браузер учредителя и получателя + сверка изолированной локальной БД.
+- Прогон: 2026-11-08. Складские движения, отзыв при открытой форме.
+- Наблюдение: Заместитель директора записал возврат 2 единиц с объекта А через карточку позиции. Учредитель сохранил персональный запрет «Все» при открытой форме. Отправка возврата 1 единицы отклонена. Количество и комментарий сохранились, кнопка заблокирована. После обновления карточка доступна, тип «Возврат» отсутствует. В БД один разрешённый возврат на А по исходной цене.
+- Ограничения: **Один получатель, карточка позиции, возврат с объекта, один размер окна. Повторная выдача для исходного черновика не проверялась.**
+- Файл: [inventory-movement-form.tsx](../../apps/frontend/src/features/inventory-movement-form/ui/inventory-movement-form.tsx#L206).
+
+### E143
+
+- Тип: Браузер учредителя и получателя + сверка изолированной локальной БД.
+- Прогон: 2026-11-08. Складские движения, отзыв при открытой форме.
+- Наблюдение: Заместитель директора записал увеличение остатка на 2 единицы. После персонального запрета «Все» открытая форма отклонила увеличение на 3 единицы, сохранила поля и заблокировала отправку. При обновлении карточки тип движения исчез. База подтвердила ровно одну разрешённую корректировку по исходной цене.
+- Ограничения: **Проверено увеличение на карточке позиции. Уменьшение, вложения и повторная выдача для этого черновика в браузере не проверялись.**
+- Файл: [inventory-movement-form.tsx](../../apps/frontend/src/features/inventory-movement-form/ui/inventory-movement-form.tsx#L206).
+
+### E144
+
+- Тип: Браузер учредителя и получателя + сверка изолированной локальной БД.
+- Прогон: 2026-11-08. Складские движения, отзыв при открытой форме.
+- Наблюдение: Списание 2 единиц без связанного контура создало одно движение и одну заявку со статусом ожидания согласования. Остаток списанием не уменьшился. После запрета «Все» открытая форма отклонила списание 3 единиц, сохранила черновик и заблокировала отправку. После обновления тип «Списание» отсутствует. Новых записей и заявок от отказа нет.
+- Ограничения: **Один получатель, одна позиция и один размер окна. Решение по заявке проверено ранее через API (E120), в этом браузерном прогоне заявка оставлена на согласовании.**
+- Файл: [inventory-movement-form.tsx](../../apps/frontend/src/features/inventory-movement-form/ui/inventory-movement-form.tsx#L206).
+
+### E145
+
+- Тип: Браузер учредителя и получателя + сверка изолированной локальной БД.
+- Прогон: 2026-11-08. Складские движения, отзыв при открытой форме.
+- Наблюдение: Из двух позиций на А первая записалась на 2 единицы. Локальный шлюз задержал запрос второй позиции до аутентификации. Учредитель сохранил запрет на выбранный объект А, после снятия паузы запрос получил 403. В форме указано одно созданное движение, осталась вторая позиция с количеством 4 и заблокированной отправкой. В новой форме А блокирует отправку, Б её допускает. БД подтвердила одно движение, одну заявку без фото и отсутствие второй записи; остатки 9 и 10.
+- Ограничения: **При повторной выдаче на А и нажатии «Обновить списки и права» исходная форма осталась заблокирована. Нужна явная повторная проверка для оставшейся позиции и приёмка ручной отправки без дубля первой. Прогон не покрывает отзыв после аутентификации второго запроса.**
+- Файл: [inventory-movement-form.tsx](../../apps/frontend/src/features/inventory-movement-form/ui/inventory-movement-form.tsx#L228).
+
+### E146
+
+- Тип: Браузер учредителя и получателя + изолированная БД.
+- Прогон: 2026-11-08. Повтор E145 после добавления «Проверить доступ».
+- Наблюдение: После частичной выдачи запрос второй позиции получил 403. Проверка при действующем запрете сохранила блокировку. После повторной выдачи «Проверить доступ» разблокировала исходную оставшуюся позицию с количеством 4. До отдельной отправки в БД была только первая запись на 2 единицы. После ручной отправки второй — ровно две разные записи, по одной на расходник, и по одной заявке без фото.
+- Ограничения: **Один выбранный объект, две позиции, один размер окна, отзыв до аутентификации второй записи. После клика, который браузерный инструмент не подтвердил, появилась дополнительная строка. Её убрали до отправки. Причина добавления строки не установлена. Другие виды движений этим исправлением не принимаются.**
+- Файл: [inventory-movement-form.tsx](<../../apps/frontend/src/features/inventory-movement-form/ui/inventory-movement-form.tsx>).
+
+### E147
+
+- Тип: Браузер учредителя и получателя + изолированная БД.
+- Прогон: 2026-11-08. Предпросмотр, сохранение запрета, проверка прямой ссылки и возврат к default.
+- Наблюдение: До сохранения запрета предпросмотр не меняет меню получателя. После сохранения и обновления той же сессии пункт «Рабочий стол» скрыт, прямая ссылка показывает «Рабочий стол недоступен». Возврат к исходному правилу восстановил меню. В БД две версии изменений от учредителя, конечного персонального правила нет.
+- Ограничения: **Один заместитель директора, один маршрут, после обновления страницы. Переходы между всеми вариантами и отзыв без обновления страницы в браузере не проверены.**
+- Файл: [page.tsx](<../../apps/frontend/src/app/(app)/dashboard/page.tsx>).
+
+### E148
+
+- Тип: Реальные локальные HTTP, сессии и изолированная БД.
+- Прогон: 2026-11-08. Повторный прогон 4/4 без пропусков.
+- Наблюдение: Проверка пересекающихся запретов на выбранные ресурсы, ограниченных полномочий и точных причин отказа предпросмотра.
+- Ограничения: **Ограниченный интеграционный прогон. Остальные сценарии, в том числе браузерные и независимое ревью, учитываются отдельно.**
+- Файл: [access-control-admin-scoped.integration.test.ts](<../../apps/backend/test/access-control-admin-scoped.integration.test.ts>).
+
+### E149
+
+- Тип: Реальные локальные HTTP, сессии и изолированная БД.
+- Прогон: 2026-11-08. Повторный прогон 11/11 без пропусков.
+- Наблюдение: Доступ только учредителю, проверка ресурсов, предпросмотр без записи, история, устаревший и повторный токен, гонки версий и защита последнего администратора.
+- Ограничения: **Ограниченный интеграционный прогон. Остальные сценарии, в том числе браузерные и независимое ревью, учитываются отдельно.**
+- Файл: [access-control-admin.integration.test.ts](<../../apps/backend/test/access-control-admin.integration.test.ts>).
+
+### E150
+
+- Тип: Реальные локальные HTTP, сессии и изолированная БД.
+- Прогон: 2026-11-08. Повторный прогон 13/13 без пропусков.
+- Наблюдение: Вход, профиль, обновление, выход, исходная cookie, области own/all, деактивация, ошибки входа и однократная ротация refresh.
+- Ограничения: **Ограниченный интеграционный прогон. Остальные сценарии, в том числе браузерные и независимое ревью, учитываются отдельно.**
+- Файл: [access-control-auth-grants.integration.test.ts](<../../apps/backend/test/access-control-auth-grants.integration.test.ts>).
+
+### E151
+
+- Тип: Реальные локальные HTTP, сессии и изолированная БД.
+- Прогон: 2026-11-08. Повторный прогон 11/11 без пропусков.
+- Наблюдение: Шесть кодов, четыре варианта рабочего стола, выдача/запрет/default в исходной сессии, фильтрация строк и сумм источников.
+- Ограничения: **Ограниченный интеграционный прогон. Остальные сценарии, в том числе браузерные и независимое ревью, учитываются отдельно.**
+- Файл: [access-control-dashboard-grants.integration.test.ts](<../../apps/backend/test/access-control-dashboard-grants.integration.test.ts>).
+
+### E152
+
+- Тип: Реальные локальные HTTP, сессии и изолированная БД.
+- Прогон: 2026-11-08. Повторный прогон 18/18 без пропусков.
+- Наблюдение: Области счетов, движения, выплаты и сверки, независимые решения и отсутствие двойного расхода.
+- Ограничения: **Ограниченный интеграционный прогон. Остальные сценарии, в том числе браузерные и независимое ревью, учитываются отдельно.**
+- Файл: [access-control-accountability-grants.integration.test.ts](<../../apps/backend/test/access-control-accountability-grants.integration.test.ts>).
+
+### E153
+
+- Тип: Реальные локальные HTTP, сессии и изолированная БД.
+- Прогон: 2026-11-08. Повторный прогон 8/8 без пропусков.
+- Наблюдение: Чтение отдельно от решения, ограничения источников, контрольные записи, независимость согласующих и отмена собственной заявки.
+- Ограничения: **Ограниченный интеграционный прогон. Остальные сценарии, в том числе браузерные и независимое ревью, учитываются отдельно.**
+- Файл: [access-control-approval-grants.integration.test.ts](<../../apps/backend/test/access-control-approval-grants.integration.test.ts>).
+
+### E154
+
+- Тип: Реальные локальные HTTP, сессии и изолированная БД.
+- Прогон: 2026-11-08. Повторный прогон 14/14 без пропусков.
+- Наблюдение: Области выбранных и всех заявок, собственные заявки, отказ решения и отмены чужой, фильтрация источников и сохранённых уведомлений.
+- Ограничения: **Ограниченный интеграционный прогон. Остальные сценарии, в том числе браузерные и независимое ревью, учитываются отдельно.**
+- Файл: [access-control-approvals-read.integration.test.ts](<../../apps/backend/test/access-control-approvals-read.integration.test.ts>).
+
+### E155
+
+- Тип: Реальные локальные HTTP, сессии и изолированная БД.
+- Прогон: 2026-11-08. Повторный прогон 13/13 без пропусков.
+- Наблюдение: Области правки, старые сессии, независимое согласование прошлой даты, недоступность правки и исключений в закрытом периоде.
+- Ограничения: **Ограниченный интеграционный прогон. Остальные сценарии, в том числе браузерные и независимое ревью, учитываются отдельно.**
+- Файл: [access-control-timesheet-enforcement.integration.test.ts](<../../apps/backend/test/access-control-timesheet-enforcement.integration.test.ts>).
+
+### E156
+
+- Тип: Реальные локальные HTTP, сессии и изолированная БД.
+- Прогон: 2026-11-08. Повторный прогон 12/12 без пропусков.
+- Наблюдение: Чтение, сводка, история и строки Excel по областям; запреты родителей и сохранение разделения между просмотром и записью.
+- Ограничения: **Ограниченный интеграционный прогон. Остальные сценарии, в том числе браузерные и независимое ревью, учитываются отдельно.**
+- Файл: [access-control-timesheet-read-grants.integration.test.ts](<../../apps/backend/test/access-control-timesheet-read-grants.integration.test.ts>).
+
+### E157
+
+- Тип: Реальный локальный браузер и изолированная БД.
+- Прогон: 2026-11-08. Адресная проверка получателя.
+- Наблюдение: Чистый повтор E145/E146: отзыв между позициями, второй запрос получил 403 до записи. Проверка при запрете оставила блокировку. После повторной выдачи сохранилась ровно одна исходная позиция на 4 единицы, без лишних строк и правки черновика. До отдельной ручной отправки в БД одна выдача на 2 единицы. После — две разные выдачи и по одной заявке без фото.
+- Ограничения: **Один выбранный объект, один получатель, две позиции, один размер окна. Отзыв до аутентификации второго запроса.**
+- Файл: [inventory-movement-form.tsx](<../../apps/frontend/src/features/inventory-movement-form/ui/inventory-movement-form.tsx>).
+
+### E158
+
+- Тип: Реальный локальный браузер и изолированная БД.
+- Прогон: 2026-11-08. Адресная проверка получателя.
+- Наблюдение: В браузере заместителя директора после запрета экспорта для А чтение табеля А сохранилось, кнопка Excel заблокирована. В той же сессии по Б скачан XLSX. Содержимое книги проверено: Б присутствует, А отсутствует. Четыре тестовые ячейки начислений в БД остались без изменений.
+- Ограничения: **Один месяц, одна роль, запрет в области «Выбранные», после повторной загрузки. Другие области проверялись интеграционно.**
+- Файл: [page.tsx](<../../apps/frontend/src/app/(app)/timesheet/page.tsx>).
+
+### E159
+
+- Тип: Реальный локальный браузер и изолированная БД.
+- Прогон: 2026-11-08. Адресная проверка получателя.
+- Наблюдение: У менеджера в исходной сессии собственный счёт 300 ₽. Выборочное разрешение открыло в списке один чужой счёт А на 1 700 ₽. Контрольный Б на 2 800 ₽ отсутствовал. После отзыва и повторной загрузки прямого URL раздел чужих счетов исчез, собственный счёт остался. В БД три исходных пополнения без изменений.
+- Ограничения: **Только выборочная видимость счёта, один менеджер и один размер окна. Не проверялись решения по сверкам и очистка открытого счёта без повторной загрузки.**
+- Файл: [page.tsx](<../../apps/frontend/src/app/(app)/accountability/page.tsx>).
+
+### E160
+
+- Тип: Реальный локальный браузер и изолированная БД.
+- Прогон: 2026-11-08. Адресная проверка получателя.
+- Наблюдение: Выбранная чужая заявка А открылась в исходной сессии менеджера. Б отсутствовала, кнопок подтверждения, отклонения и отмены чужой заявки не было. Сразу после сохранения отзыва открытая карточка ещё была видна. При повторном входе по прямому URL с фильтром источника заявка скрылась. Обе заявки остались в ожидании решения.
+- Ограничения: **Открытая карточка не скрылась сразу после отзыва. Поиск для выбора заявки учредителем сработал по точному ID, но не по видимому заголовку. Проверены один тип заявки, одна роль и одна область.**
+- Файл: [page.tsx](<../../apps/frontend/src/app/(app)/approvals/page.tsx>).
+
+### E161
+
+- Тип: Реальный локальный браузер и изолированная БД.
+- Прогон: 2026-11-08. Адресная проверка получателя.
+- Наблюдение: При действующем персональном чтении выбранной заявки А запрет чтения связанного объекта А скрыл заявку после повторной загрузки. Прямая ссылка на А показала «Объект не найден или недоступен». Контрольный Б открылся в той же сессии менеджера.
+- Ограничения: **Выбранный запрет и назначенный менеджер, после повторной загрузки. Вложенные каналы за пределами связанной заявки проверяются отдельно.**
+- Файл: [page.tsx](<../../apps/frontend/src/app/(app)/objects/[id]/page.tsx>).
+
+### E162
+
+- Тип: Локальный HTTP и изолированная БД.
+- Прогон: 2026-11-08. Повтор 13/13 без пропусков.
+- Наблюдение: Контрагенты: десять кодов, фильтрация связей и счётчиков, архивирование, история и контроль Б.
+- Ограничения: **Ограниченный интеграционный повтор. Остальные точки входа и браузерные сценарии проверяются отдельно.**
+- Файл: [access-control-counterparty-grants.integration.test.ts](<../../apps/backend/test/access-control-counterparty-grants.integration.test.ts>).
+
+### E163
+
+- Тип: Локальный HTTP и изолированная БД.
+- Прогон: 2026-11-08. Повтор 12/12 без пропусков.
+- Наблюдение: Объекты: чтение, создание, изменение, жизненный цикл, ответственные и менеджеры, реальные записи и аудит.
+- Ограничения: **Ограниченный интеграционный повтор. Остальные точки входа и браузерные сценарии проверяются отдельно.**
+- Файл: [access-control-object-core-grants.integration.test.ts](<../../apps/backend/test/access-control-object-core-grants.integration.test.ts>).
+
+### E164
+
+- Тип: Локальный HTTP и изолированная БД.
+- Прогон: 2026-11-08. Повтор 5/5 без пропусков.
+- Наблюдение: Объекты: финансовые поля, коэффициент, допработа и независимое прошлое согласование.
+- Ограничения: **Ограниченный интеграционный повтор. Остальные точки входа и браузерные сценарии проверяются отдельно.**
+- Файл: [access-control-object-financial-grants.integration.test.ts](<../../apps/backend/test/access-control-object-financial-grants.integration.test.ts>).
+
+### E165
+
+- Тип: Локальный HTTP и изолированная БД.
+- Прогон: 2026-11-08. Повтор 11/11 без пропусков.
+- Наблюдение: Замещения: пять прав, реальные границы выбранных объектов, запреты источника и заимствованные права.
+- Ограничения: **Ограниченный интеграционный повтор. Остальные точки входа и браузерные сценарии проверяются отдельно.**
+- Файл: [access-control-substitution-grants.integration.test.ts](<../../apps/backend/test/access-control-substitution-grants.integration.test.ts>).
+
+### E166
+
+- Тип: Локальный HTTP и изолированная БД.
+- Прогон: 2026-11-08. Повтор 6/6 без пропусков.
+- Наблюдение: Дневные планы, посещения, отчёты и история в границах выбранного пользователя.
+- Ограничения: **Ограниченный интеграционный повтор. Остальные точки входа и браузерные сценарии проверяются отдельно.**
+- Файл: [access-control-visit-plan-grants.integration.test.ts](<../../apps/backend/test/access-control-visit-plan-grants.integration.test.ts>).
+
+### E167
+
+- Тип: Локальный браузер получателя и изолированная БД.
+- Прогон: 2026-11-08. Выбранные области, отзыв и контрольные записи.
+- Наблюдение: Учредитель выдал менеджеру чтение чужой заявки Альфа. Кнопок решения в карточке не было. После сохранения отзыва автоматическая проверка закрыла открытую карточку и удалила заголовок из очереди без перезагрузки страницы. Показано сообщение «Согласование больше недоступно. Очередь обновлена». Обе заявки в БД остались в ожидании.
+- Ограничения: **Один менеджер, выбранная заявка, один размер окна. Отзыв выявляется следующим запросом открытой карточки. Для фона интервал может зависеть от браузера. Поиск заявки по видимому заголовку и другие каналы отдельно.**
+- Файл: [page.tsx](<../../apps/frontend/src/app/(app)/approvals/page.tsx>).
+
+### E168
+
+- Тип: Локальный браузер получателя и изолированная БД.
+- Прогон: 2026-11-08. Выбранные области, отзыв и контрольные записи.
+- Наблюдение: Менеджер открывал карточку Альфы. После выбранного запрета и обновления исходной сессии прямая ссылка показала отказ. В реестре Альфа отсутствовала, Бета оставалась и открывалась. В БД обе записи остались активными.
+- Ограничения: **У прямой ссылки после отказа английский технический текст Counterparty access denied. Автоматическое скрытие уже открытой карточки без обновления не проверялось.**
+- Файл: [page.tsx](<../../apps/frontend/src/app/(app)/counterparties/[id]/page.tsx>).
+
+### E169
+
+- Тип: Локальный браузер получателя и изолированная БД.
+- Прогон: 2026-11-08. Выбранные области, отзыв и контрольные записи.
+- Наблюдение: Выбранное разрешение на объект Альфа показало чужое замещение Альфа, но не Бету. Кнопка отзыва замещения отсутствовала. После запрета и обновления в исходной сессии выбранное замещение исчезло. Обе записи в БД сохранились без отметок об отзыве.
+- Ограничения: **Один получатель и область «Выбранные». Действия создания и отзыва самого замещения проверяются отдельно.**
+- Файл: [page.tsx](<../../apps/frontend/src/app/(app)/user-substitutions/page.tsx>).
+
+### E170
+
+- Тип: Локальный браузер получателя и изолированная БД.
+- Прогон: 2026-11-08. Выбранные области, отзыв и контрольные записи.
+- Наблюдение: Выбранное чтение плана менеджера Альфа открыло его визит без действий редактирования. Прямая ссылка Беты показала отказ при действующем разрешении на Альфу. После отзыва прямая ссылка Альфы также закрылась. В БД остались две записи планов с одним визитом в каждой.
+- Ограничения: **Один получатель, дата и область «Выбранные». Проверка проведена при загрузке по прямым ссылкам.**
+- Файл: [page.tsx](<../../apps/frontend/src/app/(app)/visit-plans/page.tsx>).
+
+### E171
+
+- Тип: Локальный браузер получателя и изолированная БД.
+- Прогон: 2026-11-08. Выбранные области, отзыв и контрольные записи.
+- Наблюдение: В аккаунте операционного менеджера исходно открыт назначенный заказ Альфа. После выбранного запрета прямая ссылка в той же сессии отклонена, контрольный назначенный заказ Бета открылся. Оба заказа и назначения остались активны.
+- Ограничения: **Прямая ссылка показывает технический текст One-time order action denied. Остальные вкладки, меню и открытая карточка до обновления проверяются отдельно.**
+- Файл: [page.tsx](<../../apps/frontend/src/app/(app)/one-time-orders/[id]/page.tsx>).
+
+### E172
+
+- Тип: Локальный HTTP и изолированная БД.
+- Прогон: 2026-11-08. Повтор 15/15 без пропусков.
+- Наблюдение: Права карточки разового заказа, статусы, история, комментарии, отчёты и отдельные действия ТЗ.
+- Ограничения: **Адресный интеграционный повтор. Браузерные проверки зачтены отдельно.**
+- Файл: [access-control-one-time-order-grants.integration.test.ts](<../../apps/backend/test/access-control-one-time-order-grants.integration.test.ts>).
+
+### E173
+
+- Тип: Локальный HTTP и изолированная БД.
+- Прогон: 2026-11-08. Повтор 7/7 без пропусков.
+- Наблюдение: Области календаря заказов, XLSX, собственная и управляемая доступность и согласование.
+- Ограничения: **Адресный интеграционный повтор. Браузерные проверки зачтены отдельно.**
+- Файл: [access-control-order-calendar-grants.integration.test.ts](<../../apps/backend/test/access-control-order-calendar-grants.integration.test.ts>).
+
+### E174
+
+- Тип: Локальный HTTP и изолированная БД.
+- Прогон: 2026-11-08. Повтор 5/5 без пропусков.
+- Наблюдение: Отдельное управление составом и текстом ТЗ, сохранение границ области и сценарии отказа.
+- Ограничения: **Адресный интеграционный повтор. Браузерные проверки зачтены отдельно.**
+- Файл: [access-control-order-spec-management.integration.test.ts](<../../apps/backend/test/access-control-order-spec-management.integration.test.ts>).
+
+### E175
+
+- Тип: Локальный HTTP и изолированная БД.
+- Прогон: 2026-11-08. Повтор 11/11 без пропусков.
+- Наблюдение: Пять действий каталога ТЗ, реальные чтение, создание, изменение и архивирование в пределах доступа.
+- Ограничения: **Адресный интеграционный повтор. Браузерные проверки зачтены отдельно.**
+- Файл: [access-control-spec-catalog-grants.integration.test.ts](<../../apps/backend/test/access-control-spec-catalog-grants.integration.test.ts>).
+
+### E176
+
+- Тип: Локальный браузер получателя и изолированная БД.
+- Прогон: 2026-11-08. Адресная проверка получателя.
+- Наблюдение: После запрета на выбранного контрагента Альфа в исходной сессии менеджера прямая ссылка показала «Контрагент не найден или недоступен». Контрольная Бета открылась. Обе записи в БД остались активны и без изменений.
+- Ограничения: **Один получатель, выбранный запрет, повторная загрузка прямой ссылки. Автоматическое скрытие открытой карточки отдельно.**
+- Файл: [page.tsx](<../../apps/frontend/src/app/(app)/counterparties/[id]/page.tsx>).
+
+### E177
+
+- Тип: Локальный браузер получателя и изолированная БД.
+- Прогон: 2026-11-08. Адресная проверка получателя.
+- Наблюдение: После выбранного запрета чтения назначенный заказ Альфа исчез из календаря, контрольная Бета осталась. Прямая ссылка Альфы показала «Разовый заказ не найден или недоступен». Контрольная карточка Беты открылась, исходные даты, статусы и назначения в БД не изменились.
+- Ограничения: **Один операционный менеджер и два назначенных заказа. Автоматическое скрытие уже открытой карточки и другие вкладки отдельно.**
+- Файл: [page.tsx](<../../apps/frontend/src/app/(app)/one-time-orders/[id]/page.tsx>).
+
+### E178
+
+- Тип: Локальный браузер получателя и изолированная БД.
+- Прогон: 2026-11-08. Адресная проверка получателя.
+- Наблюдение: Операционный менеджер видел оба назначенных заказа, затем только Бету после запрета чтения заказа Альфа. Отдельный запрет календарного чтения «Все» закрыл прямую ссылку календаря с сообщением по-русски. Прямая ссылка заказа Бета сохранила доступ.
+- Ограничения: **Один менеджер и месяц. Экспорт и действия доступности менеджеров этим браузерным прогоном не закрываются.**
+- Файл: [page.tsx](<../../apps/frontend/src/app/(app)/one-time-orders/calendar/page.tsx>).
+
+### E179
+
+- Тип: Локальный браузер получателя и изолированная БД.
+- Прогон: 2026-11-08. Адресная проверка получателя.
+- Наблюдение: После выбранного запрета выполнения в Альфе пункт ТЗ остался видимым, чекбокс недоступен. В контрольном заказе Бета менеджер отметил пункт выполненным. В БД Альфа не выполнена, Бета выполнена один раз этим менеджером.
+- Ограничения: **Один менеджер, два заказа и по одному пункту без обязательного вложения. Изменение структуры ТЗ и другие области отдельно.**
+- Файл: [page.tsx](<../../apps/frontend/src/app/(app)/one-time-orders/[id]/page.tsx>).
+
+### E180
+
+- Тип: Локальный браузер получателя и изолированная БД.
+- Прогон: 2026-11-08. Адресная проверка получателя.
+- Наблюдение: Обычный менеджер по прямой ссылке на каталог ТЗ увидел «У вас нет доступа к каталогу ТЗ». Данные и действия каталога не показаны.
+- Ограничения: **Проверен отрицательный ролевой сценарий. Положительные сценарии и действия руководства в этом браузерном прогоне не проверялись.**
+- Файл: [page.tsx](<../../apps/frontend/src/app/(app)/one-time-orders/specification-catalog/page.tsx>).
+
+### E181
+
+- Тип: Локальный HTTP и изолированная БД.
+- Прогон: 2026-11-08. Повтор 4/4 без пропусков.
+- Наблюдение: Области доступа к единицам, каталог, история, поломка и ремонт.
+- Ограничения: **Интеграционный прогон следующего пакета. Браузерная проверка учитывается отдельно.**
+- Файл: [access-control-equipment-grants.integration.test.ts](<../../apps/backend/test/access-control-equipment-grants.integration.test.ts>).
+
+### E182
+
+- Тип: Локальный HTTP и изолированная БД.
+- Прогон: 2026-11-08. Повтор 7/7 без пропусков.
+- Наблюдение: Выдача на объект и заказ, возврат, утрата и списание с границами согласования.
+- Ограничения: **Интеграционный прогон следующего пакета. Браузерная проверка учитывается отдельно.**
+- Файл: [access-control-equipment-movements.integration.test.ts](<../../apps/backend/test/access-control-equipment-movements.integration.test.ts>).
+
+### E183
+
+- Тип: Локальный HTTP и изолированная БД.
+- Прогон: 2026-11-08. Повтор 5/5 без пропусков.
+- Наблюдение: Сериализация конкурирующих действий, возврат без общего чтения и отказ до раскрытия состояния.
+- Ограничения: **Интеграционный прогон следующего пакета. Браузерная проверка учитывается отдельно.**
+- Файл: [access-control-equipment-scoped-boundary.integration.test.ts](<../../apps/backend/test/access-control-equipment-scoped-boundary.integration.test.ts>).
+
+### E184
+
+- Тип: Локальный HTTP и изолированная БД.
+- Прогон: 2026-11-08. Повтор 8/8 без пропусков.
+- Наблюдение: Ковры: перенос старого учёта, каталог, количество, стоимость и история, границы объектов, делегирование и параллельные записи.
+- Ограничения: **Интеграционный прогон следующего пакета. Браузерная проверка учитывается отдельно.**
+- Файл: [rubber-mats.integration.test.ts](<../../apps/backend/test/rubber-mats.integration.test.ts>).
+
+### E185
+
+- Тип: Локальный браузер получателя, окно учредителя и изолированная PostgreSQL.
+- Прогон: 2026-11-08. Проверка до и после исправления, одна сессия получателя. Временная схема удалена после сверки.
+- Наблюдение: Учредитель сохранил выбранный запрет А. В открытой видимой карточке А название и номер исчезли без перезагрузки. Прямая ссылка показала «Оборудование не найдено или недоступно». В реестре А скрыта, Б видна и открывается.
+- Ограничения: **Менеджер, выбранная единица. Остальные роли, области и операции оборудования в браузере ещё не пройдены.**
+- Файл: [page.tsx](<../../apps/frontend/src/app/(app)/equipment/[id]/page.tsx>).
+
+### E186
+
+- Тип: Локальный браузер получателя, окно учредителя и изолированная PostgreSQL.
+- Прогон: 2026-11-08. Проверка до и после исправления, одна сессия получателя. Временная схема удалена после сверки.
+- Наблюдение: После выбранного запрета А открытая таблица ковров исчезла без перезагрузки. Прямая ссылка на секцию А показала отказ, карточка объекта осталась доступна. Реестр скрыл А. Контрольный Б показал 7 ковров, каталог размеров остался доступен.
+- Ограничения: **Менеджер, выбранный объект. Остальные роли и области, прямые ссылки и видимость каталогов при отдельном запрете требуют проверки.**
+- Файл: [object-rubber-mats-panel.tsx](<../../apps/frontend/src/features/object-rubber-mats/ui/object-rubber-mats-panel.tsx>).
+
+### E187
+
+- Тип: Локальный браузер получателя, окно учредителя и изолированная PostgreSQL.
+- Прогон: 2026-11-08. Проверка до и после исправления, одна сессия получателя. Временная схема удалена после сверки.
+- Наблюдение: При отзыве права в открытой видимой секции пропала кнопка сохранения, количество 3 осталось доступно для чтения. После возврата к правилу по умолчанию восстановился черновик 8. В БД осталось 3 на А и 7 на Б, версии 1, новых записей истории нет. В исходном прогоне отправка после отзыва получила отказ.
+- Ограничения: **Менеджер, выбранный объект. Черновик после восстановления проверен в той же открытой вкладке. Ручное сохранение после повторной выдачи и остальные комбинации ролей, областей и окон требуют проверки.**
+- Файл: [object-rubber-mats-panel.tsx](<../../apps/frontend/src/features/object-rubber-mats/ui/object-rubber-mats-panel.tsx>).
+
+### E188
+
+- Тип: HTTP + собственная изолированная локальная БД.
+- Прогон: 2026-11-08. Последовательный повтор 17/17 без пропусков, отдельная локальная схема.
+- Наблюдение: Реальные candidate CRUD, назначения, ответы, конверсия; повтор после исправления transaction/source notification границы прошёл. Предыдущий неуспешный прогон E31 сохранён как история.
+- Ограничения: **Адресные HTTP/БД-сценарии. Браузерная проверка получателей и полная приёмка остаются открытыми.**
+- Файл: [access-control-candidate-grants.integration.test.ts](<../../apps/backend/test/access-control-candidate-grants.integration.test.ts>).
+
+### E189
+
+- Тип: HTTP + изолированная БД кадрового контура.
+- Прогон: 2026-11-08. Последовательный повтор 9/9 без пропусков, отдельная локальная схема.
+- Наблюдение: Отдельные view/access/attendance read, global create, selected A/control B для edit/documents/assignments/availability/substitutions; deny/default и отзыв со старой cookie, parent deny, точные записи/аудит, нет изменений attendance/payroll. Создание недоступности теперь аудируется в одной транзакции; искусственная ошибка AuditService подтверждает откат строки реальной БД.
+- Ограничения: **Адресные HTTP/БД-сценарии. Браузерная проверка получателей и полная приёмка остаются открытыми.**
+- Файл: [access-control-employee-grants.integration.test.ts](<../../apps/backend/test/access-control-employee-grants.integration.test.ts>).
+
+### E190
+
+- Тип: Real loopback HTTP/auth + isolated Docker PostgreSQL.
+- Прогон: 2026-11-08. Последовательный повтор 16/16 без пропусков, отдельная локальная схема.
+- Наблюдение: Founder preview/save/audit for all four scopes and allow/deny/default; actor cookie unchanged. Separate creator/assignee/nonmember/control fixtures, list/count/pagination/detail/history and unchanged identity/membership. Additional canonical role controls.
+- Ограничения: **Адресные HTTP/БД-сценарии. Браузерная проверка получателей и полная приёмка остаются открытыми.**
+- Файл: [access-control-task-read-scopes.integration.test.ts](<../../apps/backend/test/access-control-task-read-scopes.integration.test.ts>).
+
+### E191
+
+- Тип: Локальный HTTP и изолированная БД.
+- Прогон: 2026-11-08. 10/10 адресных проверок и 1/1 в user-absences.integration.test.ts после исправления трёх ожиданий 404 на 403.
+- Наблюдение: Проверены восемь прав календаря пользователей, выбранные области и запрет раздела. Отказ в записи проверен по HTTP, данным и аудиту. Общий тест подтвердил чтение занятости, приватность причин и отказ в изменении или удалении видимой записи без права записи.
+- Ограничения: **Проверка API и БД в двух локальных схемах. Браузерные сценарии следующего пакета остаются открытыми.**
+- Файл: [access-control-calendar-grants.integration.test.ts](../../apps/backend/test/access-control-calendar-grants.integration.test.ts).
+
+### E192
+
+- Тип: Локальный Chrome под получателем, API учредителя и изолированная PostgreSQL.
+- Прогон: 2026-11-08. Предпросмотр и сохранение правил в отдельной сессии учредителя через API. Сессия получателя сохранялась.
+- Наблюдение: Выбранный запрет изменения задачи скрыл отправку и показал причину. После возврата права открылся исходный черновик. Выбранный запрет чтения скрыл открытую карточку, прямая ссылка показала отказ. Контрольная задача открылась.
+- Ограничения: **Один заместитель директора, 1280×800. Проверены выбранные записи и запрет всего календаря. Черновики восстановлены, ручная запись после выдачи, остальные роли, области и размеры остаются открытыми.**
+- Файл: [page.tsx](<../../apps/frontend/src/app/(app)/tasks/[id]/page.tsx>).
+
+### E193
+
+- Тип: Локальный Chrome под получателем, API учредителя и изолированная PostgreSQL.
+- Прогон: 2026-11-08. Предпросмотр и сохранение правил в отдельной сессии учредителя через API. Сессия получателя сохранялась.
+- Наблюдение: Выбранный запрет изменения скрыл форму и показал сообщение о сохранении черновика. После возврата права восстановился несохранённый комментарий. Запрет чтения скрыл открытую карточку и закрыл прямую ссылку. Контрольная карточка открылась.
+- Ограничения: **Один заместитель директора, 1280×800. Проверены выбранные записи и запрет всего календаря. Черновики восстановлены, ручная запись после выдачи, остальные роли, области и размеры остаются открытыми.**
+- Файл: [page.tsx](<../../apps/frontend/src/app/(app)/candidates/[id]/page.tsx>).
+
+### E194
+
+- Тип: Локальный Chrome под получателем, API учредителя и изолированная PostgreSQL.
+- Прогон: 2026-11-08. Предпросмотр и сохранение правил в отдельной сессии учредителя через API. Сессия получателя сохранялась.
+- Наблюдение: Выбранный запрет редактирования убрал форму сохранения и оставил профиль видимым. После возврата права восстановилось несохранённое ФИО. Запрет чтения скрыл открытую карточку, прямая ссылка показала отказ по-русски. Контрольный профиль открывался.
+- Ограничения: **Один заместитель директора, 1280×800. Проверены выбранные записи и запрет всего календаря. Черновики восстановлены, ручная запись после выдачи, остальные роли, области и размеры остаются открытыми.**
+- Файл: [page.tsx](<../../apps/frontend/src/app/(app)/employees/[id]/page.tsx>).
+
+### E195
+
+- Тип: Локальный Chrome под получателем, API учредителя и изолированная PostgreSQL.
+- Прогон: 2026-11-08. Предпросмотр и сохранение правил в отдельной сессии учредителя через API. Сессия получателя сохранялась.
+- Наблюдение: Выбранный запрет изменения своей записи заблокировал сохранение. После возврата права восстановился несохранённый комментарий. Запрет доступа ко всему разделу скрыл календарь без перезагрузки и закрыл прямую ссылку.
+- Ограничения: **Один заместитель директора, 1280×800. Проверены выбранные записи и запрет всего календаря. Черновики восстановлены, ручная запись после выдачи, остальные роли, области и размеры остаются открытыми.**
+- Файл: [page.tsx](<../../apps/frontend/src/app/(app)/user-absences/page.tsx>).
+
+### E196
+
+- Тип: Локальный Chrome под получателем, API учредителя и изолированная PostgreSQL.
+- Прогон: 2026-11-08. Предпросмотр и сохранение правил в отдельной сессии учредителя через API. Сессия получателя сохранялась.
+- Наблюдение: В открытом окне создания своего отсутствия отзыв права отключил создание и сохранил черновик. Прямая ссылка при запрете оставила отправку заблокированной. После возврата права комментарий восстановился.
+- Ограничения: **Один заместитель директора, 1280×800. Проверены выбранные записи и запрет всего календаря. Черновики восстановлены, ручная запись после выдачи, остальные роли, области и размеры остаются открытыми.**
+- Файл: [page.tsx](<../../apps/frontend/src/app/(app)/user-absences/new/page.tsx>).
+
+### E197
+
+- Тип: HTTP + собственная изолированная локальная БД.
+- Прогон: 2026-11-08. Повтор 8/8 без пропусков, отдельная локальная схема.
+- Наблюдение: Повтор реальных membership/author/selected границ после расширения room child DTO: rename/member/message/hide/leave не создают членство, авторство и историю задним числом; stale preflight не меняет чужую комнату.
+- Ограничения: **Адресные интеграционные сценарии следующего пакета. Браузер и все сочетания ролей и областей ещё требуют проверки.**
+- Файл: [access-control-chat-grants.integration.test.ts](<../../apps/backend/test/access-control-chat-grants.integration.test.ts>).
+
+### E198
+
+- Тип: HTTP + собственная изолированная локальная БД.
+- Прогон: 2026-11-08. Повтор 7/7 без пропусков, отдельная локальная схема.
+- Наблюдение: Настоящие founder preview/save/default для own/assigned/selected/all пяти scoped файловых действий и global upload. Уploader owner отделён от assignment источника; личная выдача не создаёт назначения. Root-own блокирует generated upload/replay, selected existing-file deny не становится глобальным. Глобальные file allow не открывают hidden source C. Tiny-text retry не является derivative job.
+- Ограничения: **Адресные интеграционные сценарии следующего пакета. Браузер и все сочетания ролей и областей ещё требуют проверки.**
+- Файл: [access-control-file-scopes.integration.test.ts](<../../apps/backend/test/access-control-file-scopes.integration.test.ts>).
+
+### E199
+
+- Тип: HTTP + собственная изолированная локальная БД.
+- Прогон: 2026-11-08. Повтор 9/9 без пропусков, отдельная локальная схема.
+- Наблюдение: Все пять notification actions: recipient ownership, read/dismiss/bulk/idempotency, source deny до total/pagination, текущая cookie. Realtime проверен только как eligibility в БД, не доставка сокета.
+- Ограничения: **Адресные интеграционные сценарии следующего пакета. Браузер и все сочетания ролей и областей ещё требуют проверки.**
+- Файл: [access-control-notification-grants.integration.test.ts](<../../apps/backend/test/access-control-notification-grants.integration.test.ts>).
+
+### E200
+
+- Тип: HTTP + собственная изолированная локальная БД.
+- Прогон: 2026-11-08. Повтор 8/8 без пропусков, отдельная локальная схема.
+- Наблюдение: Query/recent/access, запреты объектов/заказов/задач/кандидатов, selected source grants, stale/forged recent refs и фильтрация до limit. Дополнительный equipment/counterparty поиск ещё проверяется отдельно.
+- Ограничения: **Адресные интеграционные сценарии следующего пакета. Браузер и все сочетания ролей и областей ещё требуют проверки.**
+- Файл: [access-control-search-grants.integration.test.ts](<../../apps/backend/test/access-control-search-grants.integration.test.ts>).
+
+### E201
+
+- Тип: Реальные локальные HTTP, сессии и изолированная БД.
+- Прогон: 2026-11-08. Повтор 11/11 без пропусков, отдельная локальная схема.
+- Наблюдение: Шесть кодов, четыре варианта рабочего стола, выдача/запрет/default в исходной сессии, фильтрация строк и сумм источников.
+- Ограничения: **Адресные интеграционные сценарии следующего пакета. Браузер и все сочетания ролей и областей ещё требуют проверки.**
+- Файл: [access-control-dashboard-grants.integration.test.ts](<../../apps/backend/test/access-control-dashboard-grants.integration.test.ts>).
+
+### E202
+
+- Тип: Локальный Chrome под получателем, API учредителя и изолированная PostgreSQL.
+- Прогон: 2026-11-08. Повтор после исправления. Сессия получателя сохранялась.
+- Наблюдение: Выбранный запрет скрыл комнату и сообщение в открытой вкладке. Повторный вход по прямой ссылке комнаты с кодом не показал сообщение. Контрольная комната открылась по своей ссылке.
+- Ограничения: **Один менеджер, окно 1280×800, выбранные записи и полные запреты для указанных разделов. API учредителя использован для изменения правил. Остальные роли, области и каналы остаются открытыми.**
+- Файл: [page.tsx](<../../apps/frontend/src/app/(app)/chats/page.tsx>).
+
+### E203
+
+- Тип: Локальный Chrome под получателем, API учредителя и изолированная PostgreSQL.
+- Прогон: 2026-11-08. Повтор после исправления. Сессия получателя сохранялась.
+- Наблюдение: Запрет всего рабочего стола скрыл открытые виджеты и показал отказ. Прямая ссылка показала тот же отказ. После снятия запрета рабочий стол открылся.
+- Ограничения: **Один менеджер, окно 1280×800, выбранные записи и полные запреты для указанных разделов. API учредителя использован для изменения правил. Остальные роли, области и каналы остаются открытыми.**
+- Файл: [dashboard-role-router.tsx](<../../apps/frontend/src/features/dashboard/ui/dashboard-role-router.tsx>).
+
+### E204
+
+- Тип: Локальный Chrome под получателем, API учредителя и изолированная PostgreSQL.
+- Прогон: 2026-11-08. Повтор после исправления. Сессия получателя сохранялась.
+- Наблюдение: Выбранный запрет скрыл имя файла и действия просмотра в открытой вкладке. Прямая ссылка показала русский отказ, прямой запрос скачивания вернул 403. Контрольный файл открывал метаданные.
+- Ограничения: **Один менеджер, окно 1280×800, выбранные записи и полные запреты для указанных разделов. API учредителя использован для изменения правил. Файловая фикстура содержит метаданные. Успешное скачивание содержимого этим браузерным сценарием не проверено.**
+- Файл: [file-viewer.tsx](<../../apps/frontend/src/shared/ui/media-entry/file-viewer.tsx>).
+
+### E205
+
+- Тип: Локальный Chrome под получателем, API учредителя и изолированная PostgreSQL.
+- Прогон: 2026-11-08. Повтор после исправления. Сессия получателя сохранялась.
+- Наблюдение: Запрет чтения уведомлений закрыл открытую панель и убрал кнопку. После перехода по прямой ссылке страницы кнопка не появилась. Прямой запрос списка вернул 200 с пустым items. При запрете чтения задачи Альфа открытая панель закрылась, при повторном открытии было только контрольное уведомление Бета. Прямые ссылки задач соблюли тот же запрет.
+- Ограничения: **Один менеджер, окно 1280×800, выбранные записи и полные запреты для указанных разделов. API учредителя использован для изменения правил. Остальные роли, области и каналы остаются открытыми.**
+- Файл: [notification-bell.tsx](<../../apps/frontend/src/features/notification-bell/ui/notification-bell.tsx>).
+
+### E206
+
+- Тип: Локальный Chrome под получателем, API учредителя и изолированная PostgreSQL.
+- Прогон: 2026-11-08. Повтор после исправления. Сессия получателя сохранялась.
+- Наблюдение: Запрет поиска закрыл открытое окно и убрал кнопку. Прямой запрос поиска вернул 403. При отдельном запрете чтения задачи Альфа результаты открытой панели очистились, повторный запрос сохранил только Бету. Прямые ссылки задач соблюли тот же запрет.
+- Ограничения: **Один менеджер, окно 1280×800, выбранные записи и полные запреты для указанных разделов. API учредителя использован для изменения правил. Остальные роли, области и каналы остаются открытыми.**
+- Файл: [global-command.tsx](<../../apps/frontend/src/shared/ui/global-command/global-command.tsx>).
+
+### E207
+
+- Тип: Локальный HTTP и изолированная БД.
+- Прогон: 2026-11-08. Повтор 6/6 без пропусков, отдельная локальная схема.
+- Наблюдение: Выбранные запреты комнаты, сообщений и поиска исключают результаты, окна сообщений и курсоры. Уведомление о сообщении исчезает после выхода из комнаты.
+- Ограничения: **Адресная интеграционная проверка следующего пакета. Браузер, остальные роли и области требуют отдельной проверки.**
+- Файл: [access-control-chat-search.integration.test.ts](<../../apps/backend/test/access-control-chat-search.integration.test.ts>).
+
+### E208
+
+- Тип: Real loopback HTTP/auth + isolated Docker PostgreSQL.
+- Прогон: 2026-11-08. Повтор 9/9 без пропусков, отдельная локальная схема.
+- Наблюдение: Actual image derivative bytes and retry; four scope boundaries, parent denies, live revoke while job queued, no exposure while denied.
+- Ограничения: **Адресная интеграционная проверка следующего пакета. Браузер, остальные роли и области требуют отдельной проверки.**
+- Файл: [access-control-file-derivatives.integration.test.ts](<../../apps/backend/test/access-control-file-derivatives.integration.test.ts>).
+
+### E209
+
+- Тип: HTTP + собственная изолированная локальная БД.
+- Прогон: 2026-11-08. Повтор 5/5 без пропусков, отдельная локальная схема.
+- Наблюдение: Неизвестные, неполные и отсутствующие источники скрыты из list/count/read/dismiss/bulk и DB eligibility realtime; настоящие null/null и readable object сохранены. Запрет ковров не обращается к несуществующему quantity.id. Записи не удалены. Реальный сокет не проверен.
+- Ограничения: **Адресная интеграционная проверка следующего пакета. Браузер, остальные роли и области требуют отдельной проверки.**
+- Файл: [access-control-notification-fail-closed.integration.test.ts](<../../apps/backend/test/access-control-notification-fail-closed.integration.test.ts>).
+
+### E210
+
+- Тип: HTTP + собственная изолированная локальная БД.
+- Прогон: 2026-11-08. Повтор 8/8 без пропусков, отдельная локальная схема.
+- Наблюдение: Поиск/недавние equipment соблюдают запреты объекта/заказа; счётчик объектов контрагента исключает hidden/deleted и изменяется 2→1→0→восстановление после parent deny.
+- Ограничения: **Адресная интеграционная проверка следующего пакета. Браузер, остальные роли и области требуют отдельной проверки.**
+- Файл: [access-control-search-related-resources.integration.test.ts](<../../apps/backend/test/access-control-search-related-resources.integration.test.ts>).
+
+### E211
+
+- Тип: Локальный Chrome под получателем, API учредителя, изолированная PostgreSQL и локальный MinIO.
+- Прогон: 2026-11-08. Повтор после исправления. Одна сессия менеджера 1280×800.
+- Наблюдение: Chrome показал точный текст из MinIO и скачал оригиналы Альфа (59 байт) и Бета (57 байт). Байты и имена совпали с фикстурами. Выбранный запрет скачивания оставил предпросмотр и дал 403 на прямом запросе оригинала. Запрет предпросмотра убрал текст, дал 403 на прямом запросе предпросмотра и оставил реальное скачивание. После отзыва чтения оба прямых запроса дали 403, прямая ссылка просмотрщика показала отказ. Текст отказа предпросмотра отделён от ошибки генерации.
+- Ограничения: **Проверены два текстовых файла и выбранная область. PDF, офисные и графические форматы этим браузерным прогоном не проверены.**
+- Файл: [file-viewer.tsx](<../../apps/frontend/src/shared/ui/media-entry/file-viewer.tsx>).
+
+### E212
+
+- Тип: Локальный Chrome под получателем, API учредителя, изолированная PostgreSQL и локальный MinIO.
+- Прогон: 2026-11-08. Повтор после исправления. Одна сессия менеджера 1280×800.
+- Наблюдение: После выбранного запрета результаты в открытой панели комнаты и общем поиске не показывали Альфу. В общем поиске осталась Бета. Прямой запрос поиска Альфы вернул пустой список, прямой запрос сообщения и открытие комнаты остались доступны при отдельном запрете поиска.
+- Ограничения: **Выбранный запрет поиска в одной комнате. Отдельное право чтения сообщения не менялось.**
+- Файл: [page.tsx](<../../apps/frontend/src/app/(app)/chats/page.tsx>).
+
+### E213
+
+- Тип: Локальный Chrome под получателем, API учредителя, изолированная PostgreSQL и локальный MinIO.
+- Прогон: 2026-11-08. Повтор после исправления. Одна сессия менеджера 1280×800.
+- Наблюдение: Запрет чтения комнаты скрыл связанное уведомление в текущей сессии. Прямой запрос отметить запрещённое уведомление прочитанным вернул 404, в БД оно осталось непрочитанным. Контрольное уведомление открыло разрешённую комнату по настоящей ссылке roomId внутри уже открытого раздела чатов и было отмечено прочитанным. Прямой URL запрещённой комнаты не показал её сообщение, контрольный URL показал.
+- Ограничения: **Одна пара комнат и уведомлений о сообщениях. Настольные уведомления и доставка новых событий этим прогоном не проверены.**
+- Файл: [page.tsx](<../../apps/frontend/src/app/(app)/chats/page.tsx>).
+
+### E214
+
+- Тип: Локальный Chrome под получателем, API учредителя, изолированная PostgreSQL и локальный MinIO.
+- Прогон: 2026-11-08. Повтор после исправления. Одна сессия менеджера 1280×800.
+- Наблюдение: Выбранный запрет чтения объекта Альфа убрал связанное оборудование из открытых недавних и повторного поиска. Бета осталась. Счётчик объектов контрагента изменился с двух на один. Прямые ссылки на Альфу и её оборудование получили 404 и 403, карточка контрагента показала только контрольную связь.
+- Ограничения: **Проверен родительский запрет по объекту. Связь с разовым заказом и все комбинации ролей требуют отдельной браузерной проверки.**
+- Файл: [global-command.tsx](<../../apps/frontend/src/shared/ui/global-command/global-command.tsx>).
+
+### E215
+
+- Тип: Локальный Chrome, PostgreSQL, MinIO и фоновый обработчик с Redis.
+- Прогон: 2026-11-08. PDF, один синтетический оригинал и одна сессия менеджера.
+- Наблюдение: Отрисована страница исходного PDF с контрольной строкой ACL-PDF-7421. Chrome скачал оригинал с правильным именем, 587 байт, SHA-256 совпал с исходником. Запрет предпросмотра убрал его в открытой вкладке и по прямой ссылке, оставив настоящее скачивание. Запрет скачивания оставил предпросмотр и дал 403 по прямому URL оригинала. Запрет чтения закрыл просмотрщик и оба URL содержимого.
+- Ограничения: **Одна роль, выбранный файл, один образец формата. Уже начатая передача файла, другие типы, области и роли требуют проверки.**
+- Файл: [file-viewer.tsx](<../../apps/frontend/src/shared/ui/media-entry/file-viewer.tsx>).
+
+### E216
+
+- Тип: Локальный Chrome, PostgreSQL, MinIO и фоновый обработчик с Redis.
+- Прогон: 2026-11-08. Excel, один синтетический оригинал и одна сессия менеджера.
+- Наблюдение: LibreOffice создал PDF из исходного XLSX. Chrome отрисовал страницу с содержимым ячейки ACLXLSX7421. Повтор начат на новом файле без готового предпросмотра. Chrome скачал оригинал с правильным именем, 2027 байт, SHA-256 совпал с исходником. Запрет предпросмотра убрал его в открытой вкладке и по прямой ссылке, оставив настоящее скачивание. Запрет скачивания оставил предпросмотр и дал 403 по прямому URL оригинала. Запрет чтения закрыл просмотрщик и оба URL содержимого.
+- Ограничения: **Одна роль, выбранный файл, один образец формата. Уже начатая передача файла, другие типы, области и роли требуют проверки.**
+- Файл: [file-viewer.tsx](<../../apps/frontend/src/shared/ui/media-entry/file-viewer.tsx>).
+
+### E217
+
+- Тип: Локальный Chrome, PostgreSQL, MinIO и фоновый обработчик с Redis.
+- Прогон: 2026-11-08. JPEG, один синтетический оригинал и одна сессия менеджера.
+- Наблюдение: Chrome отобразил фото 160×100. Реальный WebP-эскиз из MinIO открывался с правом предпросмотра и получил 403 после его отзыва. Chrome скачал оригинал с правильным именем, 374 байт, SHA-256 совпал с исходником. Запрет предпросмотра убрал его в открытой вкладке и по прямой ссылке, оставив настоящее скачивание. Запрет скачивания оставил предпросмотр и дал 403 по прямому URL оригинала. Запрет чтения закрыл просмотрщик и оба URL содержимого.
+- Ограничения: **Одна роль, выбранный файл, один образец формата. Уже начатая передача файла, другие типы, области и роли требуют проверки.**
+- Файл: [file-viewer.tsx](<../../apps/frontend/src/shared/ui/media-entry/file-viewer.tsx>).
+
+### E218
+
+- Тип: Локальный Chrome, PostgreSQL, настоящий Redis и WebSocket.
+- Прогон: 2026-11-08. Реальные отправки сообщений и публикация из notification_outbox.
+- Наблюдение: Из шести сообщений получателю пришли ровно три WebSocket-события: до отзыва, контроль Бета после запрета чтения Альфы, новое событие после возврата realtime. При запрете только realtime событие сохранилось во входящих без WebSocket и без повторной доставки после возврата права. При запрете чтения источника или уведомлений запись уведомления не создавалась. Прямая ссылка на Альфу скрыла сообщение, Бета открылась. В базе четыре записи уведомлений и четыре обработанных строки outbox.
+- Ограничения: **Один менеджер и уведомления о сообщениях из двух комнат. Системные уведомления ОС, другие источники, роли и дополнительные гонки остаются открытыми.**
+- Файл: [notifications.service.ts](<../../apps/backend/src/modules/notifications/notifications.service.ts>).
+
+### E219
+
+- Тип: Локальный HTTP и изолированная PostgreSQL.
+- Прогон: 2026-11-08. 10/10 без пропусков.
+- Наблюдение: Исходная гонка воспроизведена на чистых записях с P2002. После исправления 16 параллельных первых GET /view дали 200, одну запись предпросмотра и одну задачу в очереди. После обработки предпросмотр доступен.
+- Ограничения: **Интеграционный тест использует контролируемые хранилище и очередь. Настоящие MinIO и Redis проверены отдельно в E215–E218.**
+- Файл: [access-control-file-derivatives.integration.test.ts](<../../apps/backend/test/access-control-file-derivatives.integration.test.ts>).
+
+### E220
+
+- Тип: Локальный Chrome с настоящим Notification API, PostgreSQL, Redis и WebSocket.
+- Прогон: 2026-11-08. Менеджер и две комнаты. Состояние фоновой вкладки задано тестом.
+- Наблюдение: Chrome выдал три show и три close для разрешённых системных уведомлений. До исправления показанное уведомление оставалось открытым после запрета источника. После исправления показанное закрылось при смене версии прав. Нового показа при запрете источника, только realtime или чтения уведомлений не было. Контроль и новое событие после возврата realtime показались. PostgreSQL подтвердил четыре уведомления и обработанный outbox.
+- Ограничения: **События системного API Chrome проверены с управляемым состоянием видимости. Внешний вид, история центра уведомлений и фоновое расписание других ОС не проверены.**
+- Файл: [notification-bell.tsx](<../../apps/frontend/src/features/notification-bell/ui/notification-bell.tsx>).
+
+### E221
+
+- Тип: Локальный Chrome, изолированная PostgreSQL, настоящий MinIO и управляемая задержка передачи.
+- Прогон: 2026-11-08. Файл 2 МиБ, выбранное правило, одна сессия менеджера.
+- Наблюдение: До исправления прогретый кэш и запрос, удержанный до отправки ответа, выдавали оригинал после отзыва. После исправления успешный ответ содержит private, no-store, повторный запрос прежнего URL вернул 403, запрос, удержанный после чтения из MinIO до заголовков, вернул 403 без файла. После начала передачи браузер завершил ранее авторизованный ответ, новый Range-запрос получил 403.
+- Ограничения: **Уже начатый HTTP-ответ и уже полученные байты остаются у клиента. Сценарий одного файла и одного выбранного запрета, передача замедлена локальным прокси.**
+- Файл: [files.service.ts](<../../apps/backend/src/modules/files/files.service.ts>).
+
+### E222
+
+- Тип: Локальный HTTP и изолированная PostgreSQL.
+- Прогон: 2026-11-08. 11/11 без пропусков.
+- Наблюдение: Запрос удержан на чтении из хранилища. После сохранения запрета сервер вернул 403 без заголовка скачивания. Возврат права восстановил скачивание. Ответы содержимого, предпросмотра и эскиза используют private, no-store.
+- Ограничения: **Контролируемое хранилище в интеграционном тесте. Браузер, MinIO и после начала HTTP-ответа проверены в E221.**
+- Файл: [access-control-file-derivatives.integration.test.ts](<../../apps/backend/test/access-control-file-derivatives.integration.test.ts>).
+
+### E223
+
+- Тип: Нативный Центр уведомлений macOS 26.5, обычный Chrome, локальные PostgreSQL, outbox и Redis.
+- Прогон: 2026-11-08. Chrome свёрнут системным сочетанием. Пользователь временно разрешил включить системные уведомления; обе записи Chrome и переключатель тестовой CRM возвращены к исходным значениям.
+- Наблюдение: До выбранного запрета чтения комнаты Альфа в Центре уведомлений появилась карточка Chrome от 127.0.0.1:3017. После сохранения запрета ранее видимая карточка исчезла; новое сообщение Альфы не создало уведомление в БД и новой карточки в Центре не было. Пользователь подтвердил всплывающий баннер контрольной комнаты Бета; её карточка видна в нативном Центре, контрольное сообщение проверено в комнате. Outbox обработал разрешённые события.
+- Ограничения: **Один менеджер, две комнаты и одна версия macOS. Всплывающий контрольный баннер подтверждён пользователем; карточки проверены напрямую в нативном интерфейсе. Отдельные запреты notifications.read и notifications.realtime проверены через Notification API в E220; в этом нативном прогоне менялся только доступ к источнику.**
+- Файл: [notification-bell.tsx](../../apps/frontend/src/features/notification-bell/ui/notification-bell.tsx).
+
+### E224
+
+- Тип: Нативный Центр уведомлений macOS 26.5, обычный Chrome, локальные PostgreSQL, outbox и Redis.
+- Прогон: 2026-11-08. Два прогона для одного тестового менеджера при свёрнутом Chrome. Право realtime сохранялось.
+- Наблюдение: До запрета контрольная карточка появилась в Центре. При запрете чтения карточка исчезла, новое сообщение не создало уведомление и список CRM был пуст. До исправления после возврата права событие сразу появилось в CRM, но карточка macOS не появилась. После исправления фоновая проверка прав восстановила доставку без разворачивания Chrome. Новое событие, отправленное спустя 9 секунд после возврата, показалось в Центре.
+- Ограничения: **Одно окружение. Нативная доставка возобновляется после фонового обновления прав и подключения. Пользователь подтвердил всплывающий баннер за общий прогон E224–E225 без привязки к конкретному праву.**
+- Файл: [app-header.tsx](<../../apps/frontend/src/shared/ui/app-shell/app-header.tsx>).
+
+### E225
+
+- Тип: Нативный Центр уведомлений macOS 26.5, обычный Chrome, локальные PostgreSQL, outbox и Redis.
+- Прогон: 2026-11-08. Тот же тестовый менеджер, Chrome оставался свёрнутым. Право чтения сохранялось.
+- Наблюдение: При отдельном запрете realtime новое событие появилось во входящих CRM, а в Центре новых карточек не было. В первой проверке оставалась только ранее видимая карточка, которая затем исчезла. Через 7 секунд после возврата права отправлено новое сообщение. В Центре появилась только его карточка, событие из периода запрета не воспроизвелось. PostgreSQL подтвердил создание обоих уведомлений и обработку outbox.
+- Ограничения: **Одно окружение и конечное окно наблюдения. Всплывающий баннер подтверждён пользователем за общий прогон E224–E225. Системные карточки после возврата каждого права проверены отдельно.**
+- Файл: [app-header.tsx](<../../apps/frontend/src/shared/ui/app-shell/app-header.tsx>).
+
+### E226
+
+- Тип: Локальные сессии Chrome, API учредителя, PostgreSQL, Redis и WebSocket.
+- Прогон: 8 ноября 2026. Директор, заместитель директора, HR и операционный менеджер, 390×844 и 1440×900. Восемь циклов «Свои» и «Все».
+- Наблюдение: Через preview/save проверены allow, deny и default. Список, счётчик и пагинация совпали. «Все» не открывает уведомления другого получателя. Запрет чтения закрыл открытую панель, список стал пустым, а новое сообщение не создало запись для получателя. Отдельный запрет доставки оставил запись во входящих без публикации. Старый сокет не принял повторно отправленное событие после отзыва. После возврата прав новый кадр получен на том же сокете. Выбранный запрет комнаты отфильтровал связанное уведомление, другой получатель продолжил получать события.
+- Ограничения: **Один тип реального события в этом проходе. Персональные правила сохранены через API учредителя. Системные баннеры на новых ролях отдельно не измерялись. Не охвачены все базовые роли и все источники.**
+- Файл: [notifications.service.ts](<../../apps/backend/src/modules/notifications/notifications.service.ts>).
+
+### E227
+
+- Тип: Воспроизведение гонки в Chrome и интеграционный регрессионный тест с PostgreSQL.
+- Прогон: 8 ноября 2026. Исходный прогон операционного менеджера и повтор четырёх ролей после исправления.
+- Наблюдение: При быстром возврате доставки ожидающее событие периода запрета пришло в оба открытых сокета. После исправления оно осталось во входящих, но строка outbox не создаётся. PostgreSQL подтвердил это для «Свои» и «Все», уведомлений с ключом и без него. Повтор с тем же ключом после возврата права не создал outbox. Новое разрешённое событие поставлено в очередь и получено браузером.
+- Ограничения: **Проверена гонка между созданием уведомления при запрете и обработкой очереди после возврата. Независимое ревью и другие межтранзакционные окна остаются открытыми.**
+- Файл: [access-control-notification-grants.integration.test.ts](<../../apps/backend/test/access-control-notification-grants.integration.test.ts>).
+
+### E228
+
+- Тип: Локальная браузерная сессия HR и PostgreSQL.
+- Прогон: 8 ноября 2026. Окно 390×844, временный стенд.
+- Наблюдение: Отзыв входа закрыл открытую панель, поздний разрешённый ответ списка её не восстановил. Возврат входа открыл панель. Запрет отметки прочтения блокирует единичное и массовое обновление. Отзыв скрытия не изменил запись и вернул элемент в меню. Повторное скрытие после разрешения идемпотентно. Чужая запись и исходное сообщение сохранились.
+- Ограничения: **Одна роль и один тип уведомления. Ошибки при запрещённой отметке прочтения и скрытии ещё нуждаются в более точном тексте.**
+- Файл: [notifications.service.ts](<../../apps/backend/src/modules/notifications/notifications.service.ts>).
+
+### E229
+
+- Тип: Локальный Chrome, отложенный HTTP-ответ, старый и новый WebSocket.
+- Прогон: 8 ноября 2026. Роли: manager, corporate_director, deputy_founder, founder. Области «Свои» и «Все».
+- Наблюдение: Разрешённый ответ списка был удержан до отзыва права чтения и доставлен после исчезновения колокольчика. Панель не появилась снова. После возврата доставки новое событие пришло по исходному сокету и по текущему сокету интерфейса. События периода запрета и старые повторно отправленные кадры не доставлены. Прямой API комнаты с выбранным запретом вернул 403/404.
+- Ограничения: **Запуск в тестовом Chrome. Системные баннеры по этим ролям отдельно не проверялись.**
+- Файл: [app-header.tsx](<../../apps/frontend/src/shared/ui/app-shell/app-header.tsx>).
+
+### E230
+
+- Тип: Локальные Chrome, API задач, PostgreSQL и WebSocket.
+- Прогон: 8 ноября 2026. HR — получатель, директор — контрольный исполнитель. Реальное создание пяти задач.
+- Наблюдение: Разрешённое назначение создало уведомление, дошедшее до Chrome. Выбранный запрет задачи убрал её из открытой панели и закрыл прямой API, контрольная задача продолжила доставляться. Запрет чтения уведомлений исключил создание записи для HR, при сохранении записи директора. Запрет доставки оставил собственную запись без outbox. После возврата права доставилось только назначение следующей задачи.
+- Ограничения: **Реальный источник «назначение задачи» в дополнение к чату. Остальные производители не покрыты этим прогоном.**
+- Файл: [tasks.service.ts](<../../apps/backend/src/modules/tasks/tasks.service.ts>).
+
+### E231
+
+- Тип: Локальный Chrome, API учредителя, PostgreSQL и управляемая задержка запросов.
+- Прогон: 8 ноября 2026. Директор, заместитель директора, менеджер и операционный менеджер. Восемь сценариев для областей «Свои» и «Все». Размеры окна 390×844 и 1440×900.
+- Наблюдение: В открытой панели отзыв входа скрыл колокольчик. Разрешённый ответ списка, доставленный после отзыва, не восстановил панель. Запросы на отметку и скрытие удержаны до сохранения отзыва. После отправки оба вернули 404 без изменения записи. При отказе отметки показана причина для операции прочтения. При отказе скрытия строка вернулась в список. Возврат прав позволил прочитать и открыть связанный чат, затем скрыть прочитанное. Повторные прямые запросы не изменили уже записанные отметки. Чужая запись и исходное сообщение сохранились.
+- Ограничения: **Один вид реального уведомления. Персональные правила менялись через API учредителя. Проверены четыре роли в этом проходе и HR в E228. Остальные роли, источники и независимое ревью остаются открытыми.**
+- Файл: [notification-bell.tsx](<../../apps/frontend/src/features/notification-bell/ui/notification-bell.tsx>).
+
+### E232
+
+- Тип: Контроль двух причин отказа и массовой отметки в локальном Chrome.
+- Прогон: 8 ноября 2026. Директор, область «Все». Собственная запись и тестовый объект.
+- Наблюдение: При запрете кнопка «Прочитать все» вернула updated=0 и не записала прочтение. После возврата права та же кнопка записала прочтение. Для уже прочитанного уведомления удержанный запрос открытия объекта после выбранного запрета получил 403/404, и интерфейс показал «Карточка недоступна». Отметка прочтения осталась прежней. После возврата права прямой запрос объекта вернул 200.
+- Ограничения: **Одна роль и объект как отдельный контроль. Контракт массовой операции сохраняет updated=0 при запрете.**
+- Файл: [notification-bell.tsx](<../../apps/frontend/src/features/notification-bell/ui/notification-bell.tsx>).
+
+### E233
+
+- Тип: Быстрый прогон серверного расчёта доступа.
+- Прогон: 8 ноября 2026. 585 из 585 тестов, поимённый результат для всех 291 кодов.
+- Наблюдение: Проверены исходное решение, поддерживаемые и неподдерживаемые области, приоритет запрета в обоих порядках правил и восемь отключённых самостоятельных переключателей. Каталог разделён на 265 настраиваемых прав, 18 реализованных действий с ограничением персональной выдачи и 8 действий без самостоятельного права.
+- Ограничения: **Синтетические ресурсы, правила и адаптер списков. Этот прогон не подтверждает работу прикладного API, интерфейса получателя или изменения базы.**
+- Файл: [access-control-catalog-priority.test.ts](<../../apps/backend/test/access-control-catalog-priority.test.ts>).
+
+### E234
+
+- Тип: HTTP администрирования прав и изолированная PostgreSQL.
+- Прогон: 8 ноября 2026. 297 из 297 тестов, без пропусков.
+- Наблюдение: Получен каталог из 291 кода. Проверены пакетная выдача, сохранение запретов, индивидуальные предварительные проверки запрета и сброс правил. Версии и аудит сверены, повтор устаревшего сохранения получил 409. Для 26 ограниченных кодов персональные allow и deny отклонены без изменения версии, правил и аудита.
+- Ограничения: **HTTP администрирования и тестовый получатель. Фактические операции предметных разделов подтверждаются отдельными прогонами.**
+- Файл: [access-control-catalog-admin.integration.test.ts](<../../apps/backend/test/access-control-catalog-admin.integration.test.ts>).
+
+### E235
+
+- Тип: Каталог в браузере учредителя.
+- Прогон: 8 ноября 2026. Локальный Chrome 1440×900, один тестовый учредитель и получатель.
+- Наблюдение: В открытом окне сверены 291 строка по коду, 265 переключателей доступны и 26 ограниченных строк их не содержат. Получатель без права администрирования получил сообщение «Доступ закрыт» и 403 на прямом запросе каталога.
+- Ограничения: **Сверены доступность переключателя и граница раздела. Отдельное сохранение и фактический интерфейс получателя для всех 291 кодов этим наблюдением не покрыты.**
+- Файл: [user-access-dialog.tsx](<../../apps/frontend/src/features/user-access/ui/user-access-dialog.tsx>).
+
+### E236
+
+- Тип: Окно учредителя, исходные сессии получателей, прямые операции и PostgreSQL.
+- Прогон: 8 ноября 2026. Три права, область «Все», девять изменений с историей.
+- Наблюдение: Из окна учредителя сохранены allow, deny и default. У получателей проверены прямые операции без повторного входа. Табель и приход вернули 201, 403, 403. Отгрузка вернула 201, 403, 201, поскольку сброс вернул доступ по назначению. После отказов запись начисления или движения не изменилась. Проверена запись причины в истории и идентификатор автора в аудите.
+- Ограничения: **Заместитель директора и операционный менеджер. Запись у получателя вызвана прямым API из его браузерной сессии. Открытая форма, вложения и гонка между авторизацией и записью этим сценарием не подтверждены.**
+- Файл: [user-access-dialog.tsx](<../../apps/frontend/src/features/user-access/ui/user-access-dialog.tsx>).
+
+### E237
+
+- Тип: Три адресных интеграционных набора и независимое ревью источников.
+- Прогон: 8 ноября 2026. 13 из 13 по табелю, 5 из 5 по атомарности склада, 9 из 9 по отгрузке. Ревью GPT-6.1 Terra.
+- Наблюдение: Для табеля перепроверены области, закрытый период и независимое согласование прошлой суммы. Для прихода проверены откат движения, цены и аудита и один явный повтор. Для отгрузки проверены назначение, закрытый заказ, конкурентный остаток и повтор с ключом. Terra нашла, что старый тест общего отказа корректировки проверял только строки отгрузок. Проверка в тесте расширена, её новый прогон учитывается отдельно.
+- Ограничения: **Terra сверила тесты и журналы, отдельное независимое воспроизведение операций остаётся открытым. Первые журналы не фиксировали хеши источников на старте. Результаты не закрывают все роли, прикладные каналы и отзыв уже после авторизации запроса.**
+- Файл: [access-control-order-inventory.integration.test.ts](<../../apps/backend/test/access-control-order-inventory.integration.test.ts>).
+
+### E238
+
+- Тип: Локальный HTTP, изолированная PostgreSQL и адресный повтор.
+- Прогон: 8 ноября 2026. Сбой общего прогона и повтор 5 из 5 после правки.
+- Наблюдение: Выбранный запрет чтения теперь проверяется по идентификатору оборудования перед поиском при DELETE. Запрещённая существующая и запрещённая отсутствующая единица возвращают 403. Контрольная единица остаётся доступной. Выбранный запрет также блокирует поломку и списание. При отказах тест сверил единицы, движения, согласования, вложения и аудит.
+- Ограничения: **Прямой HTTP, выбранный запрет и контрольная единица. Сценарии интерфейса получателя и остальные роли этим повтором не покрыты.**
+- Файл: [access-control-equipment-atomicity.integration.test.ts](<../../apps/backend/test/access-control-equipment-atomicity.integration.test.ts>).
+
+### E239
+
+- Тип: Локальный HTTP и расширенная сверка складских эффектов в PostgreSQL.
+- Прогон: 8 ноября 2026. Повтор набора отгрузки 9 из 9 после уточнения проверки.
+- Наблюдение: Запрос общей корректировки от менеджера назначенного заказа вернул 403. Сравнение всех движений позиции, данных товара, аудита и согласований подтвердило отсутствие изменений. Ранее тест сравнивал только отгрузки.
+- Ограничения: **Один отрицательный сценарий смежного действия. Не подтверждает выдачу и работу интерфейса корректировки.**
+- Файл: [access-control-order-inventory.integration.test.ts](<../../apps/backend/test/access-control-order-inventory.integration.test.ts>).
+
+### E240
+
+- Тип: Локальный HTTP, реальная блокировка строки PostgreSQL и сохранение запрета через API учредителя.
+- Прогон: 8 ноября 2026. До исправления отгрузка вернула 201 после сохранённого запрета. Повтор после исправления прошёл в трёх схемах, 24 из 24 тестов.
+- Наблюдение: Приход и отгрузка успели авторизоваться и были остановлены блокировкой позиции. Сохранение запрета подтверждено до освобождения блокировки. После исправления оба запроса получили 403. Снимки товара, всех движений, аудита и согласований совпали. Существующий сценарий отзыва в задачах прошёл с переиспользуемой проверкой версии.
+- Ограничения: **Проверены назначенный запрет отгрузки у операционного менеджера и запрет прихода по выбранной позиции у директора. Защита действует для изменений версии прав, сохранённых через окно учредителя или его API. Любое изменение версии останавливает незавершённый запрос. Отдельно остаются снятие назначения, обратный порядок фиксации и независимое воспроизведение.**
+- Файл: [access-control-order-inventory.integration.test.ts](<../../apps/backend/test/access-control-order-inventory.integration.test.ts>).
+
+### E241
+
+- Тип: Локальный HTTP, финансовые DTO и изолированная PostgreSQL.
+- Прогон: 8 ноября 2026. Менеджер, два назначенных объекта и выбранный запрет. 6 из 6 тестов набора.
+- Наблюдение: Отзыв чтения бюджета закрывает планирование и убирает фонд из DTO начислений только в выбранном объекте. Отзыв чтения начислений закрывает его прямой маршрут. Контрольный объект продолжает возвращать фонд. После сброса доступ восстановлен в исходной сессии. Запрет чтения объекта сильнее отдельного разрешения начислений. Снимки финансовых данных и аудита не изменились.
+- Ограничения: **Один менеджер, выбранная область и два прямых маршрута. Остальные области и роли, браузер, экспорт и прочие вложенные ответы проверяются отдельно.**
+- Файл: [access-control-object-financial-grants.integration.test.ts](<../../apps/backend/test/access-control-object-financial-grants.integration.test.ts>).
+
+### E242
+
+- Тип: Локальный HTTP и PostgreSQL, разрешённая и контрольная области отгрузки.
+- Прогон: 8 ноября 2026. Директор с глобальным правом выдачи. 12 из 12 тестов повторного набора отгрузки.
+- Наблюдение: С явным правилом «Все» директор записал отгрузку в заказ без назначения. Выбранный запрет закрыл этот заказ без изменения товара, движения, аудита и согласований, сохранив запись в контрольный заказ. Правила не изменили назначения. В сочетании с адресными прогонами для назначенного менеджера подтверждены назначенная, выбранная и общая области.
+- Ограничения: **Правило «Все» подтверждено у получателя с действующей глобальной ролью. Грант сам по себе не создаёт назначение или роль.**
+- Файл: [access-control-order-inventory.integration.test.ts](<../../apps/backend/test/access-control-order-inventory.integration.test.ts>).
+
+<!-- all-rights-run-02:start -->
+## Единый локальный прогон восьми пакетов
+
+| Пакет | Позиций | Администрирование HTTP | Повтор прикладного сценария | Ограничены как самостоятельные | Прикладной результат открыт |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| P01 Вход, сессия и права учредителя | 8 | 8 | 7 | 1 | 0 |
+| P02 Склад, оборудование и ковры | 41 | 41 | 40 | 1 | 0 |
+| P03 Табель, подотчёт и согласования | 32 | 32 | 30 | 2 | 0 |
+| P04 Объекты и контрагенты | 57 | 57 | 56 | 1 | 0 |
+| P05 Разовые заказы, их календарь и ТЗ | 53 | 53 | 52 | 1 | 0 |
+| P06 Кадры и оперативное планирование | 44 | 44 | 44 | 0 | 0 |
+| P07 Задачи и рабочий стол | 22 | 22 | 21 | 1 | 0 |
+| P08 Чаты, уведомления, поиск и файлы | 34 | 34 | 33 | 1 | 0 |
+
+Интеграционные наборы: 83 из 83 без пропусков, тестов прошло 1035.
+В каталоге учредителя сверено строк: 291. Отдельные сценарии учредителя с HTTP получателя или реальные переходы получателя: 8.
+
+Для каждой позиции JSON хранит пакет, административный результат, повтор ранее поимённо привязанного сценария или причину ограничения, а также отдельный результат браузера получателя. Повтор ограниченного сценария не заменяет оставшиеся применимые К1–К7. Канонические замены для восьми отключённых переключателей указаны по коду.
+
+### E243
+
+Поимённая сверка 291 кода. Для 265 настраиваемых правил проверены индивидуальные preview запрета, пакетная выдача, запрет и сброс. Для 26 ограниченных кодов персональные allow и deny отклонены без правок версии, правил и аудита.
+
+Общий механизм администрирования. Прикладной результат, браузер получателя и покрытие К1–К7 учитываются отдельно.
+
+### E244
+
+До исправления снятие назначения могло завершиться, пока ранее авторизованная отгрузка ждала записи. После исправления раннее снятие вернуло 403 без изменения позиции, движений, аудита и согласований. Если отгрузка начала запись первой, снятие дождалось её сохранения. В журнале одно движение, повтор со старым ключом после снятия вернул 403. Если назначение снято после фиксации, но до ответа, HTTP возвращает только подтверждение.
+
+Один операционный менеджер, один открытый заказ, один HTTP-канал. Дополняет К5 и К7, не закрывает их для всех областей и ролей.
+
+### E245
+
+На экране проверены все 291 строки и 265 активных переключателей. Управление недоступно получателю без соответствующего права.
+
+Поимённая сверка видимости контролов, отдельные прикладные браузерные действия указаны в результатах прогона.
+
+### E246
+
+Подтверждённые адресные сценарии перечислены по коду в browser-founder.json. Для прямых маршрутов сверены ответ до/после правки, навигация и открытие в той же сессии. У формы отгрузки отдельно отмечены сценарии черновика с фото, безопасного повтора при потерянном ответе и подтверждения после потери доступа к сохранённому заказу.
+
+Только перечисленные роли, маршруты и утверждения. Перепроверка прямой ссылки после обновления страницы учитывается отдельно от отзыва при открытом черновике.
+
+<!-- all-rights-run-02:end -->
+
+<!-- all-rights-run-03:start -->
+## Адресная приёмка К1–К7
+
+Предыдущий прогон зачтён на совпадающем снимке исходников. Решения по критериям сверены с поимёнными журналами и независимыми замечаниями. Для восьми позиций без самостоятельного действия подтверждено ограничение, проверки замен остаются под их собственными кодами.
+
+| Пакет | Позиций | Открытых критериев | Полностью подтверждено |
+| --- | ---: | ---: | ---: |
+| P01 | 8 | 32 | 0 |
+| P02 | 41 | 256 | 0 |
+| P03 | 32 | 190 | 0 |
+| P04 | 57 | 379 | 0 |
+| P05 | 53 | 358 | 0 |
+| P06 | 44 | 299 | 0 |
+| P07 | 22 | 136 | 0 |
+| P08 | 34 | 207 | 0 |
+
+### E247
+
+Выбранные открытые экраны скрыли навигацию и данные после отзыва и восстановились после сброса права в том же документе. Адресные результаты и исключения указаны по коду.
+
+Один компактный размер, конкретные роли. Проверка после события фокуса. Другие роли, поверхности и условия рассматриваются отдельно.
+
+### E248
+
+Пройденные варианты: меню 1440 px, меню 390 px, ожидание ответа ротации перед выходом, выход при сбое проверки прав. После выхода обе cookie удалены и защищённый экран недоступен.
+
+Локальный Chrome. Тестовые сбои и задержка ответа вводились управляемым перехватом запроса.
+
+### E250
+
+Приход успел записаться. После отзыва чтения до ответа раньше возвращались данные позиции и суммы. После исправления сервер вернул только подтверждение. Сохранены одно движение, одна запись аудита и цена. Открытый Chrome показал подтверждение и закрыл данные карточки.
+
+Один сценарий отзыва после фиксации. Другие складские операции и гонки проверяются отдельно.
+
+<!-- all-rights-run-03:end -->
+
+<!-- all-rights-run-04:start -->
+## Выход в другой вкладке и отзыв во время финансовой записи
+
+Локальный адресный повтор проверил гонки ниже. Итоги других сценариев сохранены в ранее собранных доказательствах. Подтверждены указанные случаи, полные отметки по правам по-прежнему требуют остальных применимых критериев.
+
+### E251
+
+До исправления выход во второй вкладке опередил ответ первой. Обе cookie установились снова, профиль вернул 200. После исправления выход дождался ответа ротации. Обе вкладки перешли на вход, cookie отсутствуют, профиль и повтор токена ротации вернули 401. Независимая сессия того же пользователя вернула 200.
+
+Один сценарий в Chrome с Web Locks и доступным хранилищем. Отдельно остаются браузеры без этих возможностей и другие сочетания смены аккаунта.
+
+### E252
+
+После сохранения выбранного запрета в исходной сессии сумма и заявка вернули 403. Не появилось новых месяцев, строк, ячеек, исключений, заявок или аудита. Закрытие периода до записи также оставило таблицы без новых строк. После восстановления новая отправка создала ровно одну ячейку или одну заявку.
+
+Прямая корректировка суммы и создание исключения. Другие роли, принятие решения по заявке и отзыв чтения после фиксации ответа остаются отдельными критериями.
+
+### E253
+
+В финальном тесте PostgreSQL подтвердил ожидание запроса на строке счёта и сохранение запрета до освобождения блокировки. После этого все четыре запроса вернули 403. Счета, проводки, ссылки сторно, расходы, заявки и аудит остались без изменений. После восстановления отдельная отправка применила одну операцию. Для решений по расходу отзывалось родительское право на выбранный счёт.
+
+Прямые операции. Общие маршруты согласования, закрытие подотчёта и ответ при отзыве чтения после записи проверяются отдельно.
+
+<!-- all-rights-run-04:end -->
+
+<!-- all-rights-run-05:start -->
+## Отзыв после финансовой записи, до ответа
+
+### E254
+
+До исправления прямое чтение вернуло 403, но ответ сохранения содержал табель с суммами и строками. После исправления ответ 201 содержал только подтверждение. В Chrome появилось «Корректировка сохранена», карточка закрылась. После повторного входа карточка не появилась. База сохранила ровно одну корректировку.
+
+Проверена прямая запись суммы на выбранном объекте. Возврат уже сформированного ответа из сетевого буфера и решение по заявке требуют отдельной проверки.
+
+### E255
+
+До исправления прямое чтение вернуло 403, но ответ сохранения содержал сумму, источник, комментарий и другие данные. После исправления ответ 201 содержал только подтверждение. В Chrome появилось «Поступление сохранено», карточка закрылась и при повторном открытии данные не появились. База сохранила ровно одно поступление.
+
+Проверено поступление без файла. Отдельная отправка вложения и поздний ответ из сетевого буфера требуют собственной проверки.
+
+### E256
+
+Каждая операция уже была записана при отзыве. Все четыре HTTP-ответа содержали только подтверждение с кодом 200 или 201. Для решений применён запрет доступа к выбранному счёту. Модульные проверки покрыли обычный ответ, отзыв до и во время подготовки ответа, запрещённое чтение и сбой проверки версии прав.
+
+Для этих четырёх операций подтверждены HTTP и состояние базы. Браузерное закрытие карточки подтверждено отдельно для записи суммы и свободного прихода в E254–E255.
+
+<!-- all-rights-run-05:end -->
+
+<!-- all-rights-run-06:start -->
+## Задержанный финансовый ответ и доступ к учётной записи
+
+### E257
+
+До исправления поздний успешный ответ не давал подтверждения. После исправления вкладка показала «Корректировка сохранена» и не восстановила закрытую карточку. В ответе, сформированном до отзыва, были данные табеля. В интерфейс они не вернулись. Прямое чтение вернуло 403. Один POST, одна сохранённая корректировка.
+
+Проверено после получения вкладкой новой версии прав. Сценарий не доказывает немедленное обнаружение отзыва без обновления версии.
+
+### E258
+
+После доставки ответа браузер подтвердил сохранение денег и отдельно сообщил, что файлы не прикреплены. Карточка и её данные не вернулись, прямое чтение вернуло 403. Браузер отправил ровно один POST записи и ни одного POST загрузки. В базе осталось одно поступление.
+
+Один синтетический файл, одна роль. Отзыв во время уже начатой загрузки и отмена только файлового права остаются самостоятельными сценариями.
+
+### E259
+
+Подтверждено в Chrome для следующих действий — заявка на корректировку, сторно, подтверждение расхода, отклонение расхода. Показан успех, закрытая карточка не восстановилась, в базе одна запись. Повторной отправки не было.
+
+Проверены перечисленные кнопки и роли. Остальные сочетания областей, ролей и каналов оцениваются отдельно.
+
+### E260
+
+Для доступа к учётной записи, входа, профиля и обновления сессии проверен результат после каждого сохранения учредителем. Allow разрешает, deny возвращает 401, default удаляет персональное правило и возвращает исходный результат. Проверки own/all и приоритета из E52 зачтены. Для решения разрешить или отказать четыре действия используют базовое разрешение активного пользователя без особой ветки по роли.
+
+Подтверждает К1. Открытые формы, гонки выдачи cookie и каналы после отзыва проверяются отдельно.
+
+### E261
+
+До исправления HTTP возвращал 401, но новое соединение открывалось, а уже открытое получало новое сообщение. После исправления подключение запрещено, старое соединение не получило сообщение. Контрольный участник получил его, а после сброса правила доставка возобновилась на исходном соединении.
+
+Проверена фактическая доставка сообщений. Остальные каналы, например доставка уведомлений ОС при отзыве всего аккаунта, требуют своих доказательств.
+
+<!-- all-rights-run-06:end -->
+
+<!-- all-rights-run-07:start -->
+## Отзыв полномочий при предпросмотре и выдаче сессии
+
+### E262
+
+При отзыве оба диалога закрылись. Прямая ссылка осталась закрыта, каталог, карточка, история, предпросмотр и сохранение вернули 403. Контрольный учредитель сохранил доступ. После сброса старые предпросмотры вернули 409 без изменения версии получателя. Новый предпросмотр и явное сохранение прошли. Задержанный ответ по управлению не вернул закрытую форму.
+
+Проверены два учредителя, один размер окна и перечисленные маршруты. Задержанный ответ проверен для users_access.manage. У уже выданных предпросмотров без версии учредителя потребуется повторная проверка.
+
+### E263
+
+До исправления вход и ротация возвращали 201 с двумя новыми cookie и новой сессией. После исправления в обоих порядках получен 401 без новых cookie. При запрете до записи новая строка не создана, после фиксации новая сессия отозвана. Повтор исходного refresh-токена после возврата права вернул 401. Явный новый вход и обновление после возврата прошли.
+
+Барьер стоял до финальной серверной проверки, до отправки заголовков. Уже отправленные Set-Cookie требуют собственных доказательств. Одновременные ротации проверены отдельно в E265.
+
+### E264
+
+До исправления ответ содержал старый профиль и возвращал 200. После фиксации запрета запрос вернул 401 без профиля. В открытой вкладке данные рабочего стола скрылись при обновлении. После сброса права действие «Проверить доступ» вернуло 200 и восстановило интерфейс.
+
+Один пользователь и один размер окна. Готовый 200, уже отправленный до отзыва, и открытые порталы требуют отдельного адресного повтора.
+
+### E265
+
+Один запрос вернул 201 и две новые cookie. Другой вернул 401 без новых cookie. В базе создан ровно один активный преемник исходного токена.
+
+Проверена серверная ротация одного токена. Порядок cookie в общем хранилище двух вкладок остаётся отдельным критерием.
+
+### E266
+
+PostgreSQL подтвердил ожидание блокировки. Отзыв вернул 201, ожидающее сохранение вернуло 409. Версия получателя, аудит и отметка использования предпросмотра остались прежними. Тот же результат был в этом сценарии до добавления явной блокировки строки учредителя.
+
+Подтверждён один порядок ожидания с отзывом управления. Этот прогон не устанавливает, что обход воспроизводился до усиления проверки.
+
+<!-- all-rights-run-07:end -->
+
+<!-- all-rights-run-08:start -->
+## Отозванные права и уже отправленные ответы в двух вкладках
+
+### E267
+
+До исправления вкладка A сохраняла старый интерфейс. После исправления соседняя вкладка запрашивает актуальный профиль без повторного фокуса, поздний ответ не возвращает поиск или скрытый рабочий стол.
+
+Один пользователь в Chrome с межвкладочным каналом. Реакция начинается, когда одна из вкладок получила новый результат. Ответ со старыми данными был уже отправлен и доставлен, но не принят интерфейсом.
+
+### E268
+
+До исправления запоздавшая cookie позволяла обновить сессию после сброса запрета. После исправления Chrome всё ещё устанавливает уже отправленную cookie, но повтор токена после сброса возвращает 401. Действующий access-токен сохраняет доступ при отдельном запрете обновления.
+
+Проверена задержанная ротация при auth.refresh. Отдельный ответ входа, смена аккаунта и иные браузеры требуют собственных доказательств.
+
+### E269
+
+До исправления отзыв завершился с 201, но оставил новую активную сессию. После сброса права её токен вернул 201. После исправления первый отзыв получил 409 из-за конкурирующей записи. Новый предпросмотр и сохранение отозвали токен. Активных сессий не осталось, после возврата права повтор токена вернул 401.
+
+Проверен один конкурентный порядок. При конфликте учредителю нужно заново проверить и сохранить запрет.
+
+<!-- all-rights-run-08:end -->
+
+<!-- all-rights-run-09:start -->
+## Задержанный вход и проверка прав без межвкладочного канала
+
+### E270
+
+До исправления при запрете учётной записи форма успевала перейти на рабочий стол. После исправления в обоих сценариях контрольное подтверждение вернуло 401. Форма осталась открытой, cookie отклонённой попытки удалены, повтор её refresh после восстановления права вернул 401. При запрете только входа ранее открытая независимая сессия того же пользователя сохраняла доступ. После сброса ручной вход прошёл.
+
+Задержан исходный POST формы. Уже сформированный ответ контрольного подтверждения и скопированный до очистки access-токен не проверялись.
+
+### E271
+
+Поиск скрылся в обеих вкладках в двух режимах. Задержанный профиль его не вернул. При заблокированном хранилище после возврата права поиск снова появился в обеих вкладках, ошибок страницы не зафиксировано.
+
+Проверено одно право в видимых вкладках. В скрытой вкладке проверка выполняется после возврата к ней. Пять секунд задают интервал запуска, время ответа зависит от сети и браузера.
+
+<!-- all-rights-run-09:end -->
+
+<!-- all-rights-run-10:start -->
+## Адресный проход P01 и P03
+
+### E272
+
+До исправления старое подтверждение открывало рабочий стол. После исправления повторная проверка получила 401, форма осталась на входе, cookie попытки удалены.
+
+Сигнал получен через BroadcastChannel. Задержка подтверждения при недоступном канале и смене аккаунта остаётся отдельной границей.
+
+### E273
+
+Обе вкладки перешли на вход, А сделала это до доставки старого профиля. После доставки интерфейс не восстановился. Общие cookie удалены, независимая сессия сохранила 200.
+
+Web Locks доступны. Этот результат не покрывает одновременную ротацию и выход в браузере без Web Locks.
+
+### E274
+
+До исправления выдача проходила после отзыва. Теперь отзыв права выдачи до записи даёт 403 и понятную причину, проводка и аудит не появляются. При отзыве доступа к счёту после записи ответ содержит только подтверждение. Показан успех, форма скрылась, в базе одна проводка и одна запись аудита. После возврата права сумма пуста, отправка выключена, второй проводки нет.
+
+Один счёт и выбранная область. Другие области и роли учитываются отдельно.
+
+### E275
+
+Для проверенных кодов диалог закрылся, заявка осталась читаемой и ожидающей решения. После возврата старый диалог не открывался сам. Ручное действие завершило заявку. Проверенные коды — approvals.cancel, approvals.resolve_accountability, approvals.resolve_task_result, approvals.resolve_object_change, approvals.resolve_inventory_exception, approvals.resolve_timesheet.
+
+Один размер окна. Отмена проверена через штатное сохранение правила. Для ограниченных типов решения использован локальный тестовый legacy-запрет, поскольку каталог не разрешает выдавать эти переключатели.
+
+### Критерии, закрытые без повторного прогона
+
+Независимо пересмотрены уже принятые доказательства P03. Закрыты 12 критериев по 11 правам. Остальные применимые критерии остаются открытыми.
+
+| Право | Критерий | Зачтённые доказательства |
+| --- | --- | --- |
+| `timesheet.amount.edit` | K3 | [E03](#e03), [E62](#e62), [E123](#e123), [E252](#e252), [E254](#e254) |
+| `timesheet.amount.edit` | K5 | [E20](#e20), [E22](#e22), [E133](#e133), [E252](#e252), [E257](#e257) |
+| `timesheet.exceptions.create` | K3 | [E03](#e03), [E62](#e62), [E156](#e156), [E252](#e252), [E256](#e256) |
+| `accountability.expenses.create` | K3 | [E70](#e70), [E152](#e152) |
+| `accountability.expenses.update` | K3 | [E70](#e70), [E152](#e152) |
+| `accountability.expenses.submit` | K3 | [E70](#e70), [E152](#e152) |
+| `accountability.expenses.approve` | K3 | [E70](#e70), [E152](#e152), [E253](#e253), [E256](#e256) |
+| `accountability.expenses.reject` | K3 | [E70](#e70), [E152](#e152), [E253](#e253), [E256](#e256) |
+| `accountability.closure.request` | K3 | [E70](#e70), [E152](#e152) |
+| `accountability.closure.approve` | K3 | [E70](#e70), [E152](#e152) |
+| `accountability.closure.reject` | K3 | [E70](#e70), [E152](#e152) |
+| `approvals.cancel` | K3 | [E61](#e61), [E153](#e153) |
+
+<!-- all-rights-run-10:end -->
+
+<!-- all-rights-run-11:start -->
+## Первая партия из 300 критериев
+
+Сверены оставшиеся критерии P01 и P03 и 94 критерия по складу и разовым заказам. Зачтённые сценарии не повторялись.
+
+| Пакет | В партии | Закрыто | Добавлено частичное доказательство | Осталось без нового доказательства |
+| --- | ---: | ---: | ---: | ---: |
+| P01 | 28 | 8 | 0 | 20 |
+| P03 | 178 | 7 | 2 | 169 |
+| P02 | 67 | 6 | 5 | 56 |
+| P05 | 27 | 3 | 3 | 21 |
+| Итого | 300 | 24 | 10 | 266 |
+
+Полностью принятых прав — 0. Подтверждено 168 применимых критериев во всей матрице.
+
+### E276
+
+Список пользователей, справочник объектов, итоговые права и назначения получателя дают 403 после отзыва. У второго учредителя все четыре ответа 200. Профиль первого остаётся доступным. После возврата все четыре маршрута снова дают 200.
+
+Прямой API. Открытые окна и старые ответы редактора учитываются отдельно по К4 и К5.
+
+### E277
+
+До исправления получен 200, заявка отменена и появился аудит. После исправления получен 403, заявка осталась ожидающей, записей аудита нет. После возврата права отдельный запрос отменил заявку, аудит один.
+
+Один вид заявки и один порядок отзыва. Гонка с решением согласующего, задержанный ответ очереди и реальный браузерный диалог остаются отдельными сценариями.
+
+### E278
+
+До исправления получен 201, созданы заказ и аудит. После исправления получен 403, заказов и аудита нет. После возврата права отдельный запрос с прежним идентификатором создал один заказ и один аудит.
+
+В этом сценарии проверены заказ и аудит. Для полноты остаются проверки связанных событий, заявленные области и поведение открытой формы.
+
+### E279
+
+До исправления возврат и списание возвращали полный DTO после отзыва. После исправления оба ответа 201 содержат только saved_without_access. В базе по одному движению.
+
+Два общих маршрута создания движения. Реакция открытых форм, повтор после восстановления, доставка уведомлений и варианты связанных ресурсов учитываются отдельно.
+
+| Право | Критерий | Доказательства |
+| --- | --- | --- |
+| `users_access.access` | K1 | [E01](#e01), [E27](#e27), [E243](#e243), [E262](#e262) |
+| `users_access.access` | K2 | [E01](#e01), [E27](#e27), [E262](#e262) |
+| `users_access.access` | K3 | [E01](#e01), [E149](#e149), [E262](#e262) |
+| `users_access.access` | K6 | [E01](#e01), [E27](#e27), [E149](#e149), [E262](#e262) |
+| `users_access.manage` | K1 | [E01](#e01), [E27](#e27), [E243](#e243), [E262](#e262) |
+| `users_access.manage` | K6 | [E01](#e01), [E24](#e24), [E27](#e27), [E262](#e262), [E276](#e276) |
+| `auth.login` | K6 | [E52](#e52), [E150](#e150), [E270](#e270) |
+| `auth.refresh` | K6 | [E52](#e52), [E150](#e150), [E268](#e268) |
+| `approvals.read` | K3 | [E13](#e13), [E61](#e61), [E153](#e153), [E154](#e154) |
+| `timesheet.read` | K3 | [E62](#e62), [E79](#e79), [E156](#e156) |
+| `timesheet.overview` | K3 | [E62](#e62), [E79](#e79), [E156](#e156) |
+| `timesheet.corrections.read` | K3 | [E62](#e62), [E79](#e79), [E156](#e156) |
+| `accountability.review` | K3 | [E70](#e70), [E152](#e152) |
+| `accountability.order_summary.read` | K3 | [E19](#e19), [E21](#e21), [E70](#e70), [E152](#e152) |
+| `accountability.issue_cash` | K5 | [E70](#e70), [E152](#e152), [E274](#e274) |
+| `inventory.read` | K3 | [E57](#e57), [E75](#e75), [E102](#e102), [E120](#e120) |
+| `inventory.receipt` | K3 | [E57](#e57), [E59](#e59), [E120](#e120), [E240](#e240), [E250](#e250) |
+| `inventory.issue_to_object` | K3 | [E57](#e57), [E75](#e75), [E87](#e87), [E120](#e120) |
+| `inventory.issue_to_one_time_order` | K3 | [E14](#e14), [E57](#e57), [E87](#e87), [E120](#e120), [E240](#e240), [E242](#e242), [E244](#e244) |
+| `inventory.movement.correct` | K3 | [E86](#e86), [E92](#e92), [E98](#e98), [E121](#e121) |
+| `inventory.references.read` | K3 | [E98](#e98), [E121](#e121) |
+| `one_time_orders.access` | K3 | [E73](#e73), [E172](#e172) |
+| `one_time_orders.read` | K3 | [E72](#e72), [E73](#e73), [E172](#e172) |
+| `one_time_orders.inventory.read` | K3 | [E65](#e65), [E131](#e131) |
+
+<!-- all-rights-run-11:end -->
+
+<!-- all-rights-run-12:start -->
+## Продолжение первой партии
+
+Проверены недостающие области доступа на независимых ресурсах. Ранее подтверждённые критерии сохранены.
+
+| Пакет | В остатке до проверки | Закрыто | Новое частичное доказательство | Открыто |
+| --- | ---: | ---: | ---: | ---: |
+| P01 | 20 | 1 | 2 | 19 |
+| P03 | 171 | 2 | 5 | 169 |
+| P02 | 61 | 5 | 0 | 56 |
+| P05 | 24 | 3 | 0 | 21 |
+| Итого | 276 | 11 | 7 | 265 |
+
+### E280
+
+Доступ, чтение и складская вкладка вернули 403 только для целевого заказа. Контроль сохранил 200. Списки исключили заказ до подсчёта. Сброс восстановил чтение, назначения совпали со снимком. Общий запрет отдельно заблокировал все складские вкладки.
+
+К2 объединяет этот результат с прежними проверками выбранной и общей области. Браузерные формы и каналы доставки учитываются отдельно.
+
+### E281
+
+Право раздела открыло пустой реестр без права чтения позиций. Общее право движения вернуло записи двух позиций. Выдача и возврат создали по движению на каждом ресурсе, списание сохранило оба движения в ожидании. Назначения не изменились.
+
+Зачтены конкретные разрешённые области и контроли. Конкурирующие операции, отклонение списания и открытые формы проверяются отдельно.
+
+### E282
+
+Оба маршрута заблокировали ровно выбранную по области запись. Общий запрет истории заблокировал все три. Сброс восстановил ответы 200. Снимок назначений не изменился.
+
+Корневое право само не добавляет чтение чужого объекта. Для истории исправлений остаются положительные сценарии с содержимым записи у получателя без широкой роли.
+
+### E283
+
+Раздел сам не раскрыл заявки. После добавления отдельного чтения A открылась, Б осталась скрыта. В гонке отмена вернула 200, отклонение 409, сохранены единственный конечный статус и один аудит.
+
+Гонка покрывает одну задачу и один порядок завершения. Другие виды заявок и порядок, в котором первым сохраняется решение, остаются открытыми.
+
+### E284
+
+До исправления оба запроса завершали заявку. После исправления оба вернули 403. Снимки задачи, заявки и аудита совпали. После возврата права отдельные запросы завершили заявку, по одному аудиту решения.
+
+Доказательство относится к заявкам по задачам и отзыву до записи. Другие источники, поздние ответы после фиксации и открытые диалоги учитываются отдельно.
+
+### E285
+
+Предпросмотр вернул 403, права и версия последнего учредителя сохранились. В гонке сохранилось ровно одно правило. Вторая сессия сохранила управление, версия её прав не изменилась.
+
+Предпросмотр и запись проверены напрямую. Открытая карточка с устаревшим предпросмотром учитывается отдельно.
+
+### E286
+
+Обе вкладки перешли на форму входа, старый сеанс вернул 401. Независимый получатель остался доступен, после возврата права явный вход прошёл.
+
+Сценарий не удерживал ранее сформированный ответ и не проверял доставку уведомлений.
+
+| Право | Критерий | Новое доказательство | Результат |
+| --- | --- | --- | --- |
+| `one_time_orders.access` | K2 | [E280](#e280) | Подтв. |
+| `one_time_orders.read` | K2 | [E280](#e280) | Подтв. |
+| `one_time_orders.inventory.read` | K2 | [E280](#e280) | Подтв. |
+| `inventory.access` | K2 | [E281](#e281) | Подтв. |
+| `inventory.movements.read` | K2 | [E281](#e281) | Подтв. |
+| `inventory.issue_to_object` | K2 | [E281](#e281) | Подтв. |
+| `inventory.return` | K2 | [E281](#e281) | Подтв. |
+| `inventory.writeoff` | K2 | [E281](#e281) | Подтв. |
+| `timesheet.access` | K2 | [E282](#e282) | Подтв. |
+| `timesheet.corrections.read` | K2 | [E282](#e282) | Частично |
+| `approvals.access` | K2 | [E283](#e283) | Подтв. |
+| `approvals.access` | K7 | [E284](#e284) | Частично |
+| `approvals.resolve_task_result` | K5 | [E284](#e284) | Частично |
+| `approvals.resolve_task_result` | K7 | [E284](#e284) | Частично |
+| `approvals.cancel` | K7 | [E283](#e283) | Частично |
+| `auth.access` | K4 | [E286](#e286) | Частично |
+| `auth.access` | K5 | [E286](#e286) | Частично |
+| `users_access.access` | K7 | [E285](#e285) | Подтв. |
+
+<!-- all-rights-run-12:end -->
+
+<!-- all-rights-run-13:start -->
+## Отзыв права при сохранении решения
+
+### E287
+
+До исправления все три ответа раскрывали данные заявки, хотя прямое чтение уже возвращало 404. После исправления каждый ответ 200 содержит только saved_without_access. Конечный статус и один аудит сохранены. В Chrome при подтверждении показано сообщение об успехе, карточка закрыта, запрос отправлен один раз.
+
+Три операции для одного семейства заявок. Браузерный сценарий проведён для подтверждения. Отклонение и отмена проверены напрямую через API.
+
+### E288
+
+В проверенных сценариях прямая отправка вернула 403, заявка осталась ожидающей. Свежая очередь скрыла кнопку и диалог. Старый ответ их не вернул.
+
+Для права решения использован тестовый совместимый запрет. Панель учредителя не выдаёт новые полномочия ограниченного согласующего.
+
+В этом проходе закрыто критериев — 2. Остаток первой партии — 263.
+
+<!-- all-rights-run-13:end -->
+
+## Области чтения исправлений табеля
+
+### E289
+
+Свои добавили исправление созданного получателем объекта. Назначенные оставили только назначенный объект. Все открыли три объекта. Проверены сумма, причина и автор каждой видимой записи. Исправления и назначения в базе совпали со снимком.
+
+Область выбранных и вычитающие запреты подтверждены отдельными E62, E79 и E282. Проверка не включает браузерное представление истории.
+
+## Общий проход К1–К7. Начало серверных проверок
+
+Сгруппированы 1 803 открытых ячейки. В этом проходе выполнены новые локальные проверки К1–К2 и зачтены точные сохранённые доказательства К3.
+
+| Критерий | Закрыто | Осталось |
+| --- | ---: | ---: |
+| K1 | 12 | 261 |
+| K2 | 2 | 195 |
+| K3 | 20 | 201 |
+| K4 | 0 | 282 |
+| K5 | 0 | 273 |
+| K6 | 0 | 278 |
+| K7 | 0 | 279 |
+
+### E290
+
+60 сочетаний права и роли. Разрешения на варианты рабочего стола открыли нужные маршруты. Корневые разрешения не добавили роль или вариант. Запрет дал 403, сброс вернул исходные маршруты, включая операционного менеджера.
+
+Проверены базовые ролевые группы из глоссария с одной ролью. Персональные сочетания ролей и расширенная вложенная проекция данных учитываются отдельно.
+
+### E291
+
+30 сочетаний права и роли. Разрешение сохранило штатный поиск. Запрет выключал точный маршрут, а запрет раздела — оба маршрута. После сброса исходные ответы вернулись. Контрольные запросы не раскрыли источники.
+
+К2 относится к области all самого раздела. Доступы к конкретным источникам и наполнение результатов проверяются отдельно.
+
+### E292
+
+Обе области открыли список и справочник без строк. Прямые карточки A и Б остались закрыты. После сброса исходные запреты восстановились. Записи контрагентов не изменились.
+
+Выборочный запрет A с видимым контролем Б подтверждён прежним E49. Это доказательство не подменяет отдельное право чтения.
+
+### E293
+
+30 сочетаний права и роли. Исходные, разрешённые и восстановленные операции вернули 201. Запрет дал 404 без изменения записи. Чужое уведомление оставалось закрытым. При запрете раздела уведомление исчезало из списка. Новых записей доставки по этим действиям нет.
+
+Использованы уведомления без связанного источника. Действующие зависимости источников и доставка в реальном времени учитываются отдельно.
+
+### E294
+
+Прямые проверки десяти действий раздела сверены с сохранённым успешным прогоном. Зачтены раздельные проверки карточек, списков, истории, записи, связей, аудита и склада.
+
+К3 охватывает проверенные ответы и прямые эффекты маршрутов. Интерфейс, конкурентный отзыв и связанные каналы учитываются отдельно.
+
+### E295
+
+Для указанных кодов точные утверждения о DTO, состоянии и истории в E90 дополнены снимками уведомлений и outbox из E101, E127 и E132 в пределах проверенных действий. E126 подтверждает список, карточку и историю.
+
+Вывод относится к прямому API и наблюдаемым эффектам. Полная доставка, браузерные состояния и все конкурентные порядки учтены отдельно.
+
+| Право | Критерий | Доказательства |
+| --- | --- | --- |
+| `dashboard.access` | K1 | [E47](#e47), [E243](#e243), [E290](#e290) |
+| `dashboard.view` | K1 | [E47](#e47), [E243](#e243), [E290](#e290) |
+| `dashboard.leadership.view` | K1 | [E47](#e47), [E243](#e243), [E290](#e290) |
+| `dashboard.manager.view` | K1 | [E47](#e47), [E243](#e243), [E290](#e290) |
+| `dashboard.hr.view` | K1 | [E47](#e47), [E243](#e243), [E290](#e290) |
+| `dashboard.operations.view` | K1 | [E47](#e47), [E243](#e243), [E290](#e290) |
+| `search.access` | K1 | [E46](#e46), [E243](#e243), [E291](#e291) |
+| `search.query` | K1 | [E46](#e46), [E243](#e243), [E291](#e291) |
+| `search.recent` | K1 | [E46](#e46), [E243](#e243), [E291](#e291) |
+| `search.access` | K2 | [E46](#e46), [E200](#e200), [E291](#e291) |
+| `counterparties.access` | K2 | [E49](#e49), [E292](#e292) |
+| `notifications.access` | K1 | [E45](#e45), [E231](#e231), [E243](#e243), [E293](#e293) |
+| `notifications.mark_read` | K1 | [E45](#e45), [E231](#e231), [E243](#e243), [E293](#e293) |
+| `notifications.dismiss` | K1 | [E45](#e45), [E231](#e231), [E243](#e243), [E293](#e293) |
+| `counterparties.access` | K3 | [E49](#e49), [E294](#e294) |
+| `counterparties.read` | K3 | [E49](#e49), [E294](#e294) |
+| `counterparties.create` | K3 | [E49](#e49), [E36](#e36), [E294](#e294) |
+| `counterparties.update` | K3 | [E49](#e49), [E36](#e36), [E294](#e294) |
+| `counterparties.archive` | K3 | [E49](#e49), [E36](#e36), [E294](#e294) |
+| `counterparties.restore` | K3 | [E49](#e49), [E294](#e294) |
+| `counterparties.history` | K3 | [E49](#e49), [E294](#e294) |
+| `counterparties.objects.link` | K3 | [E49](#e49), [E36](#e36), [E294](#e294) |
+| `counterparties.master_object.manage` | K3 | [E49](#e49), [E294](#e294) |
+| `counterparties.inventory.read` | K3 | [E49](#e49), [E294](#e294) |
+| `tasks.access` | K3 | [E90](#e90), [E101](#e101), [E126](#e126), [E132](#e132), [E295](#e295) |
+| `tasks.read` | K3 | [E90](#e90), [E101](#e101), [E126](#e126), [E132](#e132), [E295](#e295) |
+| `tasks.history` | K3 | [E90](#e90), [E126](#e126), [E132](#e132), [E295](#e295) |
+| `tasks.update` | K3 | [E90](#e90), [E127](#e127), [E295](#e295) |
+| `tasks.assignees.manage` | K3 | [E90](#e90), [E127](#e127), [E295](#e295) |
+| `tasks.result.submit` | K3 | [E90](#e90), [E132](#e132), [E295](#e295) |
+| `tasks.completion.draft` | K3 | [E90](#e90), [E132](#e132), [E295](#e295) |
+| `tasks.completion.submit` | K3 | [E90](#e90), [E132](#e132), [E295](#e295) |
+| `tasks.completion.undo` | K3 | [E90](#e90), [E127](#e127), [E295](#e295) |
+| `tasks.cancel` | K3 | [E90](#e90), [E127](#e127), [E295](#e295) |
+
+## Ролевой прогон чтения склада, заказов и контрагентов
+
+Пройдено 80 из 80 ролевых сценариев. Закрыто 8 критериев К1.
+
+### E296
+
+Общий доступ раздела не добавил чтение позиции. Разрешение чтения открыло карточку, разрешение движений открыло журнал при сохранённом родителе. Запрет дал отказ, сброс восстановил исходный ответ роли.
+
+Зачтены указанные маршруты и базовые роли. Интерфейс, состояния открытых форм, другие типы связей и гонки учитываются отдельно.
+
+### E297
+
+Раздел не добавил чтение чужого заказа. Разрешение на чтение открыло чужую карточку. Разрешение складской вкладки само не открыло скрытый заказ. Запрет закрыл целевой маршрут, сброс вернул исходную видимость. Назначения сохранились.
+
+Зачтены указанные маршруты и базовые роли. Интерфейс, состояния открытых форм, другие типы связей и гонки учитываются отдельно.
+
+### E298
+
+Корневой доступ не добавил чтение карточки. Право чтения открыло карточку роли без исходного допуска. Запрет закрыл прямую карточку, сброс вернул исходное поведение.
+
+Зачтены указанные маршруты и базовые роли. Интерфейс, состояния открытых форм, другие типы связей и гонки учитываются отдельно.
+
+## Базовые и комбинированные роли в задачах
+
+Пройдено 60 из 60 ролевых сценариев. Закрыто 4 критериев К1.
+
+### E299
+
+Проверены выдача, запрет и сброс через учредителя. Разрешение чтения открыло чужую задачу, права раздела и истории сами не дали чтение. Запрет создания не добавил запись. Деактивация закрыла прямые запросы в старой сессии.
+
+Зачтены указанные маршруты и базовые роли. Интерфейс, состояния открытых форм, другие типы связей и гонки учитываются отдельно.
+
+## Контрагенты. Ролевой прогон и отзыв при записи
+
+Закрыто 9 критериев. Для 11 добавлены частичные доказательства.
+
+### E300
+
+Явное разрешение открывает действие при разрешённых родителях. Запрет даёт 403, запрещённая операция не меняет записи и аудит. Сброс возвращает исходное поведение. Успешная операция сохраняет одно ожидаемое изменение и аудит.
+
+Браузер и другие порядки конкурентных операций учитываются отдельно.
+
+### E301
+
+До исправления отозванные запросы возвращали 200/201 и DTO карточки. После исправления отзыв до записи возвращает 403 и сохраняет снимок. Отзыв после фиксации возвращает только saved_without_access и оставляет одну запись аудита действия.
+
+Точные порядки отзыва подтверждены через HTTP и БД. Браузер отдельно подтверждает только свои сценарии.
+
+### E302
+
+Создание показало подтверждение без имени и формы. Запрос отправлен один раз. Редактирование показало подтверждение без карточки. Запрос отправлен один раз. Черновик остался в форме с причиной запрета и отключённой отправкой. Возврат права не вызвал автоматической отправки, одно ручное нажатие сохранило изменение.
+
+Засчитаны только прошедшие браузерные сценарии. Отдельные диалоги архива и связей этим прогоном не покрыты.
+
+### E303
+
+Разрешённое чтение вернуло точные идентификаторы, страницы и количество. Запрет дал 403. После сброса вернулись исходные ответы. История и движение остались без изменений.
+
+В каждом случае был доступен связанный объект. Отдельные запреты источников и браузер учтены в других критериях.
+
+## Последствия создания разового заказа
+
+### E304
+
+403 сохранил ноль заказов, аудита, уведомлений и системных сообщений. Явный повтор создал один заказ, одно назначение, один пункт ТЗ, один аудит, уведомления без дубликатов получателей, запись очереди для менеджера и два сообщения в нужных комнатах. Повтор вернул прежний ID без новых записей. Изменённый повтор вернул 409.
+
+Подтверждены прямой ответ и сохранённые эффекты, включая очередь. Фактическая доставка, поздний ответ и другие конкурентные порядки проверяются отдельно.
+
+## Запись на складе и в разовых заказах
+
+Закрыто 27 критериев. Новые частичные доказательства добавлены в 17 ячеек.
+
+| Критерий | Закрыто |
+| --- | ---: |
+| K1 | 12 |
+| K2 | 6 |
+| K3 | 9 |
+
+### E305
+
+Восемь складских прав. Успешные действия сохранили ожидаемое движение или номенклатуру и аудит. Отказ оставил снимок без изменений.
+
+Проверены базовые роли и сочетание HR с директором. Родительские права чтения заданы отдельно. Интерфейс и сроки доставки событий учитываются отдельно.
+
+### E306
+
+Четыре права записи заказов. Проверены создание, редактирование, комментарий и дневной отчёт. Отказ сохранил снимок. Сброс вернул базовое ролевое поведение.
+
+Проверены базовые роли и сочетание HR с директором. Родительские права чтения заданы отдельно. Интерфейс и сроки доставки событий учитываются отдельно.
+
+### E307
+
+Явный запрет вычел только целевую область. На своём и назначенном ресурсах сохранились применимые действия, разрешение own или assigned не открыло чужой заказ. Правило не создало назначения.
+
+Области selected и all дополнены зачтённым E73. Браузерное редактирование в этом сценарии не проверялось.
+
+### E308
+
+Положительные операции прошли на двух самостоятельных позициях. Мягкое удаление сохранило историю. Корректировка увеличила или уменьшила остаток на одну единицу с сохранённой ценой.
+
+Выбранные области и контроль B дополняются E57. Это не конкурентная проверка.
+
+### E309
+
+До исправления запись прошла после отзыва. После исправления получен 403, снимок сохранился. После возврата права отдельный запрос сохранил одно изменение и один аудит.
+
+Доказан отзыв до записи. Открытые формы, поздний ответ после фиксации и прочие порядки гонок остаются отдельными.
+
+### E310
+
+До исправления запись прошла после отзыва. После исправления получен 403, снимок сохранился. После возврата права отдельный запрос сохранил одно изменение и один аудит.
+
+Доказан отзыв до записи. Открытые формы, поздний ответ после фиксации и прочие порядки гонок остаются отдельными.
+
+### E311
+
+Запись номенклатуры, движения, цены, остатки, аудит и ожидающее списание подтверждены по применимым операциям. Искусственный сбой откатил записи. Ручной повтор добавил одно изменение и аудит.
+
+Поведение интерфейса, доставка и конкурирующие жизненные циклы не входят в этот прямой результат.
+
+### E312
+
+При сбое поля заказа, комментарии, дневные отчёты, аудит и связанные уведомления сохранили исходный снимок. Ручной повтор записал ровно ожидаемое действие. Редактирование также добавило уведомление и запись очереди для назначенного менеджера.
+
+Подтверждена запись в очередь. Фактическая доставка, задержанные успешные ответы и все конкурирующие порядки остаются отдельно.
+
+## Кампания К1–К7. Номенклатура и начало проверки движений
+
+Из 1 720 открытых ячеек закрыто 16. Всего подтверждён 281 критерий, применимых открытых осталось 1704. Четыре права номенклатуры приняты по К1–К7.
+
+### E313
+
+Четыре открытые формы или подтверждения, отзыв, возврат права, ручная отправка. 390×844 и 1440×900. Прямая ссылка #edit при отдельном запрете. Черновики создания и редактирования сохранились. Подтверждения удаления и восстановления пришлось открыть заново. После возврата права зафиксированы один запрос и один аудит на действие. Прямая ссылка показала причину отказа и не открыла редактор.
+
+Проверены четыре отдельные операции в Chrome и положительные точки входа в формы. Другие браузерные движки в этот прогон не входили.
+
+### E314
+
+Учредитель отзывает чтение после фиксации, до формирования ответа; четыре операции, включая физическое удаление в API и архивирование в Chrome. До исправления создание и редактирование возвращали карточку. После исправления все четыре ответа вернули saved_without_access. Chrome показал успех без карточки. По одному запросу и одному аудиту. Дополнительно удержаны уже сформированный полный ответ редактирования и чтение архивированной карточки. Оба оставили только подтверждение.
+
+Задержка уже сформированного полного ответа проверена на редактировании и следующем чтении при мягком удалении. Остальные операции используют тот же механизм отбрасывания просроченного ответа.
+
+### E315
+
+Директор, запрет чтения на четырёх позициях, незапрещённая контрольная позиция и реальные движения. Карточка, список, архив, история, глобальный и недавний поиск скрыли запрещённые позиции. После исправления складская сводка исключила четыре позиции и пять движений. Движения и аудит сохранились в базе. Контроль остался видим.
+
+Проверен запрет чтения самой позиции. Отдельный запрет истории при доступной карточке, состав её агрегатов и права на вложения движений требуют отдельной сверки.
+
+### E316
+
+Параллельный дубль создания, конфликт версий редактирования, повтор физического и мягкого удаления, конкурирующий приход, конфликт имени и повтор восстановления. Создание сохранило одну позицию, редактирование и восстановление сменили версию один раз. Проверены аудит и сохранность движений. Удаление с ненулевым остатком отклонено. В проверенном порядке конкурирующее удаление выиграло и приход ничего не записал.
+
+Для удаления остаются обратный порядок с выигравшим движением и устаревшее подтверждение после изменения версии. В отчёте конкуренция за тот же ресурс проверена только в названных сценариях.
+
+### E317
+
+HR с отдельным правом прихода, реальный PNG и повтор прикрепления после отказа. Движение записалось. При запрете загрузки интерфейс объяснил, что записано и почему файл остался в форме. Ручной повтор не создал второе движение, в базе ноль вложений.
+
+Один получатель и один тип файла. Отдельное право на фото, остальные роли и доставка связанных уведомлений в этот сценарий не входят.
+
+### E318
+
+Синтетические движения шести видов. Выборочный запрет на исходную позицию, контрольная позиция и проверка связанных маршрутов. Общий журнал и сводка скрыли запись во всех шести сценариях, исходное движение и аудит сохранены. До исправления история объекта продолжала показывать выдачу и возврат. После исправления история объекта и списки выбора в объекте и разовом заказе исключили запрещённые данные, сохранив контроль.
+
+Проверен доступ к движению через чтение позиции. Отдельные права на вложения, согласования, уведомления и поздние ответы этих экранов остаются в объёме соответствующих строк.
+
+### E319
+
+Приход выигрывает обратный порядок гонки. В браузере подтверждение удаления открыто, затем в другой сессии меняется версия. Приход вернул 201. Удаление вернуло 409 и не оставило аудита. Для устаревшего подтверждения получен 409 с понятной причиной, карточка сохранилась. Другой порядок, физическое и мягкое удаление уже проверены в E316.
+
+Защита версии действует при передаче версии, как это делает экран CRM. Совместимый прямой вызов без версии проверяет актуальное состояние под блокировкой.
+
+### E320
+
+Пять локальных позиций, четыре прошли создание, редактирование, архивирование или восстановление. У движений проверены список вложений, карточка файла и реальные байты PNG. Повтор адресно проверил выдачу счётчиков. При запрете позиции либо её истории ссылки на фото закрываются, контрольное фото по-прежнему скачивается. При запрете истории счётчики исключены из карточки и реестра. При запрете связанного объекта и заказа число видимых движений в журнале, карточке и каталоге изменилось с 3 до 2 и 1 при прежнем остатке 5. Сохранены состояние позиции, история в БД и контроль. Вывод согласован с независимой проверкой.
+
+Остаток и цена относятся к чтению карточки. Признаки блокировки удаления остаются рабочей частью карточки. Отдельная выдача права прикреплять фото и уведомления по операциям движения принимаются по собственным строкам.
+
+## Разбор применимости всех оставшихся критериев
+
+Разобраны 1 704 открытые ячейки. По прежним доказательствам зачтена одна. На параметризованные проверки отнесены 506, на адресные сценарии — 1 197. Новых полностью неприменимых ячеек нет. Убраны 139 неприменимых подпроверок из 93 ячеек. Первый общий HTTP-прогон закрыл три критерия. Подтверждено 285, открыто 1 700.
+
+### E321
+
+E270 показывает отказ на форме входа в Chrome, отсутствие перехода в CRM и явное восстановление. E286 показывает результат запрета корневого права в реальной сессии на 1440×900 и 390×844, 401 у прежней сессии и 200 у контрольной. Право действует на вход и оболочку. У него нет отдельной формы с длинным названием ресурса.
+
+Зачтён К4 корневого права. Прикладные права входа, профиля и обновления сессии имеют самостоятельные строки. Сценарии задержки, межвкладочной доставки и гонок остаются в собственных критериях.
+
+### E322
+
+Два складских права, десять отдельных ролей и два сочетания. Один ранее принятый случай справочника менеджера зачтён по E98. Прочие сочетания выполнены через API и отдельные сессии получателей. До исправления менеджер без права на отчёт получил складскую сводку прямым запросом. После исправления без права возвращаются нулевые итоги, без раскрытия количества, движения или стоимости. Явное разрешение открыло данные, запрет и сброс восстановили положенное по роли. Для обоих справочников запрет дал 403, выдача не расширила доступ к источникам. Родительский запрет доминировал. Снимок номенклатуры, движений и назначений не изменился.
+
+Проверены указанные комбинации и прямые HTTP-результаты. К2 отчётов объединяет прежний выборочный сценарий E57 и новое явное разрешение «Все». К2 справочников уже принят. Остальные критерии этих двух прав не изменены.
+
+## Общий прогон. Чтение оборудования и каталог ковров
+
+Для 503 ячеек собраны кандидаты маршрутов и явные привязки. Новый локальный прогон закрыл 10 критериев. Осталось 1690, из них 494 в общем плане. Статическая привязка сама по себе не даёт зачёта.
+
+### E323
+
+Четыре права, десять отдельных ролей и два сочетания. Проверены наследуемый доступ, явные разрешение и запрет, родительский запрет и сброс. Для оборудования проверены реестр, прямая карточка, история и каталог; для ковров — каталог размеров. У явного права истории раньше был ответ 200 с пустым журналом. После исправления право показывает движения без связи с объектом или заказом, выбранное разрешение показывает только целевую единицу, а чужое движение, связанное с объектом, остаётся закрытым. Выборочный запрет у директора сохраняет контрольную единицу. Снимки доменных данных и назначений совпали.
+
+Сценарии чтения подтверждают К1 и К2. Для связанных событий сохраняется отдельная область объекта или заказа. Полная матрица вложений и побочных каналов проверяется в других критериях.
+
+### E324
+
+Раздельное право каталога, выбранное право чтения одной единицы, отрицательные прямые запросы к каталогу, закрытой единице и истории стоимости. Каталог оборудования раньше раскрывал число закрытых единиц. После исправления счётчик показывает 0 без чтения и 1 при выбранном разрешении из двух фактических единиц. Сверены поля моделей и размеров. Каталоги при запрете дают 403. Склад, ковры, роли, назначения, аудит, уведомления и outbox сохранили снимок.
+
+Проверены DTO двух каталогов и фактические эффекты этих GET. Обработка прикреплённых файлов и самостоятельные права на изменение модели или размера учитываются отдельно.
+
+## Общий прогон. Чтение объектов, заказов и ковров
+
+Из 494 ячеек общего плана зачтено 20. Осталось 474 в общем плане и 1670 во всей матрице. Для остальных точка входа и пробел остаются в журнале кампании.
+
+### E325
+
+Десять отдельных ролей и два сочетания. Проверены разрешение, запрет, сброс, приоритет родительского запрета и заявленные области. Четыре права чтения объекта. Контакт, комментарий, отчёт и запись прибытия сверены по ID и содержимому. Родительский запрет вернул 404 для контактов и 403 для остальных маршрутов. Проверены «Свои», «Назначенные», «Выбранные» и «Все» на трёх объектах. Назначения совпали со снимком.
+
+К1 и К2 указанных действий. Прикладной сценарий проверяет названные маршруты и данные; интерфейс, поздние ответы, вложенные и событийные каналы учитываются отдельно.
+
+### E326
+
+Десять отдельных ролей и два сочетания. Проверены разрешение, запрет, сброс, приоритет родительского запрета и заявленные области. Четыре права чтения разового заказа. Комментарий, отчёт, запись фото и пункт ТЗ сверены по ID и содержимому. Раздельно проверены роль, родительский запрет, явное разрешение и сброс. Области проверены на своём, назначенном и чужом заказах. Назначения совпали со снимком.
+
+К1 и К2 указанных действий. Прикладной сценарий проверяет названные маршруты и данные; интерфейс, поздние ответы, вложенные и событийные каналы учитываются отдельно.
+
+### E327
+
+Десять отдельных ролей и два сочетания. Проверены разрешение, запрет, сброс, приоритет родительского запрета и заявленные области. Реестр ковров и карточки трёх объектов сверены по идентификаторам и количеству. Выдача корня сохраняет самостоятельность права чтения. Запреты вычитают нужную область, контроль остаётся видим. Сверены четыре области, назначения и количество ковров.
+
+К1 и К2 указанных действий. Прикладной сценарий проверяет названные маршруты и данные; интерфейс, поздние ответы, вложенные и событийные каналы учитываются отдельно.
+
+## Общий прогон. Календарь, замещения и корневые права склада
+
+Из 474 открытых ячеек зачтено 33. В общем плане осталась 441, во всей матрице 1637.
+
+### E328
+
+Для календаря проверены десять отдельных ролей и два сочетания. Области с незакрытым К2 проверены на собственном пользователе и двух отдельных получателях. Запись проверена отдельными данными на каждую попытку. Список, прямая фильтрация и справочник показали точные видимые записи. Причина отсутствия раскрывается только с соответствующим правом. Успешные операции изменили ровно целевую запись и сохранили по одному аудиту. Запрет оставил исходную запись, уведомления, очередь и назначения без изменений. Для чужой записи сценарий создания проверен без приватной причины, которая требует отдельного права.
+
+Зачтены только указанные в журнале критерии. Три области у прав чтения, для которых К2 уже был подтверждён, повторно не прогонялись. Браузер и поздние ответы относятся к отдельным критериям.
+
+### E329
+
+Проверены корень и чтение замещений на десяти ролях и двух сочетаниях. Есть собственная запись, замещение в роли заместителя, чужая запись и запись с двумя объектами. Выдача корня сама не открыла чужое замещение. Для чтения выборочное разрешение открыло запись только в пределах разрешённого объекта и исключило запись с дополнительным объектом. Проверены запрет, сброс, контрольные записи, неизменность ролей, связей и назначений.
+
+Подтверждены К1–К2 указанных действий. Запись замещения, отзыв во время записи и открытый интерфейс остаются самостоятельными сценариями.
+
+### E330
+
+Вход в оборудование проверен на десяти ролях и двух сочетаниях. Для корня склада выполнен адресный сценарий по К3. Выдача корня отдельно от права чтения не открыла карточки. Независимое чтение открыло две позиции. Выборочный запрет скрыл целевую позицию и сохранил контрольную, глобальный запрет закрыл доступ. Складские и инвентарные записи, аудит, уведомления и outbox совпали со снимком.
+
+Проверены прямые реестры и карточки. Зачтённые К1 и К2 склада не изменялись.
+
+### E331
+
+Два права на двенадцати ролевых сочетаниях, три плана и три владельца. Проверены прямой маршрут, справочник менеджеров, разрешение, запрет, сброс и родительский запрет. Чтение сверено по ID плана и тексту отчёта. Выдача корня сама не открыла чужой план. Отдельная выдача чтения открыла целевой план и допустимую строку справочника. Контрольный пользователь остался за пределами выбранного разрешения. Выдача чтения не дала права управления. Записи планов, роли и назначения совпали со снимком.
+
+Зачтены К1–К2 для входа и чтения. Право управлять планом и живой интерфейс проверяются отдельно.
+
+### E332
+
+Учредитель выдал и отозвал правила «Свои», «Выбранные» и «Все» на трёх планах с разными владельцами. visit_plans.reports.manage/K2 подтверждено. visit_plans.history/K2 подтверждено.
+
+Зачтены только перечисленные критерии. Проверки браузера, открытой сессии и гонок не входят в этот прогон.
+
+### E333
+
+Учредитель выдал и отозвал правила двенадцати ролевым сочетаниям. Сверены ответы и состояние БД. visit_plans.reports.manage/K1 подтверждено. visit_plans.reports.manage/K3 подтверждено. visit_plans.history/K1 подтверждено. visit_plans.history/K3 подтверждено.
+
+Зачтены только перечисленные критерии. Проверки браузера, открытой сессии и гонок не входят в этот прогон.
+
+### E334
+
+Двенадцать сочетаний ролей. Прямой маршрут истории возвращал только ожидаемую запись или 404. Проверены запреты на карточку объекта и весь раздел, а также все четыре области. objects.history/K1 подтверждено. objects.history/K2 подтверждено.
+
+Зачтены только перечисленные критерии. Проверки браузера, открытой сессии и гонок не входят в этот прогон.
+
+### E335
+
+На двенадцати сочетаниях ролей учредитель выдавал и отзывал правила, получатели запрашивали прямые маршруты. Проверены собственные, назначенные и контрольные записи. objects.inventory.read/K1 подтверждено. objects.inventory.read/K2 подтверждено. objects.inventory.read/K3 подтверждено. objects.equipment.read/K1 подтверждено. objects.equipment.read/K2 подтверждено. objects.equipment.read/K3 подтверждено. objects.linked_orders.read/K1 подтверждено. objects.linked_orders.read/K2 подтверждено. objects.linked_orders.read/K3 подтверждено. one_time_orders.history/K1 подтверждено. one_time_orders.history/K2 подтверждено. one_time_orders.history/K3 подтверждено.
+
+Проверены только перечисленные критерии. Браузер, открытая сессия, конкурентные записи и вложенные права требуют собственных доказательств.
+
+### E336
+
+На двенадцати сочетаниях ролей учредитель выдавал и отзывал правила, получатели проверяли возможность отметить визит и вызывали прямой маршрут записи. Сверены собственный, выбранный и контрольный планы. visit_plans.visits.manage/K1 подтверждено. visit_plans.visits.manage/K2 подтверждено. visit_plans.visits.manage/K3 подтверждено.
+
+Проверены только перечисленные критерии. Браузер, открытая сессия, конкурентные записи и вложенные права требуют собственных доказательств.
+
+### E337
+
+На двенадцати сочетаниях ролей учредитель выдавал и отзывал правила, получатели запрашивали прямые маршруты. Сверены карточки, списки и фактические изменения в БД. candidates.access/K1 подтверждено. candidates.access/K2 подтверждено. candidates.access/K3 подтверждено. candidates.view/K1 подтверждено. candidates.view/K2 подтверждено. candidates.view/K3 подтверждено. candidates.manage/K1 подтверждено. candidates.manage/K2 подтверждено. candidates.update/K1 подтверждено. candidates.update/K3 подтверждено. employees.access/K1 подтверждено. employees.access/K2 подтверждено. employees.access/K3 подтверждено. employees.view/K1 подтверждено. employees.view/K2 подтверждено. employees.view/K3 подтверждено. employees.edit/K1 подтверждено. employees.edit/K2 подтверждено. employees.edit/K3 подтверждено.
+
+Проверены только перечисленные критерии. Браузер, открытая сессия, конкурентные записи и вложенные права требуют собственных доказательств.
+
+### E338
+
+На двенадцати сочетаниях ролей учредитель выдавал и отзывал правила, получатели запрашивали прямые маршруты. Проверены две комнаты участника и закрытая контрольная комната, списки сообщений, прямые ссылки и поиск. chat.access/K1 подтверждено. chat.access/K2 подтверждено. chat.read/K2 подтверждено. chat.search/K1 подтверждено. chat.search/K2 подтверждено. chat.messages.read/K1 подтверждено. chat.messages.read/K2 подтверждено. chat.access/K3 дополнено, остаётся открытым. chat.search/K3 дополнено, остаётся открытым. chat.messages.read/K3 дополнено, остаётся открытым.
+
+Проверены только перечисленные критерии. Браузер, открытая сессия, конкурентные записи и вложенные права требуют собственных доказательств.
+
+### E339
+
+На двенадцати сочетаниях ролей учредитель выдавал и отзывал правила, получатели запрашивали прямые маршруты. Проверены две комнаты участника и закрытая контрольная комната, списки сообщений, прямые ссылки и поиск. chat.read/K1 подтверждено. chat.read/K3 дополнено, остаётся открытым.
+
+Проверены только перечисленные критерии. Браузер, открытая сессия, конкурентные записи и вложенные права требуют собственных доказательств.
+
+### E340
+
+Двенадцать сочетаний ролей. На прямых маршрутах каталога и шаблонов ТЗ проверены штатные ограничения и эффект уже сохранённых правил. Неподдерживаемая выдача этих правил в редакторе здесь не повторялась. specification_catalog.read/K1 подтверждено. specification_catalog.read/K3 подтверждено. specification_catalog.create/K1 подтверждено. specification_catalog.create/K3 подтверждено. specification_catalog.update/K1 подтверждено. specification_catalog.update/K3 подтверждено. specification_catalog.archive/K1 подтверждено. specification_catalog.archive/K3 подтверждено.
+
+Проверены только перечисленные критерии. Браузер, открытая сессия, конкурентные записи и вложенные права требуют собственных доказательств.
+
+### E341
+
+Двенадцать сочетаний ролей. На прямых маршрутах каталога и шаблонов ТЗ проверены штатные ограничения и эффект уже сохранённых правил. Неподдерживаемая выдача этих правил в редакторе здесь не повторялась. specification_catalog.access/K1 подтверждено. specification_catalog.access/K3 подтверждено.
+
+Проверены только перечисленные критерии. Браузер, открытая сессия, конкурентные записи и вложенные права требуют собственных доказательств.
+
+### E342
+
+На двенадцати сочетаниях ролей учредитель выдавал и отзывал правила, получатели запрашивали прямые маршруты. Проверены собственные, назначенные и контрольные записи. objects.access/K1 подтверждено. objects.access/K2 подтверждено. objects.access/K3 подтверждено. objects.read/K1 подтверждено. objects.read/K2 подтверждено. objects.read/K3 подтверждено. objects.view_hr/K1 подтверждено. objects.view_hr/K2 подтверждено. objects.view_hr/K3 подтверждено.
+
+Проверены только перечисленные критерии. Браузер, открытая сессия, конкурентные записи и вложенные права требуют собственных доказательств.
+
+### E343
+
+На двенадцати сочетаниях ролей учредитель выдавал и отзывал правила, получатели запрашивали прямые маршруты. Сверены собственный, выбранный и контрольный менеджеры, фактическая выгрузка и отсутствие эффектов чтения. one_time_order_calendar.access/K1 подтверждено. one_time_order_calendar.access/K2 подтверждено. one_time_order_calendar.access/K3 подтверждено. one_time_order_calendar.read/K1 подтверждено. one_time_order_calendar.read/K2 подтверждено. one_time_order_calendar.read/K3 подтверждено. one_time_order_calendar.export/K1 подтверждено. one_time_order_calendar.export/K2 подтверждено. one_time_order_calendar.export/K3 подтверждено.
+
+Проверены только перечисленные критерии. Браузер, открытая сессия, конкурентные записи и вложенные права требуют собственных доказательств.
+
+### Конфликт имени шаблона ТЗ
+
+Создание и переименование в занятое имя возвращают 409 с кодом `SPECIFICATION_TEMPLATE_NAME_CONFLICT`. Локально сверены неизменность имени, версии, состава и аудита, успешный повтор под свободным именем и отдельный ответ для устаревшей версии. Добавлен отдельный интеграционный тест.
+
+### E344
+
+На двенадцати сочетаниях ролей учредитель выдавал и отзывал правила, получатели запрашивали прямые маршруты. Сверены поля финансовых проекций и вложенного аудита на собственном, назначенном и контрольном объектах. objects.budget.read/K1 подтверждено. objects.budget.read/K2 подтверждено. objects.contract_amount.read/K1 подтверждено. objects.contract_amount.read/K2 подтверждено. objects.contract_amount.read/K3 подтверждено.
+
+Проверены только перечисленные критерии. Браузер, открытая сессия, конкурентные записи и вложенные права требуют собственных доказательств.
+
+### E345
+
+На двенадцати сочетаниях ролей учредитель выдавал и отзывал правила, получатели запрашивали прямые маршруты. Сверены поля финансовых проекций и вложенного аудита на собственном, назначенном и контрольном объектах. objects.rates.read/K1 подтверждено. objects.rates.read/K2 подтверждено.
+
+Проверены только перечисленные критерии. Браузер, открытая сессия, конкурентные записи и вложенные права требуют собственных доказательств.
+
+Чтение карточки чужого объекта больше не раскрывает ставки через историю. Явное разрешение на ставки проверено отдельно. Для К3 зачтены наблюдения по карточке, каталогу ставок и истории. Остальные проекции остаются открытыми.
+
+В Chrome при размере окна 1280 × 800 сообщение о занятом имени видно рядом с полем. Черновик с названием и выбранными пунктами остаётся в форме. После ввода свободного имени сохранение проходит.
+
+### E346
+
+На двенадцати сочетаниях ролей учредитель выдавал и отзывал правила, получатели запрашивали прямые маршруты. Сверены собственный, назначенный и контрольный заказ. Для выгрузки проверено содержимое полученного файла. one_time_orders.employees.read/K1 подтверждено. one_time_orders.employees.read/K2 подтверждено. one_time_orders.employees.read/K3 подтверждено. one_time_orders.attendance.read/K1 подтверждено. one_time_orders.attendance.read/K2 подтверждено. one_time_orders.attendance.read/K3 подтверждено. one_time_orders.timesheet.read/K1 подтверждено. one_time_orders.timesheet.read/K2 подтверждено. one_time_orders.timesheet.read/K3 подтверждено. one_time_orders.timesheet.export/K1 подтверждено. one_time_orders.timesheet.export/K2 подтверждено. one_time_orders.timesheet.export/K3 подтверждено. one_time_orders.equipment.read/K1 подтверждено. one_time_orders.equipment.read/K2 подтверждено. one_time_orders.equipment.read/K3 подтверждено.
+
+Проверены только перечисленные критерии. Браузер, открытая сессия, конкурентные записи и вложенные права требуют собственных доказательств.
+
+### E347
+
+На двенадцати сочетаниях ролей учредитель выдавал и отзывал правила, получатели запрашивали прямые маршруты. Сверены собственный, назначенный и контрольный заказ. Сверены реальные денежные поля и отдельные подотчётные записи. Разрешение на выплаты не открывает чужой подотчёт. one_time_orders.payouts.read/K1 подтверждено. one_time_orders.payouts.read/K2 подтверждено. one_time_orders.payouts.read/K3 подтверждено.
+
+Проверены только перечисленные критерии. Браузер, открытая сессия, конкурентные записи и вложенные права требуют собственных доказательств.
+
+### E348
+
+На двенадцати сочетаниях ролей учредитель выдавал и отзывал правила, получатели запрашивали прямые маршруты. Сверены собственный, назначенный и контрольный заказ. Сверены реальные денежные поля и отдельные подотчётные записи. Разрешение на выплаты не открывает чужой подотчёт. one_time_orders.finance.read/K1 подтверждено. one_time_orders.finance.read/K2 подтверждено. one_time_orders.finance.read/K3 подтверждено.
+
+Проверены только перечисленные критерии. Браузер, открытая сессия, конкурентные записи и вложенные права требуют собственных доказательств.
+
+Список оборудования разового заказа теперь учитывает выданный персональный доступ к заказу. Запрет на оборудование или чтение заказа закрывает прямой маршрут.
+
+### E349
+
+Учредитель через preview/save менял правила, двенадцать сочетаний ролей запрашивали состав, реальные выходы и графики. Для всех ролей пройдены own/assigned/selected/all, scoped parent deny и запрет раздела. Исправлен воспроизведённый обход objects.read deny через GET objects/:id/employees. Восемь регрессионных unit-проверок подтверждают parent read/access deny и доступ к контрольному объекту. objects.staffing.read/K1 подтверждено. objects.staffing.read/K2 подтверждено. objects.attendance.read/K1 подтверждено. objects.attendance.read/K2 подтверждено. objects.attendance.read/K3 подтверждено. objects.schedules.read/K1 подтверждено. objects.schedules.read/K2 подтверждено. objects.schedules.read/K3 подтверждено.
+
+Зачтены только перечисленные К1–К3. К3 staffing оставлен частичным: независимый выбор сотрудника для подмены через employee-directory требует отдельного адресного прогона, его действующий контракт не сужался. К4–К7, браузер, поздние ответы и конкурентные записи этим прогоном не закрываются.
+
+### E350
+
+На двенадцати сочетаниях ролей получатели выбирали сотрудника для подмены через employee-directory: длинное ФИО, поиск без учёта регистра, активные/архивные/удалённые записи, недоступность, действующая подмена только своего объекта. Сверены скрытие ставок, parent/module deny и контроль отсутствия побочных эффектов. Дополняет E349 без повтора зачтённых К1/К2. objects.staffing.read/K3 подтверждено.
+
+Самостоятельный выбор подмены в доступном объекте сохраняется при запрете чтения состава. Это не выдача кадрового управления. Проверены только чтение и его DTO/состояние; К4–К7 и создание самой подмены не закрываются.
+
+### E351
+
+На двенадцати сочетаниях ролей учредитель менял персональные правила через preview/save. Получатели создавали размеры без цены, меняли стоимость и количество по текущим версиям, читали фактическую историю стоимости и количества. Проверены allow/deny/default и запрет раздела для незачтённых К1, все заявленные области К2, запрет чтения объекта и ковров, отдельная глобальная история стоимости. При отказе снимки БД не менялись. При разрешённой записи сверены версия, сумма/количество, один авторский исторический эффект и сохранность контрольных данных. mats.catalog.create/K1 подтверждено. mats.catalog.create/K2 подтверждено. mats.cost.edit/K2 подтверждено. mats.quantity.edit/K1 подтверждено. mats.quantity.edit/K2 подтверждено. mats.history/K1 подтверждено. mats.history/K2 подтверждено.
+
+К1/К3 стоимости и К3 создания размера/количества уже зачтены раньше и не перезачитывались. Глобальная история стоимости не наследует объектные области own/assigned/selected; запрет all блокирует обе истории. К4–К7, браузер, гонки и файлы этим пакетом не закрываются. Изменение бизнес-правил не выполнялось.
+
+
+Уточнение E351 по независимому ревью: К3 истории остаётся частичным до проверки прежнего поштучного маршрута и дополнения полного DTO двух агрегатных историй.
+
+### E352
+
+На manager воспроизведён возврат заметки/автора регистрации в чужом объекте и полей чужой стороны перемещения через старый маршрут. После исправления двенадцать сочетаний ролей прошли точное сравнение полного DTO старой истории, истории количеств и истории стоимости, 404 для несвязанного ковра, запреты объекта/mats.read/history/access и родителя каталога. Четыре регрессионных unit-сценария прошли. Снимки исходных событий и количеств, назначений, денежных записей, аудита и уведомлений не менялись. mats.history/K3 подтверждено.
+
+Дополняет E351 и закрывает только оставшийся К3. Старая запись регистрации выдаётся лишь в истории связанного с ней объекта; чужие поля стороны перемещения скрываются. Общая заметка события, связанного с доступным объектом, сохраняется, её свободный текст не подвергается смысловому переписыванию. К4–К7 не закрываются.
+
+### E353
+
+Для двенадцати сочетаний ролей учредитель менял правила через preview/save. Получатели создавали и удаляли пустые типы оборудования, создавали единицы и удаляли неиспользованные единицы. Для каждого права выполнены default/allow/deny/default, конфликт leaf allow с запретом equipment.access, глобальная область all. Для удаления единицы проверены selected/all на двух независимых ресурсах. При отказе снимки доменных данных не менялись, успешные операции дали ожидаемую запись и одно аудиторское событие. equipment.catalog.create/K1 подтверждено. equipment.catalog.create/K2 подтверждено. equipment.catalog.delete/K1 подтверждено. equipment.catalog.delete/K2 подтверждено. equipment.unit.create/K1 подтверждено. equipment.unit.create/K2 подтверждено. equipment.unit.delete/K1 подтверждено. equipment.unit.delete/K2 подтверждено.
+
+Зачтены восемь указанных К1/К2. Прежние К3 каталога и создания единицы не повторялись. equipment.read=allow использовался как независимое условие чтения создаваемой карточки, а не как выдача проверяемого права. Полнота К3 удаления принимается только отдельным дополнением E354 после независимых замечаний. К4–К7 не закрываются.
+
+### E354
+
+Двенадцать сочетаний ролей выполнили разрешённое удаление двух неиспользованных единиц. Сверены полный ответ, физическое отсутствие удалённой единицы, полные oldValues одного аудиторского события, сохранность всех прежних событий (включая событие другого автора), полная контрольная запись и остальные единицы. Проверены 409 для истории движений, назначения на объект, назначения на разовый заказ и статуса вне склада; 403 при selected и all запрете equipment.read; 404 отсутствующей единицы. Во всех отказах снимки состояния совпали. equipment.unit.delete/K3 подтверждено.
+
+Дополнение к E353, только оставшийся К3 удаления. К1/К2 оборудования, ранее зачтённые К3 других действий, К4–К7 и гонки не перезачитывались. Проверка локальная HTTP/БД, не браузерная приёмка. Новых дефектов приложения не обнаружено; исправлены ошибки подготовки тестового сценария.
+
+### E355
+
+Двенадцать сочетаний ролей получали персональные правила через founder preview/save. Выполнены оставшиеся чтения и движения оборудования, выдачи склада, исправление и подтверждение без фото с сохранением director-only круга. Реальные HTTP и PostgreSQL сверяли разрешение, запрет, default, заявленные области и контрольные ресурсы. Не повторялись ранее принятые критерии. equipment.history/K3 подтверждено. equipment.read/K3 подтверждено. equipment.assign_object/K1 подтверждено. equipment.assign_object/K2 подтверждено. equipment.assign_order/K1 подтверждено. equipment.assign_order/K2 подтверждено. equipment.return/K1 подтверждено. equipment.return/K2 подтверждено. equipment.broken/K1 подтверждено. equipment.broken/K2 подтверждено. equipment.broken/K3 подтверждено. equipment.repair/K1 подтверждено. equipment.repair/K2 подтверждено. equipment.repair/K3 подтверждено. equipment.repair_return/K1 подтверждено. equipment.repair_return/K2 подтверждено. equipment.repair_return/K3 подтверждено. equipment.lost/K1 подтверждено. equipment.lost/K2 подтверждено. equipment.writeoff/K1 подтверждено. equipment.writeoff/K2 подтверждено. inventory.issue_to_object/K1 подтверждено. inventory.issue_to_one_time_order/K1 подтверждено. inventory.movement.correct/K1 подтверждено. inventory.resolve_missing_photo/K1 подтверждено. inventory.resolve_missing_photo/K2 подтверждено. inventory.resolve_missing_photo/K3 подтверждено.
+
+Зачтены только перечисленные открытые ячейки по адресным операциям сценариев equipment/inventory. Каналы файлов и браузерные К4 не приравниваются к этим API доказательствам; они проверяются отдельно. К5–К7 этим пакетом не закрываются.
+
+### E356
+
+До истечения тестовой сессии выполнены29 открытых критериев чатов и задач. Все29 имеют полноценные12 ролевых результатов с реальными HTTP, областями, контрольными ресурсами, DTO и сохранённым состоянием. Частично выполненные ячейки с401 не зачитывались. Общий закрывающий прогон продолжится после продления тестовых сессий. chat.access/K3 подтверждено. chat.read/K3 подтверждено. chat.search/K3 подтверждено. chat.room.direct/K1 подтверждено. chat.room.direct/K2 подтверждено. chat.room.direct/K3 подтверждено. chat.room.group/K1 подтверждено. chat.room.group/K3 подтверждено. chat.room.update/K1 подтверждено. chat.room.update/K2 подтверждено. chat.room.update/K3 подтверждено. chat.room.manage_members/K1 подтверждено. chat.room.manage_members/K2 подтверждено. chat.room.manage_members/K3 подтверждено. chat.room.hide/K1 подтверждено. chat.room.hide/K2 подтверждено. chat.room.hide/K3 подтверждено. chat.room.unhide/K1 подтверждено. chat.room.unhide/K2 подтверждено. chat.room.unhide/K3 подтверждено. chat.room.leave/K1 подтверждено. chat.room.leave/K2 подтверждено. chat.room.leave/K3 подтверждено. tasks.update/K1 подтверждено. tasks.update/K2 подтверждено. tasks.assignees.manage/K1 подтверждено. tasks.assignees.manage/K2 подтверждено. tasks.result.submit/K1 подтверждено. tasks.result.submit/K2 подтверждено.
+
+Зачтены только полностью завершённые строки. Промежуточные результаты до отказа и незавершённые роли не принимаются. Начальные версии исполнителей сохранены в campaign-initial.mjs и campaign-finance-initial.mjs, контрольные суммы — initial-runner-versions.json. Глобальное закрытие чата и ячейки с истёкшей сессией остаются открытыми.
+
+
+### Уточнение независимого ревью run-52
+
+В E355 для `inventory.resolve_missing_photo/K3` требуется дополнение DTO и контрольного движения. В E356 для `chat.room.manage_members/K1–K3` требуется независимый DELETE-отказ, области и сохранность состава. Эти четыре ячейки возвращены в «Частично», прежние адресные доказательства сохранены. Повторяются только недостающие проверки.
+
+### E357
+
+Реальные HTTP и сохранённое состояние по каждому перечисленному критерию, 12 сочетаний канонических ролей. Независимое ревью Terra: приняты завершённые K1/K3; частичные и упавшие сценарии не засчитываются. employees.attendance.read/K1 подтверждено. employees.attendance.read/K3 подтверждено. candidates.manage/K3 подтверждено. candidates.status/K1 подтверждено. candidates.archive/K1 подтверждено. candidates.archive/K3 подтверждено. candidates.restore/K1 подтверждено. candidates.restore/K3 подтверждено. candidates.respond/K1 подтверждено. candidates.respond/K3 подтверждено. candidates.convert_employee/K1 подтверждено. candidates.convert_employee/K3 подтверждено. candidates.denied/K3 подтверждено. employees.create/K1 подтверждено. employees.create/K3 подтверждено. employees.archive/K1 подтверждено. employees.archive/K3 подтверждено. employees.restore/K1 подтверждено. employees.restore/K3 подтверждено. employees.delete_permanently/K1 подтверждено. employees.delete_permanently/K3 подтверждено. employees.assignments.manage/K1 подтверждено. employees.assignments.manage/K3 подтверждено. employees.assignments.delete_as_error/K1 подтверждено. employees.assignments.delete_as_error/K3 подтверждено. employees.availability.manage/K1 подтверждено. employees.availability.manage/K3 подтверждено. employees.substitutions.manage/K1 подтверждено. employees.substitutions.manage/K3 подтверждено. employees.documents.edit/K1 подтверждено. employees.documents.edit/K3 подтверждено.
+
+Снимки ограничены отслеживаемыми кадровыми, табельными, аудиторскими и уведомительными графами. K2 ждут отдельного снимка до/после сохранения персонального правила. candidates.restore/assigned требует уточнения применимости. candidates.denied — системный legacy-запрет; выдача и снятие через новое окно не заявляются.
+
+### E358
+
+Пять адресных перепроверок после исправления тестовых ожиданий прошли. По12 кадровым K2 объединены прежние предметные HTTP с новым снимком до/после каждого сохранения правила:12 сочетаний ролей, реальные контрольные ресурсы, без повторения зачтённых предметных запросов. employees.attendance.read/K2 подтверждено. candidates.respond/K2 подтверждено. candidates.convert_employee/K2 подтверждено. candidates.denied/K2 подтверждено. employees.archive/K2 подтверждено. employees.restore/K2 подтверждено. employees.delete_permanently/K2 подтверждено. employees.assignments.manage/K2 подтверждено. employees.assignments.delete_as_error/K2 подтверждено. employees.availability.manage/K2 подтверждено. employees.substitutions.manage/K2 подтверждено. employees.documents.edit/K2 подтверждено. candidates.create/K1 подтверждено. candidates.create/K3 подтверждено. candidates.status/K3 подтверждено. candidates.assignments.manage/K1 подтверждено. candidates.assignments.manage/K3 подтверждено.
+
+candidates.restore/K2 остаётся partial: у архивной записи нет положительного совпадения активного assigned. candidates.denied/K1 остаётся partial: workflow снятия legacy-запрета не утверждён. Для candidates.denied/K2 подтверждена единственная областьall и запрет нового allow/deny400; персональная выдача и снятие запрета не заявляются. Снимки ограничены отслеживаемыми графами; исключены лишь штатные outbox timestamps и ожидаемая версия доступа.
+
+### E359
+
+Локальный прогон337:12сочетаний ролей, независимые получатели POST/DELETE; по missing-photo — отдельный DTO/control supplement. Независимое ревью Terra подтвердило5ячеек. objects.responsibles.manage/K1 подтверждено. objects.responsibles.manage/K2 подтверждено. objects.managers.manage/K1 подтверждено. objects.managers.manage/K2 подтверждено. inventory.resolve_missing_photo/K3 подтверждено.
+
+Для responsible положительная DELETE-фаза неприменима: уникальный активный ответственный и запрет удаления последнего; успешная замена проверена POST. Это не неприменимость целого К1/К2. Для missing-photo не расширен круг согласующих; K4–K7 здесь не закрываются.
+
+### E360
+
+Локальный337прогон. V3 двенадцать успешных ролевых сценариев, дополнения decrease+PNG и manager photo-refusal. Производственная система не использовалась. inventory.receipt/K4, inventory.issue_to_object/K4, inventory.issue_to_one_time_order/K4, inventory.return/K4, inventory.writeoff/K4, inventory.adjustment/K4 подтверждены по К4.
+
+Семь отдельных K5-пробелов не зачтены. В raw result sourceArtifact ошибочно указан V2; исполненный исходник inventory-browser-v3-local.mjs,runId и каталог V3 приведены явно; raw результаты не переписаны. Failed manager-positive-photo из decrease дополнения не засчитан: вместо него проверен действующий отказ по отдельному сценарию. OQ-155 остаётся открытым, персональная загрузка фото не разрешена автоматически.
+
+### E361
+
+4 локальных integration-теста,293 catalog-контракта и реальный Chrome учредителя на отдельной схеме. UI:три области,наглядный legacy assigned,unrelated save не меняет старое,явный default снимает только целевое;4системных действия read-only. Для15 user-действий подотчёта новые/изменяемые правила не предлагают несуществующие назначения. Сохранённые assigned сохраняют прежнюю runtime-семантику и историю.
+
+Это доказательство общего механизма управления областями, не автоматическое закрытие К1–К7 всех15 предметных действий. Runtime allowedScopes не изменены. Фотополитика складских движений не расширена.
+
+### E362
+
+Локальный337прогон:16ячеек,12сочетаний ролей. Для4ячеек использованы успешные адресные перепроверки финального retry; предыдущие failed сохранены в исходных журналах. Terra независимо проверила код и результаты без повторения запросов. objects.create/K1 подтверждено. objects.update/K1 подтверждено. objects.archive/K1 подтверждено. objects.archive/K2 подтверждено. objects.materials.read/K1 подтверждено. objects.materials.read/K2 подтверждено. objects.materials.read/K3 подтверждено. objects.reports.submit/K1 подтверждено. objects.reports.submit/K2 подтверждено. objects.compensation.read/K1 подтверждено. objects.compensation.read/K2 подтверждено. objects.hr_reports_view/K1 подтверждено. objects.hr_reports_view/K2 подтверждено. objects.coefficient.edit/K1 подтверждено. objects.coefficient.edit/K2 подтверждено. objects.rates.read/K3 подтверждено.
+
+Зачёт относится только к перечисленным маршрутам и К1–К3. materials.read/K3 доказывает DTO и метаданные, не бинарное скачивание. Archive создаёт pending approval, а не выполняет согласование. Status/freeze/restore и остальные составные операции ожидают своих дополнений; не зачтены этим evidence.
+
+### E363
+
+Локально12сочетаний ролей. Terra одобрила54новых ячейки:tasks16,timesheet8,accountability21,approvals9. Дляinventoryexception объединены независимые writeoff и director-only missing-photo ветки. Шесть ранее зачтённых tasks-ячеек исключены из нового зачёта; повторных запросов для этого reconcile нет. tasks.completion.draft/K1 подтверждено. tasks.completion.draft/K2 подтверждено. tasks.completion.submit/K1 подтверждено. tasks.completion.submit/K2 подтверждено. tasks.completion.undo/K1 подтверждено. tasks.completion.undo/K2 подтверждено. tasks.confirm/K1 подтверждено. tasks.confirm/K2 подтверждено. tasks.complete_now/K1 подтверждено. tasks.complete_now/K2 подтверждено. tasks.return/K1 подтверждено. tasks.return/K2 подтверждено. tasks.reopen/K1 подтверждено. tasks.reopen/K2 подтверждено. tasks.cancel/K1 подтверждено. tasks.cancel/K2 подтверждено. timesheet.access/K1 подтверждено. timesheet.access/K3 подтверждено. timesheet.read/K1 подтверждено. timesheet.overview/K1 подтверждено. timesheet.export/K1 подтверждено. timesheet.amount.edit/K1 подтверждено. timesheet.exceptions.create/K1 подтверждено. timesheet.corrections.read/K1 подтверждено. accountability.access/K1 подтверждено. accountability.access/K3 подтверждено. accountability.read/K1 подтверждено. accountability.read/K3 подтверждено. accountability.review/K1 подтверждено. accountability.issue_cash/K1 подтверждено. accountability.external_receipt/K1 подтверждено. accountability.correct_receipt/K1 подтверждено. accountability.expenses.create/K1 подтверждено. accountability.expenses.update/K1 подтверждено. accountability.expenses.submit/K1 подтверждено. accountability.closure.request/K1 подтверждено. accountability.order_summary.read/K1 подтверждено. accountability.expenses.approve/K1 подтверждено. accountability.expenses.approve/K2 подтверждено. accountability.expenses.reject/K1 подтверждено. accountability.expenses.reject/K2 подтверждено. accountability.closure.approve/K1 подтверждено. accountability.closure.approve/K2 подтверждено. accountability.closure.reject/K1 подтверждено. accountability.closure.reject/K2 подтверждено. approvals.access/K1 подтверждено. approvals.access/K3 подтверждено. approvals.read/K1 подтверждено. approvals.cancel/K1 подтверждено. approvals.resolve_task_result/K1 подтверждено. approvals.resolve_object_change/K1 подтверждено. approvals.resolve_inventory_exception/K1 подтверждено. approvals.resolve_accountability/K1 подтверждено. approvals.resolve_timesheet/K1 подтверждено.
+
+Обычные12К2 без снимка admin-save исключены и допроверяются отдельно. Системно ограниченные действия:новые allow/deny отклоняются400,проверена сохранность текущего круга и моделируемый historical DENY; это не персональная выдача полномочия согласующего. assigned у user-контекста не совпадает; own-approve отдельно ограничен независимостью. Эти фазы не объявляются положительным совпадением запрета. История происхождения реального legacy-правила не проверялась. К4–К7 этим не закрываются.
+
+### E364
+
+Все 65 назначенных communications ячеек имеют последний успешный результат на 12 сочетаниях ролей. Для 45 ещё открытых в канонической матрице подготовлена адресная сводка; матрица не изменялась. Journal сохраняет 65 последних passed-записей и три прежние POST-add записи, дополняющие независимые DELETE K1/K2/K3. Независимое ревью Terra: seal/index/хеши/12ролей проверены;45новых ячеек,20старых не перезачитываются. chat.room.manage_members/K1 подтверждено. chat.room.manage_members/K2 подтверждено. chat.room.manage_members/K3 подтверждено. chat.room.close_global/K1 подтверждено. chat.room.close_global/K2 подтверждено. chat.room.close_global/K3 подтверждено. chat.messages.read/K3 подтверждено. chat.messages.create/K1 подтверждено. chat.messages.create/K2 подтверждено. chat.messages.create/K3 подтверждено. chat.messages.edit/K1 подтверждено. chat.messages.edit/K2 подтверждено. chat.messages.edit/K3 подтверждено. chat.messages.delete/K1 подтверждено. chat.messages.delete/K2 подтверждено. chat.messages.delete/K3 подтверждено. chat.messages.forward/K1 подтверждено. chat.messages.forward/K2 подтверждено. chat.messages.forward/K3 подтверждено. chat.messages.react/K1 подтверждено. chat.messages.react/K2 подтверждено. chat.messages.react/K3 подтверждено. chat.read_receipts/K1 подтверждено. chat.read_receipts/K2 подтверждено. chat.read_receipts/K3 подтверждено. chat.realtime/K1 подтверждено. chat.realtime/K2 подтверждено. chat.realtime/K3 подтверждено. files.access/K1 подтверждено. files.access/K3 подтверждено. files.read/K1 подтверждено. files.read/K3 подтверждено. files.download/K1 подтверждено. files.preview/K1 подтверждено. files.preview.retry/K1 подтверждено. files.upload/K1 подтверждено. files.upload/K3 подтверждено. notifications.read/K3 подтверждено. notifications.mark_read/K3 подтверждено. dashboard.access/K3 подтверждено. dashboard.view/K3 подтверждено. dashboard.leadership.view/K3 подтверждено. dashboard.manager.view/K3 подтверждено. dashboard.hr.view/K3 подтверждено. dashboard.operations.view/K3 подтверждено.
+
+Только перечисленные K1/K2/K3. Сборка не исполняет повторно принятые файлы/сценарии, не редактирует каноническую матрицу и не переименовывает исторические revision. Не выдаёт API/DB доказательства за приёмку браузера или масштабируемости. Seed/API UUID несовместимость воспроизведена и остаётся открытой.
+
+### E365
+
+Локальный337прогон. Terra одобрила46ячеек. Дляreopen иspecification.attachments использованы successfulretry сисправленнымификстурами;предыдущиеfailedсохранены. one_time_order_calendar.availability.manage/K1 подтверждено. one_time_order_calendar.availability.manage/K2 подтверждено. one_time_orders.attendance.edit/K1 подтверждено. one_time_orders.attendance.edit/K2 подтверждено. one_time_orders.complete/K1 подтверждено. one_time_orders.complete/K2 подтверждено. one_time_orders.copy/K1 подтверждено. one_time_orders.copy/K2 подтверждено. one_time_orders.employees.manage/K1 подтверждено. one_time_orders.employees.manage/K2 подтверждено. one_time_orders.employees.payment.edit/K1 подтверждено. one_time_orders.employees.payment.edit/K2 подтверждено. one_time_orders.escorts.manage/K1 подтверждено. one_time_orders.escorts.manage/K2 подтверждено. one_time_orders.payments.correct/K1 подтверждено. one_time_orders.payments.correct/K2 подтверждено. one_time_orders.payments.create/K1 подтверждено. one_time_orders.payments.create/K2 подтверждено. one_time_orders.photos.delete/K1 подтверждено. one_time_orders.photos.delete/K2 подтверждено. one_time_orders.photos.restore/K1 подтверждено. one_time_orders.photos.restore/K2 подтверждено. one_time_orders.reopen/K1 подтверждено. one_time_orders.reopen/K2 подтверждено. one_time_orders.review.delete/K1 подтверждено. one_time_orders.review.delete/K2 подтверждено. one_time_orders.review.edit/K1 подтверждено. one_time_orders.review.edit/K2 подтверждено. one_time_orders.review.view_all/K1 подтверждено. one_time_orders.review.view_all/K2 подтверждено. one_time_orders.specification.attachments/K1 подтверждено. one_time_orders.specification.attachments/K2 подтверждено. one_time_orders.specification.comments/K1 подтверждено. one_time_orders.specification.comments/K2 подтверждено. one_time_orders.specification.detach/K1 подтверждено. one_time_orders.specification.detach/K2 подтверждено. one_time_orders.specification.execute/K1 подтверждено. one_time_orders.specification.execute/K2 подтверждено. one_time_orders.status/K1 подтверждено. one_time_orders.status/K2 подтверждено. user_substitutions.create/K1 подтверждено. user_substitutions.create/K2 подтверждено. user_substitutions.manage/K1 подтверждено. user_substitutions.manage/K2 подтверждено. user_substitutions.revoke/K1 подтверждено. user_substitutions.revoke/K2 подтверждено.
+
+Snapshot ограничен графом тестовых ресурсов. Двенадцать других orders-ячеек исключены изэтогозачёта:независимыйcancelownavailability,photo-uploadboundary,managers,visitplans иограниченныеspecification/approveдополняются отдельно. К4–К7 не закрываются; решение согласования не выводится из одного создания заявки.
+
+### E366
+
+Шесть базовых К1/К2 объединены с20адресными ветками archived→frozen на12сочетанияхролей.17прежних веток сохранены без повторения;3недостающие parent/control перепроверены отдельно. objects.status/K1 подтверждено. objects.status/K2 подтверждено. objects.freeze/K1 подтверждено. objects.freeze/K2 подтверждено. objects.restore/K1 подтверждено. objects.restore/K2 подтверждено.
+
+Успех перехода — pending approval с точным аудитом,не обход согласования и не подтверждение фактической смены статуса.Исторические branchresourceIDs/источники сохранены;не заявлена ретроактивная перепроверка новойверсии. K4–K7не закрываются.
+
+### E367
+
+Локальный337прогон,12сочетаний ролей. Предметные выдачи/отказы объединены с144сохранениями набора45объектныхправ; независимое ревью Terra одобрило связку. Предметный POST ради дополнения не повторялся. objects.inventory.issue/K1 подтверждено. objects.inventory.issue/K2 подтверждено.
+
+Общий supplement проверяет только административное сохранение правил и не заменяет предметные маршруты остальных44действий. Снимки ограничены отслеживаемым графом; К4–К7 не закрываются.
+
+### E368
+
+run-52: primary timesheet/accountability domain journals + separate fresh owned localhost4218 admin invariant supplement; 12 canonical role combinations per cell and per supplemental cohort. timesheet.exceptions.create/K2 подтверждено. accountability.access/K2 подтверждено. accountability.read/K2 подтверждено. accountability.review/K2 подтверждено. accountability.issue_cash/K2 подтверждено. accountability.external_receipt/K2 подтверждено. accountability.correct_receipt/K2 подтверждено. accountability.expenses.create/K2 подтверждено. accountability.expenses.update/K2 подтверждено. accountability.expenses.submit/K2 подтверждено. accountability.closure.request/K2 подтверждено. accountability.order_summary.read/K2 подтверждено.
+
+Only these 12 original pending K2 cells. No repeat of 60 E363-approved cells; no K1/K3/K4-K7 or new positive assigned User authority. Admin-only evidence never substitutes for original action HTTP. Notification worker claimedAt/publishedAt and expected recipient accessVersion/updatedAt changes are explicitly excluded. Constrained system-action adaptation and independent director missing-photo approval belong to the separately reviewed E363 proofs, not to this ordinary-K2 adapter. Source test hashes describe assembly-time source; recorded scenario revisions and raw journal line hashes preserve the original execution evidence.
+
+### E369
+
+Локально12сочетаний ролей. Terraодобрила8ячеек:availability.own с независимымcancelpending, specification.manage сapply-catalogsupplement, availability.approveapprove/reject иvisitplanscreate/add/deadline/independentdelete. one_time_order_calendar.availability.own/K1 подтверждено. one_time_order_calendar.availability.own/K2 подтверждено. one_time_orders.specification.manage/K1 подтверждено. one_time_orders.specification.manage/K2 подтверждено. one_time_order_calendar.availability.approve/K1 подтверждено. one_time_order_calendar.availability.approve/K2 подтверждено. visit_plans.manage/K1 подтверждено. visit_plans.manage/K2 подтверждено.
+
+Дляspecification.manage иavailability.approve подтверждены текущий круг,историческийdeny и400новой выдачи. Это не успешный персональныйgrant. Availabilityfixturesсозданыдругимавтором;отдельныйсамозапрет решения своейзаявки здесьне заявляется. unsupportedassignedневыдаётсякаксработавшая область. Снимки ограничены графом; manager/photo иК4–К7вэтотзачётневходят.
+
+### E370
+
+Локально: описание и существующий локализованный invariant объясняют круг решений и отмену автором. Terraпроверила отсутствие нового runtimeconstraint;293catalogконтракта прошли после изменения. Персональное разрешение не расширяет обязательный круг подтверждения/отклонения и не разрешает самосогласование. Авторская отмена описана отдельно. В JSON/Markdown матрице пояснение согласовано с каталогом.
+
+Это улучшение объяснения права,не новая выдача полномочий. manageable,allowedScopes,constraint и бизнес-круг не изменены. Критерии К1–К7 автоматически не закрываются этим evidence.
+
+### E371
+
+Только недостающие ветки и адресные перепроверки:12сочетаний ролей,реальные HTTP/DTO/ограниченные графы/контрольные ресурсы,несколько явно различённых получательских когорт. Зачтённые300ячеек не включены повторно. Финальное независимое ревью Terra: все35адресных ячеек одобрены с сохранением указанных ограничений. objects.rates.manage/K1 подтверждено. objects.rates.manage/K2 подтверждено. objects.budget.edit/K1 подтверждено. objects.budget.edit/K2 подтверждено. objects.compensation.adjust/K1 подтверждено. objects.compensation.adjust/K2 подтверждено. objects.compensation.manage/K1 подтверждено. objects.compensation.manage/K2 подтверждено. objects.compensation.correct_past/K1 подтверждено. objects.compensation.correct_past/K2 подтверждено. objects.staffing.manage/K1 подтверждено. objects.staffing.manage/K2 подтверждено. objects.schedules.manage/K1 подтверждено. objects.schedules.manage/K2 подтверждено. objects.attendance.edit/K1 подтверждено. objects.attendance.edit/K2 подтверждено. objects.pay_conditions.select/K1 подтверждено. objects.pay_conditions.select/K2 подтверждено. objects.contacts.manage/K1 подтверждено. objects.contacts.manage/K2 подтверждено. objects.arrival.create/K1 подтверждено. objects.arrival.create/K2 подтверждено. objects.reports.update/K1 подтверждено. objects.reports.update/K2 подтверждено. objects.reports.attachments.correct/K1 подтверждено. objects.reports.attachments.correct/K2 подтверждено. objects.comments.create/K1 подтверждено. objects.comments.create/K2 подтверждено. objects.materials.manage/K1 подтверждено. objects.materials.manage/K2 подтверждено. objects.materials.manage/K3 подтверждено. one_time_orders.photos.create/K1 подтверждено. one_time_orders.photos.create/K2 подтверждено. one_time_orders.managers.manage/K1 подтверждено. one_time_orders.managers.manage/K2 подтверждено.
+
+К1–К3 только перечисленных35ячеек. Для correct_past approve/reject остаются в независимом руководящем круге; положительная авторская отмена проверена отдельным founder,не всеми12ролями. K4–K7 не закрываются этим объединением; дополнительный managerbrowser подтверждает отдельный нормальный сценарий. Общий uploadK5послеstorageI/O остаётся открытым. Старая materials500 не воспроизведена в freshпрогоне; её причина не установлена и не объявлена исправленной. Source/cohort revisions сохранены; metadata-only каталог не объявлен ретроактивным HTTP-прогоном.
+
+### E372
+
+Свежие собственные локальные схемы:управляемые параллельные GET/chats/rooms до фикса200/500 сP2002точного индекса,после200/200 и ещё4×200. Один участник,6unit-тестов,sourcefreeze и финальное ревью Terra. При гонке создания одной пары chatRoomId/userId обработан только точный P2002:перечитывается победившая строка. Другие ошибки распространяются;ACL/роли/состояние существующего участника не изменяются.
+
+Отдельная затронутая инициализация,без повторного зачёта прежних65communications-ячеек или автоматического закрытияК1–К7. Не заявляется доказательство всех гонок чатов,выхода/повторного входа или производительности. Причина исторического materials500 этим не установлена.
+
+<!-- run52-final337-summary -->
+### Итог локальной кампании 337 — 15 ноября 2026
+
+Рассмотрены все 337 исходных ячеек: **335 подтверждены, 2 остаются частичными**, непроверенных в этом наборе нет. Независимое финальное ревью — E371; отдельное исправление конкурентной инициализации чата — E372.
+
+Частичные: candidates.restore/K2 (OQ-156, область назначений архивного кандидата) и candidates.denied/K1 (OQ-157, снятие прежнего запрета). Решения не подменены изменением бизнес-правил.
+
+Во всей матрице 291 право / 2037 критериев: **815 подтверждены, 52 неприменимы, 1170 ещё открыты** (923 частично и 247 не проверено). Полностью по К1–К7 приняты 4 права; 279 частично, 8 самостоятельных операций не реализованы. Это отдельные итоги полного реестра и текущего API-пакета.
+
+Сохранены OQ-155 и открытый generic files.upload/K5 после storage I/O. Историческая materials 500 не воспроизведена; её причина не установлена и исправление не объявлено. Старые demo UUID не мигрировались.16 ограниченных системных действий не объявлены новой персональной выдачей.
+
+Frontend access 343/343, catalog 293/293, management integration 4/4, 19 адресных backend unit-тестов, обе проверки типов и адресный lint завершены. Исходные неудачные журналы и адресные перепроверки сохранены. Временные собственные схемы/контейнеры убраны, изменения Next восстановлены. Рабочий сервер и общая локальная база не менялись.
+
+### E373
+
+run-53 Incremental actual HTTP proofs. Source-frozen runtime; no third browser launched.
+
+All untouched browser/K6/K7 gaps remain partial. Supplements with route gaps or failures are not closure claims. Historical materials HTTP500 not reproduced by one fresh exact PATCH; its cause remains unknown.
+
+### E374
+
+run-53/lane1 center successful r3+r4, private backend66326 (cleaned) Five exact K5 closure candidates with actual R3 remaining phases, explicit current-source bounded reconciliation for old auth.me/admin phases and exact same-provider E273/E286 reuse. Geometry block adds actual login/profile hit-region bounds at three sizes and discovers rights-dialog background scroll at390.
+
+Five K5 verified candidates and13 partial. Dialog K4 scroll-lock is failed, not inferred from screenshots. No full K6/K7 closure, OS/realtime delivery or new policy inferred. Product source unchanged by this lane.
+
+### E375
+
+run53 actual local HTTP/PostgreSQL/MinIO upload mechanism, final75 schedules; independent Terra mechanism-only review Four exact upload K5 partial cells; assertions are filtered to the exact child family for each leaf. No runtime rerun, no new source changes; accepted frozen75 proof reused.
+
+Only backend linked-file upload subgap resolved. Every other original UI/open-session/menu/draft/stale-response/acknowledgement gap retained. No fullK5/K7 or parent JSON-create inference. Four-cell claim needs main integration/review binding; Terra accepted the underlying mechanism, not canonical promotions.
+
+### E376
+
+run-53; private localhost4236 HTTP + PostgreSQL pool2; prior exact phase reuse, own schemas removed Exactly18 cells accepted by the two independent bounded E376 reviews, with their cell bytes/positive/denial/source-gap assertions unchanged. Other28 withheld cells are excluded and reserved E383; partial3 excluded.
+
+No canonical write or independent self-approval. No K4-K7 credit. Three partial cells are excluded and separately packaged. Historical unequal noncanonical digests are retained but not passing assertions. See source-provenance-limits.json: no complete startup loaded-source instrumentation was captured; available pre/post hashes and exact executed script archives are explicit. Main accountability DTO changes are outside these cells.
+
+### E382
+
+run53 warehouse manual mat save/history, isolated acl_acceptance_20261107_85963 (cleaned) Two real coherent manager/director mat workflows, actual PATCH/PUT/manual saves after revoke/regrant, history and B controls, held actual history response.
+
+Only12 mat cells have new scoped observations; one K5 closure candidate. Not all138 warehouse cells closed. No new inventory/equipment/photo/concurrency coverage inferred. No product source changes.
+
+### E383
+
+run-53; private localhost4236 HTTP + PostgreSQL pool2; prior exact phase reuse, own schemas removed Exactly28 withheld E376 mutation/history cells repackaged with explicit old scenario/fixtures, original scenario/revision and source journal callback assertion bindings. No accepted18 repeats and no new runtime.
+
+Packaging repair for independent Terra review only. Existing historical source provenance limits remain: source callbacks are not newly observed DTO bodies and recorded scenario revision is not a standalone file hash. Typed history proof uses its existing manager1 passing integration cohort with no fabricated UUID or event body. Effect comparison is limited to the enumerated private models with claimedAt/publishedAt normalization; no all-schema effects, actual socket delivery or K4-K7. No canonical write.
+
+### E384
+
+E382 actual UI + E351 accepted API scopes; source-only behavior-class reconciliation E382 actual retained quantity draft and manual one-write/history/control plus E351 accepted scope/recipient computation, reconciled by current frozen single canManage/generation UI behavior class. No new runtime and no accepted repeat.
+
+One K5 candidate only; no K4 viewport or K6/K7 closure and no rerun of accepted mats.cost.edit/K5. MAIN reserved E384; independent review required. E382 frozen claim remains untouched.
+
+### E380
+
+run-53 coherent P04/P06/P07 recipient UI blocks Twelve independently reviewed per-cell results from actual coherent recipient workflows; nine verified K4/K5 and three partial recovery states. The 34 unreviewed partial narratives are excluded, not credited.
+
+Only these 12 named reviewed cells. Existing indexed assertions and frozen source provenance are unchanged; three same-action regrant recoveries remain open. No production or new runtime.
+
+### E389
+
+three fresh private schemas; successful download phase + successful preview continuation + final read/root continuation One coherent additional files block completed without rerunning accepted r2 blocks. Earlier raw harness failures retained; only successful exact action phases claimed.
+
+Not a whole-files closure; no product source change. First harness waited before denial message rendered; second ambiguous duplicate denial selector. Final explicit alert selector passed.
+
+### E381
+
+P08 private lane2 r1 functional followup + r2 passed four blocks Executed per-action/criterion evidence; candidate for Terra review, no canonical edits. Four passed r2 blocks not repeated.
+
+Exact old gap dispositions split observed phases from remaining obligations. All rows partial pending exact missing phases and independent Terra review; no stale generic no-browser label retained.
+
+### E387
+
+run53-lane2-orders-missing-only-recovery Только три недостающих K5 recovery. 6 passed recipient scenarios; accepted denial/positive mutations не повторялись.
+
+E387 is the reserved lane2 review identity, canonical registration exclusively main. No K4/K6/K7, new scope, other-role browser or expense recovery closure. Managers source fix only own panel; completion/spec source unchanged.
+
+### E385
+
+Bounded isolated HTTP/PostgreSQL/MinIO backend expense file bridge; pre403 to post201; eight valid first-post upload phases plus seven targeted continuation phases 15 upload phases:3 writes with real S3-read bytes,12 denials with unchanged private ledger/file/link/storage/audit/roles/assignments; attributed nested channel only.
+
+All three cells remain partial and every old composite gap retained. No UI or all-K6/K7 closure. E379 director browser continuation is main/Mill owned. E375 snapshots unchanged.
+
+### E378
+
+run-53 20 additional K3 candidates; independent review pending. rates.manage excluded after reviewer identified two missing direct object routes.
+
+No rates.manage closure: PATCH /objects/:id direct rate and POST /objects initial rates/planning require exact positive+deny DTO/storage delta. No UI/canonical closure.
+
+### E392
+
+run-53 Three addressed additional object K3 candidates, all12 actual role combinations: root rate PATCH and initial rate/planning POST; real report PNG staging/add/replace and preserved bytes; independent past correction reject/cancel and no-selfapproval. Complementary original source-bound route proofs retained.
+
+Independent review required. E378 narrow20 and accepted E373eight are excluded and unchanged. No K4-K7 or whole UI closure. No constrained resolver grant or actor role promotion. Original fixture failures retained, not credited.
+
+### E393
+
+/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/lane1-p01-finance-after-handoff-proof-20261115T021823Z-96918 13 current open P01 cells prepared from seven finished exact center-final receipts. Three whole-criterion candidates; other ten retain precise failed/blocked/uninstrumented/applicable residuals. Five accepted E374 K5 cells excluded.
+
+Candidate preparation only, not independent self-approval or canonical acceptance. All raw proofs and source/harness copies are frozen. No browser/server/test execution by this sidecar; Mill runtime continues separately. Whole criterion candidates require independent semantic review, including cross-criterion gap placement. Subsequent main-owned AppHeader fix is source-reviewed separately and is not retroactive runtime proof. No independent verdict by the harness/claim author.
+
+### E377
+
+run-53 independent exact historical raw-proof reuse and frozen source applicability sidecar; no new runtime or browser execution 21 exact partial K6/K7 proof reuses plus 392 component exclusions. 204 already-partial cells receive bounded proof/applicability metadata; 33 not_verified cells are separate status-preserving proposals. No whole criterion closure.
+
+Pending independent Terra review. No complete K6/K7, no whole N/A, no runtime equivalence assertion for historical logs versus current source. Exact source exclusions concern bounded owner/registry paths; linked files/exports/search/notifications and untraced channels remain unresolved. Existing recorder may ingest cells only after accepted sealed independent review; separate metadataOnlyUpdates must preserve not_verified.
+
+### E386
+
+run53 bounded specification catalog K6 closure; own private4236/pool2 schema acl_acceptance_20261107_92441 removed; only missing crossed parent and valued-copy consumer probes added Narrow independently reviewed three write-action K6 candidates. Catalog access/read live-consumption branches excluded and remain open.
+
+Only creation, update and archival K6. Prior indexed source/exact recipient/resource assertions unchanged; no live-read/catalog root closure or new runtime. Five current E377 subgaps per write cell are now explicitly disposed through unchanged existing assertion indices, under the substantive independent review limits. Historical grants are direct-DB fixtures, not newly administratively issued personal grants; noneligible leadership cohorts retain independent denial.
+
+### E394
+
+run53-existing-coherent-ui-four-cell-complement Ровно четыре closure candidates из substantive review Terra; only existing executed UI proof, no runtime repeated.
+
+Independent frozen-hash rebind required; main sole canonical writer. specification.execute/K5 remains open: comments POST403 is not execute /complete proof. tasks deferred submit and separate catalog item editor remain open. No K6/K7 or other E380 partial cells certified.
+
+### E398
+
+Only missing actual source-channel probes on private loopback4236, pool2, owned schemas removed in runtime14-18; old accepted operations not replayed. Two exact K6 full closure candidates for equipment/mat catalog read; all real live projections listed.
+
+Main must reserve evidence ID and obtain independent review before admission. No canonical writes, no K4/K5/K7/socket claim. Historical E324 actor UUID absent and raw DTO fields not invented. Legitimate fixture Decimal/DTO400 failures remain raw failed records, only separately successful phases credited.
+
+### E399
+
+Own isolated localhost4236/pool2 schema acl_acceptance_20261107_99590 removed; only missing actual K7 variants ran, no browser; runtime21 actual missing read lifecycle/concurrent visibility only, private schema removed, no accepted writes repeated Narrow independent-review-supported catalog write lifecycle/rollback/concurrency results for three verified K7 and one partial catalog root. Read/revoke overlap proposals excluded.
+
+No claim of overlapping catalog read/revoke from response collection timestamps. OQ158 remains open; no runtime or source changes by packaging.
+
+### E379
+
+acl_acceptance_20261107_13026 Three actual successful-header/no-details expense acknowledgements passed; R13 wrong full-body requirement preserved as fixture failure, no product defect claimed.
+
+Partial E379 supplement only; no whole financial116 closure and no unrelated accepted flow repeated. Existing current gaps retained for combined independent reconciliation.
+
+### E396
+
+run-53 owned local warehouse attempts 4/6/7/8 Twelve exact UI closure candidates: eight equipment operation forms across four responsive layout classes plus four Terra-bounded mats deltas. Real prior manual writes reused; no accepted operation replay.
+
+No new K1/K2/K3/K6/K7 or catalog/unit CRUD closure inferred. Full-page capture distortion excluded from geometry proof. Source text-only equipment fix separately smoke-tested. Main canonical integration and independent review pending.
+
+### E401
+
+reused96958 + admitted13026; offline reconciliation only Two whole K5 closure candidates for independent review; no new runtime and no E379 overwrite.
+
+Only create/submit K5. Update K5 remains open for actual new-file upload in-flight revoke; manager editor and create-only director parity remain named pending diagnostics; K7 close/concurrency/rollback not claimed.
+
+### E403
+
+run53 P01 finite existing-proof/source/exact-gap reconciliation after admitted E393 and E377; zero new executions Ten current remaining P01 cells, exact finite consumer/stage dispositions only. Shared auth root checks do not require or certify every domain K6. Undefined other-interleavings demands are replaced by actual named stages. All held confirmLogin deliveries/cancellations remain unbound/missing pending E397.
+
+E403 is source/code/exact-gap reconciliation, not whole-criterion acceptance. All ten cells remain partial. Former closure-readiness assessments do not promote status; no formed200 is credited as client delivery/cancellation. E393 (3 verified/10 partial) and E377 (204 partial) remain untouched. Future actual retry proof and its review belong to E397/Mill.
+
+### E402
+
+runtime24: exactly three new controlled held-response GETs, one actual director per exact action; private API4236/pool2 schema removed Three read-only catalog K7 closure candidates repaired with real server response-byte barrier and native client arrival stamps; prior accepted lifecycle/postack/restored/control phases reused.
+
+Independent reviewer required before main-only intake. No E398 K6 or accepted E399 write/root cells repeated. No money/stock lifecycle fabricated for GET; no mounted K4/K5 stale rendering credit. Earlier uncontrolled concurrent labels are excluded. Restricted catalog deny is a historical DB fixture, not newly allowed administrative grant. OQ158 and its three affected criteria remain open; source/policy guards unchanged.
+
+### E407
+
+run53 P01 finite existing-proof/source/exact-gap reconciliation after admitted E393 and E377; zero new executions Exactly auth.access/K6 and auth.me/K6 full-closure candidates. All assertions preserved; superseded intermediate dispositions removed to match the exact immutable-baseline/current-canonical union. No refresh/K7 or unchanged partial cells.
+
+Independent Terra acceptance required. No held-confirmLogin client delivery/cancel claim, no domain K6 propagation, no source-author self-acceptance. Refresh issuer waiting-stage evidence is withheld for E409. E403v1 and E407v1 remain immutable. No runtime or canonical writes.
+
+### E395
+
+run53-Copernicus-people-calendar-missing-only-v4 14 action-specific recipient denial/regrant UI scenarios passed; seven exact original Request late delivery scenarios passed. Existing positive workflow/geometry proof reused, not rerun.
+
+Only K4/K5 closure proposed here; K6/K7 remain outside this claim for exact existing server/source reuse or finite missing checks. No canonical edit. Reviewer independently assesses each criterion. Source runtime froze once per copy; old positive source and new denial source are separately bound.
+
+### E408
+
+API-only own localhost3191 schemas17940 before,18912 mats postfix+opt-ins,20061 three postfix+one reverse order. All owned schemas removed; no browser or production. Seven exact K7 partial cells: five actual stale-commit defects repaired and retested; object issue/writeoff existing fences additionally observed. One opposite actor-share/admin-save ordering executed for catalog delete.
+
+Partial bounded race evidence only. Whole K7 source/lifecycle joins remain with A/E405. Separate postcommit projection E410 excluded. Source/test authors do not self-accept; exact-claim Terra approval pending.
+
+### E409
+
+run53 P01 finite existing-proof/source/exact-gap reconciliation after admitted E393 and E377; zero new executions Only auth.refresh/K7 candidate, with exact existing stage raw and newly frozen precise source-boundary argument requested in E407 review. No new runtime.
+
+Source proof reuses ONLY the common users-row serialized issuer/admin-deny boundary. There is still NO direct refresh-POST-waits-for-admin receipt in E269, and the witness must never be renamed as one. Independent reviewer must accept or reject this narrowly stated frozen control-flow equivalence. All endpoint-specific refresh stages remain backed by their own existing raw receipts. No canonical edits or author approval; independent Terra review required.
+
+### E410
+
+Exact bridge postcommit source-revoke on own API-only localhost3191: original20783 before leak receipt reused at bounded semantics; corrected denial contract accepts403/404; postfix21746 actual run passed. Both private schemas removed; no browser or production. One independent director bridge confirmation commits once before exact Prisma findFirst projection reread is held. Founder revokes selected source read, actorversion1→2, fresh sourceA404/B200. Before response200 contained private source fields; after main projector fix response200 is exactly saved_without_access with no private marker and unchanged committed graph/two audits.
+
+One exact postcommit projection boundary only. E408 seven precommit cells and A/E405 whole-K7 lifecycle joins remain separate. No frontend/browser execution acceptance. Author does not self-accept; Terra exact review pending.
+
+### E404
+
+run-53 independent scoped whole-criterion closure reconciliation; no new runtime Two counterparties create/update whole K6 candidates repaired by one current actual DTO fixture and exact loaded source/helper hash; prior denial/ack evidence retained without rerunning seven completed E404 API deltas.
+
+Independent Terra review required. Current source component reuse is the shared saved-card projector, not any right/role grant or artificial creation-time link race. Historical E49/E301 raw phases remain bounded. No UI or K7 closure claimed.
+
+### E411
+
+run-53 bounded API-only missing phases on own port3193/schema/pool2/private Redis and bucket Seven whole-criterion candidates: two counterparty mutation K6, two timesheet money K7, three visit mutation K7. Seven original E404 passes retained; three original visit500 failures, three pre-fence stale writes and one stale create are kept as before proofs; only the exact failed/missing phases rerun after main source handoffs.
+
+Independent Terra admission required; no browser or full K6 inference for approvals/substitutions/visit reads. Source cohorts and first-create recorder limitation remain explicit; neither a status filename nor a generic E377 component catalogue establishes a whole criterion. No new business/grant policy.
+
+### E397
+
+acl_acceptance_20261107_20808,acl_acceptance_20261107_24307,acl_acceptance_20261107_26600,acl_acceptance_20261107_28075 Addressed whole-criterion closure candidates from exact private-local HTTP/PostgreSQL/browser executions plus named admitted prior phases.
+
+Only seven presently open P01 criteria. All other P01 criteria remain their own admitted evidence. Pre-fix R16 pending-confirm failures preserved; old data/current-source digests not relabelled. Final policy checkpoint covers observable current policy/known signals, not unknowable future revocation after that checkpoint. Author proposal only until independent review.
+
+### E390
+
+run-53 actual P08 coherent producer7/dashboard/native-picker/unmount plus portable preview-read and published-report source regressions + separate own-mirror embedded image72; independently eligible subset32 only Immediate independently eligible subset:18 unchanged verified proposals,10 unchanged bounded partials and4 K4 wording-only narrow corrections. All remaining evidence gaps are excluded for separate targeted work, not hidden.
+
+Review candidate only; no self-approval or canonical write. E377 is applicability only. No twelve-role browser grid, new dashboard export/upload/payroll operation, automatic global K7 promotion, repeated accepted format/download test or OS rerun. Source versions are bound per receipt, not retroactively relabeled current.
+
+### E406
+
+acl_acceptance_20261107_20808,acl_acceptance_20261107_13026,acl_acceptance_20261107_82399,acl_acceptance_20261107_24307,acl_acceptance_20261107_96958,acl_acceptance_20261107_23986,acl_acceptance_20261107_30074 Addressed whole-criterion closure candidates from exact private-local HTTP/PostgreSQL/browser executions plus named admitted prior phases. v3 packaging-only binds exact held GET request IDs, formed200, chronological same-request browser200/requestfinished, selected deny/regrant saves and revision diagnostics; no runtime rerun.
+
+Only six named whole finance candidates; no unrelated financial116, K4/K6, approvals authority, payroll rollout or cross-role full browser-grid claim. Existing precommit and R14 phases reused, not rerun. New type/file/peer cases retain actual actor/resource identities. Genuine rare-terminal DB fixture is guard-only; no invented terminal business transition. All source/applicability dispositions require independent reviewer acceptance.
+
+### E413
+
+Finite notification mutation lifecycle join: exact prior E45/E76/E84/E231/E381 + E390 seven-source35 assertions per cell reused, before31172 nine real check/write failures and fixed33029 nine serverless production-service/PostgreSQL races. No accepted runtime repeated. Main mutateVisible captures actor then prepares visibility outside transaction; transaction locks actor revision before each markRead/markAllRead/dismiss write and protected reread. Actual deny1→2 before transaction gate release causes403, observed actor fence sees2, zero notification write calls and entire captured notification/outbox/source graph unchanged in all9.192 assertions passed;70 prior raw pointer hashes revalidated.
+
+Two whole-K7 candidates only; author cannot self-accept. New runtime is manager/object A/B production-service+owned DB, no HTTP/browser/server. Earlier seven source classes and ownership/idempotency/recovery are exact prior reuse, not new race execution for each producer/role. Runtime source d620b78... differs from final a6e1e2... only by indentation; complete nontrivia token and emitted executable equality bridge is frozen. Independent final review required before canonical admission.
+
+### E405
+
+Offline exact evidence reconciliation; no HTTP/browser/domain execution. Local PostgreSQL historical logs read only for missing fault provenance. Ten proposed full closures: five inventory K5, three pure catalog-definition K6 and two mats K7. Existing accepted source-role/DTO/lifecycle proofs reused; all other warehouse/equipment cells excluded pending finite exact obligations.
+
+Requires independent review before main-only canonical integration. No all-role UI inference. No accepted E396 K4, E398 K6, E399 write K7 or E402 read K7 repeat. Historic failed cases remain failed; only exact positively recorded phases + newly recovered error provenance are combined. Source-only exclusions address only nonexistent components, never whole-cell N/A.
+
+### E412
+
+run53 P08 missing-only exact file4/dashboard12 terminal plus HR absence/leadership receipt DTO source probes; old notification K4 action binding correction 22 independently reviewable whole-criterion candidates only. E390 admitted22verified10partial is preserved and is not repeated. Other ongoing chat/source/retry boundaries do not delay this subset.
+
+No canonical/self approval. No repeated formats/OS/download runs. Prior evidence related citations are filtered to registered exact action codes; other raw/source component reuse is named separately. Physical old read source versions stay frozen; new system-source-only FilesService bridge does not change object-material file branches used in strict file schedules.
+
+### E414
+
+Actual API-only private3195 residual runs25/26/27/28 pool2 all cleaned; existing exact historical browser/server evidence and Olderthird34378 service/owned-PG postfix joined offline. No accepted requests replayed. Twelve new proposed whole closures: receipt/object-issue K5; five domain K7 finite residual joins; broken/repair/repair_return/lost K7 exact audit+actor-fence joins; mats.catalog.create K7 reviewed lifecycle36+actual pre/post actor fence19+prior HTTP. E405 first ten remain separately reviewed and excluded.
+
+Independent whole-criterion review required. Exact phase-only source reviews are not relabelled as whole approvals. Service exception403/409 in mats lifecycle/precommit proof is not HTTP; accepted historical HTTP auth/DTO is independently bound. No source, policy, production or canonical edits. No all-role browser claim. Historical failed cases preserved; corrected reversal201 oracle uses only passed26 result.
+
+### E420
+
+Three finite whole-K7 order lifecycle joins: old accepted E73/E80 named raw run02 reused, actual three precommit defects38151 fixed by Main and exact post40968 passed; additional finite actual post-audit faults41596 and lifecycle state interleavings41926 passed. Sequential owned schemas removed; no HTTP/browser/server/production. Exact physical order row-lock waits plus founder selected leaf deny1→2 before release; fixed actor fence sees2/403 with full graph unchanged including317 money/funding. New rollback receipts pause after actual primary audit insert (real payment/funding staged for completion), then unique deliberate fault rolls everything back; explicit retries once. Exact changed-content client key and stale-cycle409 are no-effects. Stale cancel after paid completion and stale reopen after cycle advance fail409 at unchanged actor revision1 without modifying rival result.
+
+Only one_time_orders.complete/reopen/status K7 candidates. Author owns harness/proof and cannot self-accept; independent review required before canonical. New runtime manager+private owned A/B, direct real service/DB only; no observed HTTP status, UI/browser/socket or all-role/source delivery inference. Create post-audit rollback is extra unclaimed41596/create proof for its separate K7 join. Create/update/helpers/funding entire bodies byte-identical across Main three-line fence patch; accepted tests are not rerun. Existing accountability closing-request/approval workflow is not newly accepted here.
+
+### E419
+
+run53 SEARCH-only actual missing serverless68/browser47 and completed order9-prefix + accepted exact historical source callbacks; lane2 released Eleven exact whole-criterion author candidates; one actual recent-K4 denial-reason gap is explicitly not claimed. No partial-registry update or canonical write.
+
+Author candidate requiring a different independent reviewer. Failed harness attempts stay failed. No self-approval, no source product edits, no all-role or generic resolver promotion, no serverless-to-HTTP attribution. Main owns the remaining recent reason fix.
+
+### E417
+
+run53-Copernicus-eligible23-v4 23 eligible whole-criterion proposals, excluding six people K7 now sealed separately and availability.manage/K7 held for two actual actor-revocation races.
+
+No canonical writes or self-admission. E39514 not re-claimed. Ordinary geometry/money/attendance writes and prior regular reopen/retries/blockers are reused, not rerun. Original harness failures and4237 preliminary evidence remain immutable history; this claim selects successful terminal cases. Historical callback provenance and omitted old cancellation UI money snapshot are explicitly not upgraded to new raw data. Calendar manage/K6 is outside this claim. Main independent review required. SIX PEOPLE K7 EXCLUDED: prior exact receipts and tests have no actor revision resource-row-wait window. Main/Terra requested actual stale actor probe; v1 remains immutable history, not admission authority. Availability.manage/K7 excluded pending direct-create and approved-edit captured-actor before/fix/post evidence; no claim of closure for it.
+
+### E423
+
+run53-Copernicus-E423-people-six-whole-post-v2 Six whole K7 proposals: exact prior lifecycle/assignment/retry constraints and source-bound real audit-fault/same-version HTTP proofs joined with six actual final-source captured-actor row-wait/revoke403/no-effects passes.
+
+Independent Terra review requested; no self-admission or canonical changes. This six-cell claim is disjoint from E417 eligible24 and does not claim availability.manage/K7 actor-revocation closure. Prior18 were not replayed; original source provenance is preserved. Five fence call placements cover six actions; all other target service text is identical. No new business/idempotency policies.
+
+### E418
+
+acl_acceptance_20261107_42365,acl_acceptance_20261107_44259,acl_acceptance_20261107_45033,acl_acceptance_20261107_45518,acl_acceptance_20261107_73796,acl_acceptance_20261107_76556,acl_acceptance_20261107_78549,acl_acceptance_20261107_23986,acl_acceptance_20261107_30074,acl_acceptance_20261107_20808 Exact worker-reviewed eligible subset: 26 verified and3 partial. No changed cell content or repeated execution; three finding cells excluded for separate minimal repair.
+
+Only 29 eligible cells from independent E418 v4 worker review. Three author partial limitations preserved unchanged. No claim for order_summary.read/K4 or closure approve/reject/K4 in this subset. MAIN canonical owner; exact v5 hash rebind required.
+
+### E424
+
+run53-Copernicus-calendar-manage-whole-K7-post-v1 Whole finite availability.manage K7 join: exact prior accepted lifecycle/state/overlap and actual overlap-race/audit-fault/cancellation receipts plus two new captured-actor revoke-before-commit final-source post403/no-effects traces.
+
+Independent Terra review required. No canonical changes/self-admission. Existing fault/overlap/cancellation scenarios not repeated. Historical source callback/provenance limitations remain, no missing old DTO/money snapshot fabricated. No new generic idempotency or simultaneous approve/update promise; restricted approval remains separate.
+
+### E416
+
+run-53 own API-only3193 isolated source cohorts v1,v3-v7; missing-only runtime, no browser/Next/production Six whole counterparty candidates only: access/read/link/master K6 and link/master K7. Current mapper3post and master2post pass; prior exact raw role/atomicity/concurrency/ACK and admitted current nested DTO components reused. Delegation comment proofs attached but whole revoke K7 explicitly excluded.
+
+Independent SHA-bound Terra review required. No canonical edits or K4/K5/UI credit. Historical raw proofs retain original source names/time bounds; current source joins are explicit. Invalid HR fixture and original product failures preserved, never credited.
+
+### E426
+
+run53 search.recent/K4 final reason-only whole join Actual manager recipient session: original object-source long-label palette at1440/390 and object-parent filtering reused from E381 completed prefix; distinct manual one-time-order navigation and recent A/B plus exact leaf/root behavior reused from admitted E419. New Main source a8714b48 actual run supplies missing blank-query recent403 Russian role=status reason outside listbox, no private row, same-cookie403, explicit regrant identity/reason removal and390 fit/no clipping/overflow. No accepted47/68 scenarios repeated.
+
+Exactly one remaining K4 cell. E419 admitted11 immutable; E381 completed-prefix reuse remains bounded. No runtime repeats/canonical writes, no selfapproval.
+
+### E415
+
+run53 P08 chat/file finite joins after admitted E390/E412; actual root40/order42/budget36/file metadata scopes + failed-doc22 +chat UI33 Criteria independently joined; known source gaps now have real producer, reference/File and recipient controls. Remaining finite callback/queue/attachment boundaries stay explicit partials. No accepted strict/report54/image72 scenarios were replayed.
+
+Whole-criterion proposals require independent review. Legacy references/files are retained readonly fixture graphs; current API still forbids new system reply/forward creation. Real failed Office retry is ENOENT, not a conversion success. Snapshot/diff redaction preserves DB history and plain report content. No notification E413/global search E419 ownership or production changes.
+
+### E428
+
+run53-Copernicus-E428-tasks-update-K7 Actual manager-author reset409 without reset flag; founder non-author403; exact unique task history fault HTTP500 rolls back cycle/attempts/approval and full graph; two legitimate overlapping PATCHes both200 reset the completed cycle exactly once and cancel one pending approval; new granted non-author actor waits at actual revision fence behind real founder queued deny, deny201 then actor403/no-effects.
+
+No canonical edits or self-admission. Only new missing K7 HTTP/DB schedules executed; accepted E90 and UI K5 not replayed. No UI/Next. Source unchanged by worker; controlled500 is explicitly fault-branded. Main reserved E428; read-only preflight and immutable seal bind this proposal before Terra independent review.
+
+### E421
+
+Core order create/update finite whole-K7 prior+new joins. No accepted create/core update rerun. Existing E304/E310/E312 final exact receipts +E73/E72 accepted source/parent tests reused; unclaimed create primary-audit rollback41596 reused; only genuinely missing service-lines/deadline actor races47056 fixed and exactpost57873 executed. All private schemas removed; no server/API/browser/prod. Both eligible K7 cells include their actual consumers. Create graph atomicity/history/replay/source-read joined from exact raw and real SQL fault rollback. Update core proof retained; additional linked totals/deadline consumers were not omitted: real stale commit defects before47056 now403/fence2/full noEffects in57873 (38 passing assertions), source equations/version guards/transaction audits unchanged.
+
+Only create/update K7; not whole rights or K4/K5/K6. Author owns new harness/proof and cannot self-accept. New service-level exceptions are not observed HTTP statuses. No new socket/Redis/browser delivery acceptance or delegated grant-source cancellation at unchanged actorVersion proof. Old failed run26 update rollback harness is preserved as superseded, not counted; successful run27 exact audit fault is credited. Existing acknowledged create/system-message delivery and postcommit projection remain bounded by their exact prior evidence; no extra channels or all-role extrapolation.
+
+### E422
+
+Final-v3 native HTTP/private PostgreSQL pool2 API3195, 8 targeted phases, no browser; prior4 actual-before preserved. All4 precommit write revocations now403/no effects and all4 postcommit read revocations minimal ACK/one effect.
+
+Phase-only K7 supplement. No whole-cell acceptance inferred; old current/baseline generic lifecycle gaps preserved for exact join/review. Source fixes by Main, not this author.
+
+### E429
+
+P08 missing-only notification adapter source-after-auth real Redis/socket; existing exact producer/OS joins Four remaining notification criteria proposed whole only after actual distinct adapter boundary. 25 new passed JSON assertions; seven producer families reused with exact previously admitted bindings.
+
+No new OS execution/browser lane or source mutation. Test calls real NotificationsService.createForRecipients and flushOutbox in private test app, not a business-producer rerun; prior seven real business producers remain independently accepted. Semantic independent review mandatory. No claim of product linearizability beyond the tested committed source-revoke-before-publish boundary.
+
+### E430
+
+run53-Copernicus-candidate-three-whole-K7 Three candidate whole K7 proposals: separately source-final post3 + six new exact action audit-fault/concurrent-writer cases, joined with accepted exact historical lifecycle/role/business receipts.
+
+No accepted18, taskK7, candidate post3 or task-file4 replay. Fresh six invariant cases were previously unproven for these three actions. No UI/Next; only owned private schemas. Feedback accepts two legitimate POSTs rather than invented payload dedup409. Source is Main owned and unchanged by worker. Task K6 is outside this claim. Independent Terra review required; no canonical writes/self-admission.
+
+### E427
+
+run53 lane2 released3121/3122 private mirrors, one installed Chrome headless with private temporary contexts Four whole UI candidates: counterparty archive/restore K4/K5. Restore full pass and archive normal geometry retained from v2; archive-only two final-source postfix cases v4 pass. No accepted API suites or restore/viewport replay.
+
+Pending independent Terra/oldfirst review. Only exact counterparty archive/restore UI criteria; backend normal projector DTO observed but browser wire-body unavailable; no backend redaction claim from this branch. No other module/role/route delivery or shared generic geometry certification.
+
+### E433
+
+P08 exact nominated file K6 dependency joins; nested comment77, root publication metadata35, task4/stage2/attached-chat9 and previously admitted components Five finite whole K6 candidates, no accepted runtime repeated. New runtime only fills nominated nested/source/root metadata gaps. Read/current-response and lifecycle criteria not promoted.
+
+No FileService edits after a8b399 freeze. No whole K5/K7, delegation freshness, uncertain commit or failed-preview retry-race claim; text committed before attached file IO remains explicitly acknowledged. Historic E371 raw is a named cross-code component only, never priorEvidenceId for files.upload. No inventory OQ155 policy expansion. Independent exact-SHA semantic review required.
+
+### E400
+
+/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/objects-E400-operational-whole8-v2 Eight coherent operational K4/K5 closure candidates, joining original responsive classes, actual r5 deny/stale/manual-save cycles and addressed r7 callback/file-recovery deltas. Independent review required; no canonical integration performed.
+
+Only four named object leaves K4/K5. CP/object-update2 and every unrelated/unproven cell excluded. Existing snapshots remain bound to their actual executed source; original failures remain frozen. Unknown-ID comment ACK is an explicit controlled projection after actual committed create, not proof of backend ACK race. No K3/K6/K7 claim, no production, no all-role UI inference.
+
+### E434
+
+Owned local API3195/private PostgreSQL pool2;22 finite missing operational lifecycle phases joined with prior exact E4228, E68/E77. Four whole object operational K7 closure candidates. No browser and no product/canonical edits by author.
+
+Independent reviewer must approve source applicability and exact joined phases. Old three complete delegation observations addressed offline only for one precisely attributed legitimate failure-audit row; original failed oracle receipts retained. Historical typed log does not supply recipient UUIDs and is not relabelled to new cohorts. No physical attachment bytes/staging or all-role UI/socket coverage claimed.
+
+### E432
+
+run-53; retained admitted historical E80/E244/E66/E112/E174/E73/E65 + owned PostgreSQL receipts68024/70427/70565/70771/71067/71452/71640/72031; author performs offline reconciliation only Eight one-time-order K7 candidates: exact lifecycle/source guards, actual captured-actor revoke barriers, audit-INSERT rollback/manual retry, homogeneous and mixed SQL-blocked concurrency. 13 actor+5 completed-source,13 fault (11 old+2 post-fix),13 concurrency adapters+1 NEW mixed reorder/update. Review70771 real failure retained; corrected two methods tested71067/71640.
+
+AUTHOR CANDIDATE, not independent acceptance. Terra must independently review. Only these eight exact codes/finite branches, actual manager or director recipients shown; no all291/allroles, browser/HTTP/realtime/storage execution from new serverless receipts. Historical E evidence retained at original scope; current test inspection is not historical source execution. Closed/cancelled shared predicates and active-account status gate include explicitly labelled static reasoning. No unobserved lock-order schedule or point-version409 invented. Captured417 source entries are not417 executed modules. No new runtime/product/canonical/production writes.
+
+### Уточнение приёмки E432 — управление менеджерами
+
+Целый К7 возвращён в статус «Частично» после независимой проверки ветки добавления менеджера. Доказательства снятия менеджера сохранены; семь остальных критериев E432 остаются подтверждёнными. Дополнительная проверка добавления проводится адресно.
+
+### Уточнение приёмки E428 — изменение задачи
+
+Целый К7 возвращён в статус «Частично» после независимой проверки отзыва исходного замещения. Прежние проверки автора и персонального отзыва сохранены. Перепроверка исправления проводится адресно.
+
+### E438
+
+Private API3193/schema/pool2/Redis6383, no browser; only new missing phases executed. Original cohorts frozen separately. Nine whole CP candidates: four pure-reader K7, four status-write K7, history K6. Five new scenario passes joined to exact retained source/component proofs.
+
+Pending independent substantive review; no self admission. Three actual source defects separately handed Main; no delegation/visit/ledger-K6 acceptance. No E439 execution or browser credit.
+
+### E435
+
+outputs/access-acceptance-20261107/all-rights-acceptance/run-53/objects-E435-readonly-whole8-v4 Eight read-only object K7 whole-criterion candidates. Each exact action reuses accepted 12-role HTTP/saved-DTO/positive+denied PostgreSQL purity proof, mapped against the frozen exact read_projection component contract. No accepted runtime is repeated.
+
+Only named read-projection K7 cells. No K4/K5/K6, producer/realtime/privacy inheritance, no mutating lifecycle/atomicity/approval/ledger path, no production. Actual old loaded source manifests remain bound; current disk hashes are not substituted. Independent review must validate the per-action applicability before canonical admission.
+
+### E431
+
+Eligible whole reuse + Terra accepted warehouse actual12+8 component join; no accepted runtime repeated. 18 whole K6/K7 candidates from exact action/resource/recipient proof; separate original4 source-revocation gaps remain on scoped write cells.
+
+Independent whole review required; Terra bounded20 is not itself whole acceptance. Source snapshots, historical raw callbacks and current actor/race cohorts remain distinguished. No browser/all12 UI or nonexistent files/export/notification channels inferred. Three scoped write K7 cells intentionally excluded until Main source-lock fix and exact postfix; not converted to generic partial. inventory.return/K7 excluded by reviewer source-gap hypothesis pending actual authorized source/assignment or delegation race; no product defect is inferred from source inspection alone.
+
+### E436
+
+P08 root chat finite whole K6: private root45 + all3 system root visibility adapters105 + exact accepted source/metadata joins One immediately eligible whole criterion sealed independently of pending UI/write lifecycles. All old applicable root source/file/real transport gaps explicitly addressed.
+
+No K4/K5/K7 closure, no notification/OS rerun or invented role grid. System3 uses actual createSystemMessage transport adapter and explicit retained legacy physical File read fixtures; it does not repeat domain producer acceptance. Immutable source snapshots and exact read-body equivalence bind the bounded write-only cohort. No source-only claim.
+
+### E425
+
+acl_acceptance_20261107_42365,acl_acceptance_20261107_45033,acl_acceptance_20261107_69636,acl_acceptance_20261107_71376,acl_acceptance_20261107_80850,acl_acceptance_20261107_82400,acl_acceptance_20261107_84536 Four whole supported cells only; failed attempts retained and excluded. Two direct closure K4 cells are outside this eligible subset pending exact component-applicability decision; no new button or generic resolver alias invented. Work on remaining owned campaign continues.
+
+Only four named whole criteria proposed verified; no K6/K7 closure inferred. Source cohorts and screenshots retain original actual identities/resources. MAIN sole canonical writer; independent review required.
+
+### E444
+
+One private API3193 owned-schema campaign final0608/9881, 18 targeted records pass; this claim uses only six new update branch records plus exact retained original-source4/E428; six only-new approval lock-order post phases on Approvals781, with explicit shared-reset mechanism rebind Whole reacceptance candidate after two newly confirmed defects: original E428 finite phases retained; original-source4 retained with exact0608 helper dependency; six actual object/order destination winner orders and disjoint/reset traces allpass on0608. Both intended fields survive, all omitted fields preserved, one reset/approval cancellation; destination assignment revoke cannot authorize stale target write. Shared reset/approval deadlock component additionally repaired by Approvals781; precise common-callee join and fresh both-winner SQL waits included for independent review.
+
+Pending independent Terra review. Rejected v1 and before failures immutable; no original-source4 or accepted E428 replay. No registered E438 evidence identity reused. Source cohorts17a/b762/0608 remain separately named/frozen. Original74 assertions remain byte-for-byte equal as JSON structures; only new shared protocol assertions appended. No source/runtime replay of18/source4. Source authored by worker, independent Terra approval remains pending.
+
+### E445
+
+Offline exact existing raw read segment + current positive callgraph/source cohort reuse; no new runtime/server/browser Whole readonly-history K7 candidate: actual same-code HTTP200 plus captured persisted A/B plan/entry/audit equality, and complete unchanged concrete read callgraph. No new runtime or original failed-wrapper pass claim.
+
+Pending independent Terra review. Original composite scenario failed later object-options; reused history segment and captured equality remain genuine and narrowly named. Known K6 A structured text leak remains unaccepted. No authority transferred from another code/registry catalog.
+
+### E446
+
+run-53 P08 next missing-only UI whole v1;8 criteria independent of new rename/send/unhide defects Eight finite criteria join actual new read strict terminals and two creation UI classes with exact already accepted components. No accepted runtime repeated.
+
+Only these8 K4/K5 criteria. Rename draft, late send ACK and enabled denied unhide are separately tracked actual failures. Their rights/K5/K7 are not closed by this claim; no source-only mechanism closure. Backend75/preview17/notifications all accepted not replayed.
+
+### E447
+
+acl_acceptance_20261107_87998,acl_acceptance_20261107_94464 Three finite whole K5 candidates, actual current R35/R36 only. No historical source equivalence needed for closure. MAIN reserved E447. Independent semantic review required before admission.
+
+Exactly named K5 cells only. No K6/K7, issue_cash or direct-closure UI claim. No accepted scenario rerun. Domain/API role/scope grids already admitted are not replayed. Successful response headers plus actual positive saved UI and exact one-write DB are ACK proof; intentional body cancel afterwards is not treated as failure. Helper requestId labels real captured Request object correlation, not native HTTP header ID.
+
+### E440
+
+Warehouse whole5 exact reuse + final scoped source-order8 on private API3195/pool2; no old accepted20 or generic actor-race11742 replay. Narrowed E440: three whole candidates equipment.assign_order/K7 and equipment.unit.create/delete/K6. Original source-order8 and generic actor proofs retained without replay.
+
+Independent review required. Two generic equipment_move delegation branches under equipment.assign_object/return remain on author hold: current generic createMovement reads captured delegation context, while source principal/substitution freshness is not covered by the scoped assignment post8. This is an unexecuted source-proof gap, not an actual defect claim. No server permitted now. Objects source-order post8 remains explicitly its executed00e2 cohort, not a new ACK/founder geometry claim.
+
+### E448
+
+run53-Copernicus-task-source-whole-v1 Four exact whole K6 proposals: Task access/read/history/update; actual missing root scopes/nested DTOs/terminal states/linked counts/source delivery/file parity plus exact already accepted parent/historical components. No accepted runtime replay or canonical writes.
+
+Independent review proposal only. Actual new receivers are manager behavior-class actors; prior exact-code accepted server contexts are reused, not called new12-role browser execution. E132 is accepted historical47 HTTP/DB with current scenario selector, not newly captured old application bytes. Terminal File fixtures are metadata only; real upload/content belongs separate actual FileService post4. Dedicated history export/search/socket exclusions use full concrete route/projection/read-owner inventory and do not imply generic all-channel closure. K4/K5/K7 remain separate; Employee source-fix bounded review is not a whole K7 claim. Source70c4 selected count and ff298 missing scopes keep distinct actual cohorts; changed assignManager ACK is not relabelled as count execution.
+
+### E450
+
+Exact old inventory.return accepted phase reuse plus own API3195 final88d source6; all private schemas removed; no browser/accepted phase replay. One whole inventory.return/K7 closure candidate after actual source-race fix, awaiting Main ID and independent source/proof review.
+
+Not admitted; no canonical write. No postcommit source-loss ACK claim or K6 file closure. Raw fixture/audit-expectation failures remain unchanged; exact matched failed-attempt audit addressed offline.
+
+### E451
+
+Three missing actual held-read overlap phases only, API3195/pool2 owned schema85368 removed. Prior accepted K1/K2/K3 reused, no browser or product edits. Three whole readonly root/leaf K7 closure candidates inventory.access,mats.access,mats.read.
+
+Main ID+independent review needed before intake; no canonical write. No UI stale-rendering credit from native HTTP, no all12 race grid invented, no own write/approval/period obligation added for read/entry codes. Historical assets-root HR actor UUID absent is retained as absent; only actual new recipient UUID is explicit for new race.
+
+### E452
+
+New missing binary/search phases2 + supported retained notification-source REST/Redis/native TCP phases2 only in owned API3195/pool2 exact schema removed; prior E431 same-action data/source phases reused, no accepted K1/K2/K3 replay. Two whole K6 read-channel closure candidates inventory.read and inventory.movements.read.
+
+Main ID+independent source/proof review required; no canonical write. Native real files/worker/MinIO used only to exercise missing source-bound read channels, no new upload/mechanism criterion closure. Exact old component sources remain historical; no broadened prior registry codes or missing old recipient UUIDs invented.
+
+### E453
+
+Offline exact immutable report+direct missing-photo whole K6 join; no new execution at ID binding. Two proposed whole K6 cells: inventory.reports and inventory.resolve_missing_photo.
+
+Independent whole review required. No OQ photo/upload policy expansion, new resolver circle or shared-approval action coupling. Original respective source/role/receipt limitations remain attached in boundFromAuthorClaims and per-cell source facts. No physical upload criterion is claimed. Main canonical writer only.
+
+### E442
+
+Missing-only local owned PostgreSQL76704/79292 and final postcommit owned-serverless-96272; no HTTP/browser/new production server; retained admitted E432 manager cell only Exact managers.manage K7 whole candidate joins retained actual remove/history/shipment E432+E244 and E80 scope/lifecycle with six new assign-specific observations: source-loss refusal through transitive guard, actual audit INSERT rollback+one manual retry, two same/distinct target SQL-waited add schedules preserving composite uniqueness and two intentional audits, actor-version revoke before transaction, and real committed-write/read-deny minimal ACK. Original failed postcommit full DTO is retained as failure; only exact new-source ACK pass replaces it. No accepted seven order codes repeated.
+
+Author candidate only, Terra independent review mandatory. This is one exact K7 cell, not all291/allroles/all UI criteria. Source-loss uses real removal-vs-add SQL wait; actor revoke is before actual transaction; postcommit read revoke is after real transaction return. Actual controlled source-handler ACK/session/order and helper/fetcher proof is separately bound; no browser/cookie/render proof. Broader frontend suite has90pass/5baseline failures; only exact14passing targeted cases are credited. Earlier accepted E432 seven other cells are excluded. Old successful cohorts retain original source bytes; only postcommit response uses new source. Frontend14 controlled source-handler/helper cases are compatibility proof, not new rendered UI/browser execution.
+
+### E449
+
+run-53 3 whole K7 candidates: UserSubstitutions read and VisitPlans access/read. Original read candidate retained with exact successor source binding;2 finite parent/read candidates join actual retained E411 and current overdue tails. Independent review requested.
+
+K7 only. The known history structured A payload and before-fixed postcommit DTO disclosure are K6; current13post/4dependencies are bound but not promoted to whole K6. No browser/K4/K5 credit. No broad producer close-vs-worker runtime is relabelled tested; unchanged shared plan-row serialization plus fresh worker predicate is explicit component reasoning.
+
+### E454
+
+run53-Copernicus-people-source-whole-v1 Six exact Employee K6 whole proposals: real four HR writes/readonly receiver/source/root HTTP plus actual missing-only four live source-delivery residuals and concrete source applicability reconciliation.
+
+Independent review proposal. Original failed oracle workflow preserved; only completed assertions joined. New delivery fixture is independent, not same-schema continuation or repeated Employee writes. Selected/all are actual canonical supported scopes. No closure of other K4/K5/K7 or new policy/production claim; E448 and accepted Task lifecycle suites not repeated.
+
+### E457
+
+Only2 new missing inventory.access source-channel phases in own local A3195/pool2/schema cleanup; no accepted read2/scoped8/metadata/generic phase replay and no product changes. One whole inventory.access/K6 closure candidate with all actual supported source channels.
+
+Main ID and independent whole review required; no canonical write. Generic compatibility notification fixture/events are explicit, not a natural read/outbox emission. Historical unknown recipient stays unknown; only raw current receiver/resource IDs claimed. Root inventory item scopes do not silently narrow independent work reference name sources.
+
+### E458
+
+Six missing current-source binding phases only, own localhost3195/schema pool2; source frozen at actual load, own schema removed. No accepted full K1/K2, file or socket replay. One whole inventory.references.read/K6 candidate.
+
+Historical E98 old-source success remains historical; unrecovered run02 inventory/object-access source is not mislabeled current. Current6 source denial/DTO executions close the specific source-version binding gap. Existing exact all12 role leaf/root checks retain original IDs/cohort. No browser, arbitrary all12 files/socket or E87 registry credit. Independent whole review/Main ID required; no canonical edits.
+
+### E456
+
+Offline retained E65 JSON + exact E375 one_time_order_photo actual upload-only source/cohort reconciliation; no new runtime. Finite K3 source-effect graph, not every unrelated table/delivery channel: E65 actual JSON deny/no-effects and independent B exact one photo+audit; E375 actual photo file-upload API refusals/metadata absence/object cleanup/no duplicate rows cover the separate real upload channel. Current upload/photo guard/storage match frozen executed sources; dispatcher changes are off-target task/daily-report branches and actor-fence change is message only. No photos JSON transaction rollback, other entity, all-role browser or K7 promotion.
+
+One whole photos.create/K3 author candidate requiring Terra independent review. No fresh byte uploads/roles inferred from replay-only attachment fixtures. Specification.attachments/K3 remains open: its old E65 test covers replay, while E375 registry/raw target set excludes specification_item; no blanket upload-helper target promotion. JSON audit fault/races remain K7, not hidden by this criterion disposition.
+
+### E463
+
+run-53 P08 eleven actual UI whole criteria, immutable v1 after E446 admission Eleven independent completed K4 blocks, missing-only recipient UI. Exact failed proofs retained separately and targeted fixes verified before joins.
+
+K4 only; no claim of whole K5/K7 from held write/UI mechanics. Historical positive forms are joined with newer exact negative controls and current shared menus/header; source versions are explicit, not represented as one source cohort. No661 E446 replay or accepted-cell downgrade.
+
+### E443
+
+/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/objects-E443-inventory-and-read-whole6-v3 Six whole candidates: original immutable E443 four unchanged plus two K4 readers after exact localized-denial posts. Supersedes unadmitted v2 only; no canonical modifications.
+
+Only six named cells. No K6/K7/source-witness/parent-producer inference. Old failures and actual loaded source cohorts retained. Independent semantic review required.
+
+### E465
+
+/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/counterparties-E465-retained-whole13-v2 Thirteen exact whole CP candidates: original immutable ten unchanged plus update K4 and link/master K5 after actual no-write R5 literal invariants. New same-reservation revision before admission only.
+
+Only thirteen named cells. Link/master K4 remain outside because new cancellation explanation source post awaits next lane; inventory K6 awaits bounded source/channel applicability review. No K7 inference, all-role UI duplication, old failure deletion, or protected DTO after revoke. Actual source cohorts retained; latest notice-only source patch is not passed runtime evidence.
+
+### E461
+
+Only new actual correction-budget-source channel in own localhost3195/pool2 schema; production outbox worker held before unchanged first flush, natural budget notification rows, real Redis/native TCP. No accepted K1/K2/races/browser replay. Prior exact primary/source/read components reused. One proposed whole inventory.movement.correct/K6 closure now with missing actual transitive budget channel.
+
+Independent whole review/Main ID required; no canonical or product edits. Existing E92/E414 primary resource/cohort proofs and E452/E390 components preserve own exact source versions. Current actual budget notice type/object IDs/recipient/worker delivery recorded; creation occurred naturally in legal setup before source deny, while actual correction reduced budget without new alerts. Do not cite raw legacy sourceDenyBeforeProducer label as new-notice-after-deny. No closure of objects.budget.read financial policy, OQ155/upload authority or browser.
+
+### E467
+
+/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/objects-E467-readonly-whole11-v1 Eleven whole read-only K7 candidates, all12 actual role combinations,132 exact state-purity components. Original30 passed kept; only missing material file3 and unexecuted role99 run afterward. No accepted policy or browser replay.
+
+Only named read_projection K7 cells. No K4/K5/K6/source privacy/producer closure, no mutation lifecycle, approval decision or monetary/stock posting. All source freezes are actual executed backend copies per build; independent per-action applicability review required before canonical admission. Initial404 failures are harness route errors and are preserved.
+
+### Уточнение приёмки E455 — чтение и скачивание файлов
+
+К6 для `files.read` и `files.download` возвращён в «Частично»: уже начатый ответ выдал защищённые байты после сохранённого отзыва исходного замещения. Новый запрос корректно запрещён; независимый разрешённый файл доступен. Прежние доказательства сохранены. Требуются исправление повторной проверки источника доступа и адресный повтор этого сценария.
+
+<a id="e470"></a>
+
+### E470 — адресное завершение найденных дефектов
+
+Три серверных исправления проверены адресно на изолированных локальных данных: файлы после отзыва замещения, складская выдача и ответы оборудования после сохранения. Сохранённые успешные проверки контактов и закрытого финансового источника зачтены без повторения. Подробности и браузерный результат: [/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/targeted-closeout-v1/results.json](/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/targeted-closeout-v1/results.json).
+
+Новые результаты ожидают независимого ревью, целые критерии автоматически не повышались. К7 `inventory.issue_to_object` уточнён до «Частично»: прежний зачёт не включал воспроизведённый отзыв замещения; адресное исправление уже прошло оба порядка гонки. Производственный сервер не затрагивался.
+
+### Независимое ревью E470 — запуск заблокирован
+
+Отдельный ревьюер недоступен из-за ограничений агентских запусков и использования. Автор сверил целостность 14 артефактов и трёх актуальных файлов; это не независимое заключение. Статусы К1–К7 не повышались. Общий прогон не запускался, рабочий сервер не затрагивался. Точка продолжения: [/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/targeted-closeout-v1/independent-review-attempt-v1.json](/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/targeted-closeout-v1/independent-review-attempt-v1.json).
+
+## Документальная доработка 214 ячеек — 15 ноября 2026
+
+Поимённые дополнения: [access-control-documentary-followup-214-2026-11-15.md](access-control-documentary-followup-214-2026-11-15.md). Собраны 214/214 карточек, поздние компоненты присоединены по 27 ячейкам. Семь whole-заявок ожидают независимого source review, у 207 сохранены конкретные пробелы. Вместе с прежней сверкой 325: 20 авторских заявок на ревью и 305 ячеек с остатками. Статусы К1–К7 не изменены; новых зачётов 0, глобально открыто 691. Прогонов и действий на рабочем сервере не было.
+
+### E471
+
+2026-11-15 local independent documentary admission of20, no general run 20 exact previously executed/reconciled whole criteria independently accepted by W/Mill. Authorship conflicts cross-reviewed; no new production or whole-catalog run.
+
+Only named20 criteria; partial and deferred cells remain open. Original failed raw containers contribute only independently checked passed subcases, not blanket success. Bound E470/retry fixes are separate. Prose assembly by Main is not new runtime evidence.
+
+### E472
+
+2026-11-15 exact local preview retry source/queue/witness/expiry checks; no whole catalogue campaign. Main fixed source retry mutation and addressed independent-review findings. Eleven bounded scenarios passed across immutable original and final source cohorts: membership/object deny, write-first, queue4, expense3, expiry1. W/Mill independently accepted exact fixes/addenda. Existing E470 fixes accepted bounded. E471 separately admits20 whole criteria.
+
+No new whole files.preview.retry/K7 claim, browser or Office conversion success. Real DB/Redis and named HTTP/service scopes only; old failed receipt-deletion fixture is explicitly not accepted. Whole joined worker/publication/ACK coverage remains to reconcile. No production.
+
+## Итог независимого выпускного ревью — 15 ноября 2026
+
+[access-control-release-gate-2026-11-15.md](access-control-release-gate-2026-11-15.md): E471 закрывает20 критериев, открыто671; полностью принято46 прав. Конкретный preview.retry дефект и три E470 исправления приняты ограниченно; whole retry/K7 остаётся частичным. Обязательные доказательные ограничения292, решения политики8, кандидаты на перенос365. Выкладка не разрешена этим отчётом; сервер не использовался.
+
+## Документальный разбор выпускного остатка — 16 ноября 2026
+
+[access-control-documentary-release-298-2026-11-16.md](access-control-documentary-release-298-2026-11-16.md): все298 ячеек разобраны. 207 нуждаются в exact source/consumer evidence binding;81 — в конкретном ещё не установленном результате (34 сценарные группы);6 — whole join/review без повторения исправлений;4 предложены к переносу дополнительных rendering вариантов. Это не новые прогоны и не новые зелёные статусы. Уточнены gaps с сохранением прежних формулировок. Подтверждено1314 критериев, открыто671, полностью принято46 прав. Сервер не использовался, выкладка не разрешена.

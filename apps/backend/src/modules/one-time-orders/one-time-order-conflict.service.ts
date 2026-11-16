@@ -1,9 +1,12 @@
 import { createHash } from 'node:crypto';
 
-import { ForbiddenException, Injectable, Logger } from '@nestjs/common';
+import { ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
+import type { AccessSubject } from '../users-access/types/access-policy.type';
+import { buildOneTimeOrderCapabilities } from './utils/one-time-order-capabilities.util';
+import { canViewOneTimeOrderByScope } from './utils/one-time-order-access.util';
 
 import { CheckOneTimeOrderConflictsDto } from './dto/check-one-time-order-conflicts.dto';
 import {
@@ -24,7 +27,7 @@ import {
   normalizeOneTimeOrderDateRange,
 } from './utils/one-time-order-date-range.util';
 
-interface CurrentAuthUser {
+interface CurrentAuthUser extends AccessSubject {
   id: string;
   roleCode: string;
   roleCodes?: string[];
@@ -56,6 +59,55 @@ export class OneTimeOrderConflictService {
       payload.excludeOrderId,
       db,
     );
+    return this.checkAuthorizedConflicts(currentUser, payload, options);
+  }
+
+  /** Server-only assignment path. No controller/DTO can supply this authority.
+   * Reauthorize the exact stored order in the mutation transaction; derive the
+   * schedule target here rather than widening the public calendar endpoint. */
+  async checkManagerAssignmentConflicts(
+    currentUser: CurrentAuthUser,
+    orderId: string,
+    managerUserId: string,
+    db: Prisma.TransactionClient,
+  ): Promise<OneTimeOrderConflictResponseDto | null> {
+    const order = await db.oneTimeOrder.findUnique({
+      where: { id: orderId },
+      select: {
+        id: true, status: true, createdByUserId: true,
+        executionStartDate: true, executionEndDate: true,
+        assignments: {
+          where: { isActive: true, assignmentRoleCode: 'one_time_manager' },
+          select: { userId: true, assignmentRoleCode: true, isActive: true },
+        },
+      },
+    });
+    if (!order) throw new NotFoundException('One-time order not found');
+    const access = {
+      subject: currentUser, currentUserId: currentUser.id,
+      roleCodes: this.getRoleCodes(currentUser),
+      permissionCodes: currentUser.permissionCodes, order,
+    };
+    if (!canViewOneTimeOrderByScope(access) ||
+        !buildOneTimeOrderCapabilities(access).canManageManagers) {
+      throw new ForbiddenException('One-time order manager management denied');
+    }
+    if (order.status === 'cancelled' ||
+        !order.executionStartDate || !order.executionEndDate) return null;
+    return this.checkAuthorizedConflicts(currentUser, {
+      executionStartDate: formatBusinessDate(order.executionStartDate)!,
+      executionEndDate: formatBusinessDate(order.executionEndDate)!,
+      managerUserIds: [managerUserId], excludeOrderId: order.id,
+    }, { db, lockManagerSchedules: true });
+  }
+
+  private async checkAuthorizedConflicts(
+    currentUser: CurrentAuthUser,
+    payload: CheckOneTimeOrderConflictsDto,
+    options?: { db?: DatabaseClient; lockManagerSchedules?: boolean },
+  ): Promise<OneTimeOrderConflictResponseDto> {
+    const db = options?.db ?? this.prisma;
+    const managerUserIds = [...new Set(payload.managerUserIds)].sort();
     const range = normalizeOneTimeOrderDateRange({
       executionStartDate: payload.executionStartDate,
       executionEndDate: payload.executionEndDate,

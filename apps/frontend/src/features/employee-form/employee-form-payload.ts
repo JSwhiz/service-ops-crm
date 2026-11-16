@@ -5,10 +5,15 @@ import { phoneDraftValues, phoneDrafts } from '@/shared/ui/phone-list-field/phon
 import type { EmployeeFormValue } from './employee-form-fields';
 
 /** Single mapping from form state to the existing create/update payload. */
-export function toEmployeeMutationPayload(form: EmployeeFormValue): EmployeeMutationPayload {
+export function toEmployeeMutationPayload(
+  form: EmployeeFormValue,
+  documentBaseline?: Pick<EmployeeFormValue, 'passportReceived' | 'contractReceived'>,
+): EmployeeMutationPayload {
   return {
-    passportReceived: form.passportReceived,
-    contractReceived: form.contractReceived,
+    ...(form.passportReceived !== (documentBaseline?.passportReceived ?? false)
+      ? { passportReceived: form.passportReceived } : {}),
+    ...(form.contractReceived !== (documentBaseline?.contractReceived ?? false)
+      ? { contractReceived: form.contractReceived } : {}),
     fullName: form.fullName.trim(),
     phones: phoneDraftValues(form.phones),
     position: form.position.trim() || null,

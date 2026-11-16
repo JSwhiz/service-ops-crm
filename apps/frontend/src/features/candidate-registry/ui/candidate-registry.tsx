@@ -100,8 +100,10 @@ export function CandidateRegistry({
   const [error, setError] = useState<string | null>(null);
   const [, setClock] = useState(0);
   const canAccess = user?.capabilities?.canAccessCandidates ?? false;
-  const canManage = user?.capabilities?.canManageCandidates ?? false;
-  const scope = searchParams.get('scope') === 'all' ? 'all' : searchParams.get('scope') === 'mine' ? 'mine' : canManage ? 'all' : 'mine';
+  const canCreate = user?.capabilities?.canCreateCandidate ?? false;
+  // "all" removes only the assignment filter; the API still applies candidate
+  // read scope, including selected grants. Preserve an explicit "mine" choice.
+  const scope = searchParams.get('scope') === 'mine' ? 'mine' : 'all';
 
   const replaceQuery = (updates: Record<string, string | null>): void => {
     const next = new URLSearchParams(searchParams.toString());
@@ -187,7 +189,7 @@ export function CandidateRegistry({
   const activeRegistryFilters = [
     {
       id: 'scope', label: 'Кандидаты', value: scope,
-      options: [{ value: 'mine', label: 'Мои' }, { value: 'all', label: 'Все' }],
+      options: [{ value: 'mine', label: 'Мои' }, { value: 'all', label: 'Все доступные' }],
       onChange: (value: string) => replaceQuery({ scope: value, page: null }),
       onRemove: () => replaceQuery({ scope: null, page: null }),
     },
@@ -350,7 +352,7 @@ export function CandidateRegistry({
         activeFilters={activeRegistryFilters}
         availableFilters={availableRegistryFilters}
         actions={
-          canManage && !fixedType ? (
+          canCreate && !fixedType ? (
             <CreateNavigationLink className="ui-button ui-button--primary" href="/candidates/new">
               <span className="ui-button__icon" aria-hidden="true"><PlusIcon /></span>
               Добавить кандидата

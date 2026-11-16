@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useContext, useEffect, useRef, useState } from 'react';
 
 import type { ObjectArrivalPhoto } from '@/entities/object/model/object-operations.types';
 import styles from '@/features/object-shared-ui/object-surfaces.module.css';
@@ -13,16 +13,23 @@ import { MediaActionPicker } from '@/shared/ui/media-entry/media-action-picker';
 import { PendingMediaList } from '@/shared/ui/media-entry/pending-media-list';
 import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-select';
 import { Button, Surface } from '@/shared/ui/foundation';
+import { AccessSnapshotBlockedContext } from '@/shared/auth/access-snapshot-boundary';
+import { isSavedWithoutAccess, type SavedWithoutAccess } from '@/shared/api/saved-without-access';
+import { captureObjectWriteFence } from '@/features/object-shared-ui/object-write-fence';
+import { getAccessGeneration, isAccessGenerationCurrent } from '@/shared/auth/access-generation';
+
 
 interface ObjectArrivalPanelProps {
+  objectId: string;
   item: ObjectArrivalPhoto | null;
+  canSave: boolean;
   onSave: (payload: {
     photoUrl?: string;
     photoType?: string;
     comment?: string;
     files: File[];
     fileNames: Array<string | undefined>;
-  }) => Promise<void>;
+  }) => Promise<void | SavedWithoutAccess>;
 }
 
 function normalizePhotoCategory(value: string | null | undefined): string {
@@ -31,7 +38,17 @@ function normalizePhotoCategory(value: string | null | undefined): string {
     : 'other';
 }
 
-export function ObjectArrivalPanel({ item, onSave }: ObjectArrivalPanelProps): React.JSX.Element {
+export function ObjectArrivalPanel({ objectId, item, canSave, onSave }: ObjectArrivalPanelProps): React.JSX.Element {
+  const surfaceMounted = useRef(true);
+  const currentObjectId = useRef(objectId);
+  currentObjectId.current = objectId;
+  useEffect(() => { surfaceMounted.current = true; return () => { surfaceMounted.current = false; }; }, []);
+  const [acknowledged, setAcknowledged] = useState(false);
+  const blocked = useContext(AccessSnapshotBlockedContext);
+  const writable = canSave && !blocked;
+  const currentWritable = useRef(writable);
+  currentWritable.current = writable;
+  const persisted = useRef({ photoType: normalizePhotoCategory(item?.photoType), comment: item?.comment ?? '' });
   const [form, setForm] = useState({
     photoType: normalizePhotoCategory(item?.photoType),
     comment: item?.comment ?? '',
@@ -41,32 +58,44 @@ export function ObjectArrivalPanel({ item, onSave }: ObjectArrivalPanelProps): R
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const currentForm = useRef(form);
+  currentForm.current = form;
   useEffect(() => {
+    const dirty = JSON.stringify(currentForm.current) !== JSON.stringify(persisted.current);
+    const next = { photoType: normalizePhotoCategory(item?.photoType), comment: item?.comment ?? '' };
+    persisted.current = next;
+    if (dirty) return;
     setForm({
       photoType: normalizePhotoCategory(item?.photoType),
       comment: item?.comment ?? '',
     });
-    setPendingFiles([]);
-    setPendingFileNames([]);
   }, [item]);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault();
+    if (acknowledged || isSubmitting || !currentWritable.current) { setError('Право изменения фото прибытия недоступно. Черновик сохранён.'); return; }
+    const generation = getAccessGeneration();
+    const targetId = objectId;
+    const fence = captureObjectWriteFence(() => surfaceMounted.current && currentObjectId.current === targetId);
     setIsSubmitting(true);
     setError(null);
     try {
-      await onSave({
+      const receipt = await onSave({
         photoType: form.photoType || undefined,
         comment: form.comment || undefined,
         files: pendingFiles,
         fileNames: pendingFileNames,
       });
+      if (!fence.sameTarget()) return;
+      if (receipt && isSavedWithoutAccess(receipt)) { setAcknowledged(true); return; }
+      if (!fence.current() || !isAccessGenerationCurrent(generation) || !currentWritable.current) { setAcknowledged(true); return; }
       setPendingFiles([]);
       setPendingFileNames([]);
     } catch {
+      if (!fence.current()) return;
       setError('Не удалось сохранить фото прибытия.');
     } finally {
-      setIsSubmitting(false);
+      if (fence.sameTarget()) setIsSubmitting(false);
     }
   };
 
@@ -82,6 +111,10 @@ export function ObjectArrivalPanel({ item, onSave }: ObjectArrivalPanelProps): R
         </span>
       </div>
 
+      {!writable ? <div className={styles.emptyState} role="status">Изменение фото прибытия недоступно. Комментарий и выбранные файлы сохранены.</div> : null}
+      {acknowledged ? <div className={styles.emptyState} role="status">Основная запись сохранена. Черновик и файлы оставлены для проверки; повтор не отправлялся.
+        <Button type="button" onClick={() => setAcknowledged(false)}>Я проверил запись — новое действие</Button>
+      </div> : null}
       <form className={styles.panelForm} onSubmit={handleSubmit}>
         <div className={`${styles.field} ${styles.categoryField}`}>
           <SearchableSelect
@@ -94,7 +127,7 @@ export function ObjectArrivalPanel({ item, onSave }: ObjectArrivalPanelProps): R
             searchable={false}
             clearable={false}
             viewportAware
-            disabled={isSubmitting}
+            disabled={acknowledged || isSubmitting || !writable}
             onChange={(photoType) => setForm((prev) => ({ ...prev, photoType }))}
           />
         </div>
@@ -102,6 +135,7 @@ export function ObjectArrivalPanel({ item, onSave }: ObjectArrivalPanelProps): R
         <label className={styles.field}>
           <span className={styles.fieldLabel}>Комментарий</span>
           <textarea
+            disabled={acknowledged || isSubmitting || !writable}
             value={form.comment}
             onChange={(event) => setForm((prev) => ({ ...prev, comment: event.target.value }))}
             rows={3}
@@ -113,10 +147,10 @@ export function ObjectArrivalPanel({ item, onSave }: ObjectArrivalPanelProps): R
           <MediaActionPicker
             compactMenu
             compactLabel="Добавить фото прибытия"
-            disabled={isSubmitting}
+            disabled={acknowledged || isSubmitting || !writable}
             allowGenericFile={false}
             genericFileAccept="image/*"
-            onPick={async (file) => { setPendingFiles((prev) => [...prev, file]); setPendingFileNames((prev) => [...prev, undefined]); }}
+            onPick={async (file) => { if (!currentWritable.current) return; setPendingFiles((prev) => [...prev, file]); setPendingFileNames((prev) => [...prev, undefined]); }}
           />
           {pendingFiles.length > 0 ? (
             <div className={styles.pendingFilesViewport}>
@@ -142,7 +176,7 @@ export function ObjectArrivalPanel({ item, onSave }: ObjectArrivalPanelProps): R
         <div className={styles.formActions}>
           <Button variant="primary"
             type="submit"
-            disabled={isSubmitting || (!item && pendingFiles.length === 0)}
+            disabled={acknowledged || isSubmitting || !writable || (!item && pendingFiles.length === 0)}
           >
             {isSubmitting ? 'Сохраняем…' : item ? 'Обновить' : 'Сохранить'}
           </Button>

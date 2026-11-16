@@ -77,7 +77,7 @@ export class ObjectSetupService {
     return object;
   }
 
-  private static capabilities(user: ObjectSetupActor, object: SetupObject): ObjectSetupCapabilities {
+  static capabilities(user: ObjectSetupActor, object: SetupObject): ObjectSetupCapabilities {
     const roles = ObjectSetupService.roles(user);
     const operational = canViewObjectByScope({ subject: user, currentUserId: user.id, roleCodes: roles, object });
     const leadership = canEditObject(roles);

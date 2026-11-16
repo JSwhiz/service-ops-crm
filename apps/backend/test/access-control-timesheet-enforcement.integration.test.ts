@@ -60,7 +60,7 @@ test('timesheet amount enforcement matches scoped read capabilities without chan
   const write = (index: number, cookie = deputy.cookie, dayOfMonth = day, dayValue = 1300) => request('/timesheets/entries', cookie, {
     objectId: objects[index].id, employeeId: employee.id, year, month, dayOfMonth, dayValue, comment: marker,
   });
-  const rule = (userId: string, actionCode: string, effect: 'allow' | 'deny', scope: 'selected' | 'all', selectedIds: string[] = []) =>
+  const rule = (userId: string, actionCode: string, effect: 'allow' | 'deny', scope: 'selected' | 'all' | 'own' | 'assigned', selectedIds: string[] = []) =>
     prisma.userAccessRule.create({ data: { userId, actionCode, effect, scope, selectedIds } });
   const reset = () => prisma.userAccessRule.deleteMany({ where: { userId: { in: actors.map((actor) => actor.id) } } });
   const entry = (index: number, dayOfMonth = day) => prisma.timesheetDayEntry.findUniqueOrThrow({ where: {
@@ -103,6 +103,42 @@ test('timesheet amount enforcement matches scoped read capabilities without chan
       await reset();
       assert.equal((await read(0)).capabilities.canManualCorrection, false, 'Grant revoke is live in the original cookie');
       assert.equal((await write(0)).status, 403);
+    });
+  }
+  for (const scope of ['own', 'assigned'] as const) {
+    await t.test(`${scope} grant follows real object relation, revoke and regrant in the original session`, async () => {
+      await reset();
+      const assignment = scope === 'assigned' ? await prisma.objectAssignment.create({ data: {
+        objectId: objects[0].id, userId: deputy.id, assignmentRoleCode: 'manager', isActive: true,
+      } }) : null;
+      if (scope === 'own') await prisma.object.update({ where: { id: objects[0].id }, data: { createdByUserId: deputy.id } });
+      try {
+        await rule(deputy.id, 'timesheet.amount.edit', 'allow', scope);
+        assert.equal((await read(0)).capabilities.canManualCorrection, true);
+        assert.equal((await read(1)).capabilities.canManualCorrection, false);
+        const controlBefore = await entry(1);
+        assert.equal((await write(0, deputy.cookie, day, 1400)).status, 201);
+        assert.equal((await write(1, deputy.cookie, day, 2400)).status, 403);
+        assert.deepEqual(await entry(1), controlBefore);
+        await reset();
+        assert.equal((await read(0)).capabilities.canManualCorrection, false);
+        assert.equal((await write(0, deputy.cookie, day, 1500)).status, 403);
+        assert.equal((await entry(0)).dayValue, 1400);
+        await rule(deputy.id, 'timesheet.amount.edit', 'allow', scope);
+        assert.equal((await read(0)).capabilities.canManualCorrection, true);
+        assert.equal((await write(0, deputy.cookie, day, 1600)).status, 201);
+        assert.equal((await entry(0)).dayValue, 1600);
+        // Removing the relation must remove the grant even without a new login.
+        if (assignment) await prisma.objectAssignment.update({ where: { id: assignment.id }, data: { isActive: false } });
+        else await prisma.object.update({ where: { id: objects[0].id }, data: { createdByUserId: founder.id } });
+        assert.equal((await read(0)).capabilities.canManualCorrection, false);
+        assert.equal((await write(0, deputy.cookie, day, 1800)).status, 403);
+        assert.equal((await entry(0)).dayValue, 1600);
+      } finally {
+        await reset();
+        if (assignment) await prisma.objectAssignment.delete({ where: { id: assignment.id } });
+        await prisma.object.update({ where: { id: objects[0].id }, data: { createdByUserId: founder.id } });
+      }
     });
   }
   await t.test('selected deny subtracts from real director baseline while control object still writes', async () => {

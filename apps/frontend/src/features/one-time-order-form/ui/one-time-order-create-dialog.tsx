@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import {
@@ -26,10 +26,12 @@ import {
 } from '@/entities/user/api/user-client';
 import type { SystemUserOption } from '@/entities/user/model/user.types';
 import { useAuth } from '@/shared/auth/use-auth';
+import { useAccessRevision } from '@/shared/auth/use-access-revision';
+import { getAccessGeneration, isAccessGenerationCurrent } from '@/shared/auth/access-generation';
 import { isLeadershipCircle } from '@/shared/lib/access';
 import type { SearchableSelectOption } from '@/shared/ui/searchable-select/searchable-select';
 import { Alert, Button } from '@/shared/ui/foundation';
-import { useConfirm } from '@/shared/ui/overlays';
+import { ConfirmDialog } from '@/shared/ui/overlays';
 import { FormDialog } from '@/shared/ui/overlays';
 import { useCreateDraft } from '@/shared/drafts';
 import { useCreateNavigation } from '@/shared/create-navigation';
@@ -61,12 +63,12 @@ function toObjectOption(object: ServiceObject): SearchableSelectOption {
 }
 
 export function OneTimeOrderCreateDialog(): React.JSX.Element {
-  const [confirm, confirmDialog] = useConfirm();
   const router = useRouter();
   const navigation = useCreateNavigation();
   const targetSearch = navigation.getTargetSearchParams().toString();
   const searchParams = useMemo(() => new URLSearchParams(targetSearch), [targetSearch]);
-  const { user } = useAuth();
+  const { user, capabilitiesRefreshError } = useAuth();
+  const accessRevision = useAccessRevision();
   const draft = useCreateDraft<OneTimeOrderFormDraft | null>('one-time-order-create', null);
   const [activeSection, setActiveSection] = useState<'basic' | 'planning' | 'conditions' | 'specification' | 'notes'>('basic');
   const [localSubmitting, setIsSubmitting] = useState(false);
@@ -94,9 +96,36 @@ export function OneTimeOrderCreateDialog(): React.JSX.Element {
   >([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [copyAllowed, setCopyAllowed] = useState(false);
+  const [copyFinanceAllowed, setCopyFinanceAllowed] = useState(false);
+  const [loadedScope, setLoadedScope] = useState<string | null>(null);
+  const scope = `${accessRevision}:${targetSearch}`;
+  const canSubmit = copyFromId ? copyAllowed : canCreateOneTimeOrder;
+  const context = useRef({ scope, allowed: false });
+  context.current = { scope, allowed: !capabilitiesRefreshError && loadedScope === scope && !isLoading && !error && canSubmit };
+  const copiedFinancialValues = useMemo(() => copyFromId ? {
+    agreedSum: initialValue?.agreedSum == null ? '' : String(initialValue.agreedSum),
+    plannedPaymentMethod: initialValue?.plannedPaymentMethod ?? '',
+    financialNotes: initialValue?.financialNotes ?? '', expenseNotes: initialValue?.expenseNotes ?? '',
+  } : undefined, [copyFromId, initialValue]);
+  const [conflictPrompt, setConflictPrompt] = useState<{
+    conflicts: Parameters<typeof ScheduleConflictList>[0]['conflicts'];
+    isCurrent: () => boolean;
+    resolve: (accepted: boolean) => void;
+  } | null>(null);
+  useEffect(() => {
+    if (conflictPrompt && !conflictPrompt.isCurrent()) {
+      conflictPrompt.resolve(false);
+      setConflictPrompt(null);
+    }
+  }, [conflictPrompt, scope, capabilitiesRefreshError, canSubmit, copyFinanceAllowed, loadedScope]);
+  useEffect(() => () => { context.current = { ...context.current, allowed: false }; }, []);
 
   useEffect(() => {
-    if (!canCreateOneTimeOrder) {
+    setLoadedScope(null);
+    if (capabilitiesRefreshError) return;
+    if (!canCreateOneTimeOrder && !copyFromId) {
+      setLoadedScope(scope);
       setIsLoading(false);
       return;
     }
@@ -146,6 +175,9 @@ export function OneTimeOrderCreateDialog(): React.JSX.Element {
           );
           setInitialManagerOptions(selectedManagers);
           setCopySpecificationItems(sourceSpecification);
+          setCopyAllowed(copySource?.capabilities.canCopy === true);
+          setCopyFinanceAllowed(copySource?.capabilities.canReadFinance === true);
+          setLoadedScope(scope);
 
           if (copySource) {
             setInitialValue({
@@ -198,7 +230,7 @@ export function OneTimeOrderCreateDialog(): React.JSX.Element {
     return () => {
       cancelled = true;
     };
-  }, [canCreateOneTimeOrder, copyFromId, searchParams]);
+  }, [canCreateOneTimeOrder, copyFromId, searchParams, accessRevision, capabilitiesRefreshError]);
 
   return (
     <FormDialog open title={copyFromId ? 'Скопировать разовый заказ' : 'Создать разовый заказ'} size="wide" busy={isSubmitting} dirty={draft.dirty}
@@ -208,11 +240,23 @@ export function OneTimeOrderCreateDialog(): React.JSX.Element {
       } }}
       footer={({ requestClose }) => <div className="ui-inline">
         <Button onClick={() => void requestClose()} disabled={isSubmitting}>Отмена</Button>
-        {canCreateOneTimeOrder && !isLoading && !error ? <Button variant="primary" type="submit" form="one-time-order-create-form" pending={isSubmitting} pendingLabel="Создаём…">{copyFromId ? 'Создать копию' : 'Создать заказ'}</Button> : null}
+        {context.current.allowed ? <Button variant="primary" type="submit" form="one-time-order-create-form" pending={isSubmitting} pendingLabel="Создаём…">{copyFromId ? 'Создать копию' : 'Создать заказ'}</Button> : null}
       </div>}>
     <div className={`ui-page ${orderStyles.orderDetailPage}`}>
-      {confirmDialog}
-      {!canCreateOneTimeOrder ? (
+      <ConfirmDialog
+        open={conflictPrompt !== null && conflictPrompt.isCurrent()}
+        onOpenChange={(open) => { if (!open) { conflictPrompt?.resolve(false); setConflictPrompt(null); } }}
+        title="Есть конфликты расписания"
+        consequence={conflictPrompt ? <ScheduleConflictList conflicts={conflictPrompt.conflicts} /> : null}
+        confirmLabel="Сохранить с конфликтами"
+        onConfirm={() => { conflictPrompt?.resolve(conflictPrompt.isCurrent()); setConflictPrompt(null); }}
+      />
+      {copyFromId && loadedScope === scope && !copyFinanceAllowed ? <Alert tone="warning" role="alert">
+        Финансовые поля исходного заказа скрыты и не копируются. Личные изменения сохранены отдельно. Выберите новый способ оплаты для создаваемого заказа.
+      </Alert> : null}
+      {capabilitiesRefreshError || loadedScope !== scope ? (
+        <div role="status">{capabilitiesRefreshError || error || 'Проверяем доступ…'}</div>
+      ) : !canSubmit ? (
         <div className="ui-surface ui-surface--padded">У вас нет права создавать разовые заказы.</div>
       ) : isLoading ? (
         <div className="ui-surface ui-surface--padded">Загрузка...</div>
@@ -228,6 +272,9 @@ export function OneTimeOrderCreateDialog(): React.JSX.Element {
           dialogMode
           initialDraft={draft.value ?? undefined}
           initialDraftDirty={draft.dirty}
+          canEditFinancialFields={!copyFromId || copyFinanceAllowed}
+          newPaymentMethodContext={copyFromId && !copyFinanceAllowed ? `${copyFromId}:${accessRevision}` : undefined}
+          copiedFinancialValues={copiedFinancialValues}
           onDirtyChange={onDirtyChange}
           onDraftChange={onDraftChange}
           onRequiredSection={(id) => setActiveSection(id)}
@@ -261,6 +308,10 @@ export function OneTimeOrderCreateDialog(): React.JSX.Element {
           allowStatusEdit
           submitLabel={copyFromId ? 'Создать копию' : 'Создать заказ'}
           onSubmit={async (payload) => draft.submit(async () => {
+            const generation = getAccessGeneration();
+            const originScope = scope;
+            const isCurrent = (): boolean => isAccessGenerationCurrent(generation) && context.current.scope === originScope && context.current.allowed;
+            if (!isCurrent()) return;
             if (!payload.plannedPaymentMethod) {
               throw new Error('Укажите плановый способ оплаты');
             }
@@ -275,13 +326,10 @@ export function OneTimeOrderCreateDialog(): React.JSX.Element {
                 executionEndDate: payload.executionEndDate,
                 managerUserIds: payload.managerUserIds,
               });
+              if (!isCurrent()) return;
               if (result.hasConflicts) {
-                const confirmed = await confirm({
-                  title: 'Есть конфликты расписания',
-                  consequence: <ScheduleConflictList conflicts={result.conflicts} />,
-                  confirmLabel: 'Сохранить с конфликтами',
-                });
-                if (!confirmed) return;
+                const confirmed = await new Promise<boolean>((resolve) => setConflictPrompt({ conflicts: result.conflicts, isCurrent, resolve }));
+                if (!confirmed || !isCurrent()) return;
                 conflictFingerprint = result.conflictFingerprint;
               }
             }
@@ -290,12 +338,14 @@ export function OneTimeOrderCreateDialog(): React.JSX.Element {
               plannedPaymentMethod: payload.plannedPaymentMethod,
               conflictFingerprint,
             };
+            if (!isCurrent()) return;
             const created = copyFromId
               ? await copyOneTimeOrder(copyFromId, {
                   ...createPayload,
                   specificationItems: payload.specificationItems ?? [],
                 })
               : await createOneTimeOrder(createPayload);
+            if (!isCurrent()) return;
             draft.clear();
             router.push(`/one-time-orders/${created.id}`);
           })}

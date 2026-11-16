@@ -4,16 +4,15 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
+import { lockActorAccessRevision } from '../../common/access/lock-actor-access-revision';
 
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
-import type { AccessSubject } from '../users-access/types/access-policy.type';
-import { decideAccess } from '../users-access/utils/access-policy.util';
-import { resourceAccessTarget } from '../../common/access/resource-access-context';
+import type { AccessContext, AccessSubject } from '../users-access/types/access-policy.type';
+import { decideAccess, hasModuleDeny } from '../users-access/utils/access-policy.util';
 
-import { ScopedEquipmentActionDto } from './dto/scoped-equipment-action.dto';
-import { EquipmentUnitResponseDto } from './dto/equipment-response.dto';
-import { EquipmentService } from './equipment.service';
+import { ScopedEquipmentActionDto, ScopedEquipmentMovementReceiptDto } from './dto/scoped-equipment-action.dto';
 
 interface CurrentAuthUser extends AccessSubject {
   id: string;
@@ -30,7 +29,6 @@ export class ScopedEquipmentService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly auditService: AuditService,
-    private readonly equipmentService: EquipmentService,
   ) {}
 
   async assignToObject(
@@ -38,38 +36,16 @@ export class ScopedEquipmentService {
     unitId: string,
     objectId: string,
     payload: ScopedEquipmentActionDto,
-  ): Promise<EquipmentUnitResponseDto> {
-    const [unit, object] = await Promise.all([
-      this.loadUnit(unitId),
-      this.prisma.object.findFirst({
-        where: { id: objectId, deletedAt: null },
-        select: {
-          id: true,
-          assignments: {
-            where: { userId: currentUser.id, isActive: true },
-            select: { id: true },
-          },
-        },
-      }),
-    ]);
-
-    if (!object) throw new NotFoundException('Object not found');
-    if (object.assignments.length === 0) {
-      throw new ForbiddenException('Equipment assignment is limited to assigned objects');
-    }
-    this.assertUnitInStorage(unit);
-
-    await this.applyScopedMovement({
+  ): Promise<ScopedEquipmentMovementReceiptDto> {
+    return this.applyScopedMovement({
       currentUser,
-      unit,
+      unitId,
       movementType: 'issue_to_object',
       toStatus: 'assigned_to_object',
-      toObjectId: object.id,
+      toObjectId: objectId,
       toOneTimeOrderId: null,
       comment: payload.comment,
     });
-
-    return this.equipmentService.getUnitById(currentUser, unit.id);
   }
 
   async assignToOneTimeOrder(
@@ -77,97 +53,32 @@ export class ScopedEquipmentService {
     unitId: string,
     orderId: string,
     payload: ScopedEquipmentActionDto,
-  ): Promise<EquipmentUnitResponseDto> {
-    const [unit, order] = await Promise.all([
-      this.loadUnit(unitId),
-      this.prisma.oneTimeOrder.findFirst({
-        where: { id: orderId },
-        select: {
-          id: true,
-          assignments: {
-            where: {
-              userId: currentUser.id,
-              assignmentRoleCode: 'one_time_manager',
-              isActive: true,
-            },
-            select: { id: true },
-          },
-        },
-      }),
-    ]);
-
-    if (!order) throw new NotFoundException('One-time order not found');
-    if (order.assignments.length === 0) {
-      throw new ForbiddenException(
-        'Equipment assignment is limited to assigned one-time orders',
-      );
-    }
-    this.assertUnitInStorage(unit);
-
-    await this.applyScopedMovement({
+  ): Promise<ScopedEquipmentMovementReceiptDto> {
+    return this.applyScopedMovement({
       currentUser,
-      unit,
+      unitId,
       movementType: 'issue_to_one_time_order',
       toStatus: 'assigned_to_one_time_order',
       toObjectId: null,
-      toOneTimeOrderId: order.id,
+      toOneTimeOrderId: orderId,
       comment: payload.comment,
     });
-
-    return this.equipmentService.getUnitById(currentUser, unit.id);
   }
 
   async returnToStorage(
     currentUser: CurrentAuthUser,
     unitId: string,
     payload: ScopedEquipmentActionDto,
-  ): Promise<EquipmentUnitResponseDto> {
-    const unit = await this.loadUnit(unitId);
-
-    if (unit.currentObjectId) {
-      const assignment = await this.prisma.objectAssignment.findFirst({
-        where: {
-          objectId: unit.currentObjectId,
-          userId: currentUser.id,
-          isActive: true,
-        },
-        select: { id: true },
-      });
-      if (!assignment) {
-        throw new ForbiddenException(
-          'Equipment return is limited to assigned objects',
-        );
-      }
-    } else if (unit.currentOneTimeOrderId) {
-      const assignment = await this.prisma.oneTimeOrderAssignment.findFirst({
-        where: {
-          oneTimeOrderId: unit.currentOneTimeOrderId,
-          userId: currentUser.id,
-          assignmentRoleCode: 'one_time_manager',
-          isActive: true,
-        },
-        select: { id: true },
-      });
-      if (!assignment) {
-        throw new ForbiddenException(
-          'Equipment return is limited to assigned one-time orders',
-        );
-      }
-    } else {
-      throw new ConflictException('Equipment unit is not assigned to a work scope');
-    }
-
-    await this.applyScopedMovement({
+  ): Promise<ScopedEquipmentMovementReceiptDto> {
+    return this.applyScopedMovement({
       currentUser,
-      unit,
+      unitId,
       movementType: 'return_to_storage',
       toStatus: 'in_storage',
       toObjectId: null,
       toOneTimeOrderId: null,
       comment: payload.comment,
     });
-
-    return this.equipmentService.getUnitById(currentUser, unit.id);
   }
 
   private async loadUnit(unitId: string): Promise<{
@@ -205,21 +116,46 @@ export class ScopedEquipmentService {
 
   private async applyScopedMovement(params: {
     currentUser: CurrentAuthUser;
-    unit: {
-      id: string;
-      status: string;
-      currentObjectId: string | null;
-      currentOneTimeOrderId: string | null;
-    };
+    unitId: string;
     movementType: 'issue_to_object' | 'issue_to_one_time_order' | 'return_to_storage';
     toStatus: 'assigned_to_object' | 'assigned_to_one_time_order' | 'in_storage';
     toObjectId: string | null;
     toOneTimeOrderId: string | null;
     comment?: string;
-  }): Promise<void> {
-    const movement = await this.prisma.$transaction(async (tx) => {
+  }): Promise<ScopedEquipmentMovementReceiptDto> {
+    const actionCode = params.movementType === 'issue_to_object' ? 'equipment.assign_object'
+      : params.movementType === 'issue_to_one_time_order' ? 'equipment.assign_order' : 'equipment.return';
+    const assertAccess = (context: AccessContext): void => {
+      if (hasModuleDeny(params.currentUser, 'equipment.read', context)) throw new ForbiddenException('Scoped equipment read denied');
+      if (!decideAccess(params.currentUser, actionCode, true, context)) throw new ForbiddenException('Scoped equipment action denied');
+    };
+    // Unit/module denies must win even for missing, unassigned or wrong-state units.
+    assertAccess({ resourceType: 'equipment_unit', resourceId: params.unitId });
+    const observed = await this.loadUnit(params.unitId);
+    return this.prisma.$transaction(async (tx) => {
+      // Source rows precede the unit lock, matching source-management writes.
+      // Keep the state checked for authorization stable until the movement commits.
+      const sourceKeys = [
+        ...new Set([
+          observed.currentObjectId && `object:${observed.currentObjectId}`,
+          params.toObjectId && `object:${params.toObjectId}`,
+          observed.currentOneTimeOrderId && `order:${observed.currentOneTimeOrderId}`,
+          params.toOneTimeOrderId && `order:${params.toOneTimeOrderId}`,
+        ].filter((key): key is string => Boolean(key))),
+      ].sort();
+      for (const key of sourceKeys) {
+        const [kind, id] = key.split(':');
+        if (kind === 'object') {
+          await tx.$queryRaw`SELECT "id" FROM "objects" WHERE "id" = ${id} FOR SHARE`;
+        } else {
+          await tx.$queryRaw`SELECT "id" FROM "one_time_orders" WHERE "id" = ${id} FOR SHARE`;
+        }
+      }
+      // Serialize every scoped transition before reading the state used to apply it.
+      await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "equipment_units" WHERE "id" = ${params.unitId} FOR UPDATE`);
+      await lockActorAccessRevision(tx, params.currentUser);
       const current = await tx.equipmentUnit.findUnique({
-        where: { id: params.unit.id },
+        where: { id: params.unitId },
         select: {
           id: true,
           status: true,
@@ -228,36 +164,56 @@ export class ScopedEquipmentService {
         },
       });
       if (!current) throw new NotFoundException('Equipment unit not found');
-      const parents = [];
-      for (const [entityType, id] of [
-        ['object', current.currentObjectId], ['object', params.toObjectId],
-        ['one_time_order', current.currentOneTimeOrderId], ['one_time_order', params.toOneTimeOrderId],
-      ] as const) {
-        if (!id) continue;
-        const target = await resourceAccessTarget(this.prisma, entityType, id);
-        if (!target) throw new ForbiddenException('Equipment work scope unavailable');
-        parents.push(target);
-        // The scoped endpoint is an active-assignment workflow even when an action is granted.
-        const assigned = entityType === 'object'
-          ? await tx.objectAssignment.findFirst({ where: { objectId: id, userId: params.currentUser.id, isActive: true }, select: { id: true } })
-          : await tx.oneTimeOrderAssignment.findFirst({ where: { oneTimeOrderId: id, userId: params.currentUser.id, assignmentRoleCode: 'one_time_manager', isActive: true }, select: { id: true } });
-        if (!assigned) throw new ForbiddenException('Equipment assignment was revoked');
-        if (params.movementType !== 'return_to_storage') {
-          const work = entityType === 'object'
-            ? await tx.object.findUnique({ where: { id }, select: { status: true } })
-            : await tx.oneTimeOrder.findUnique({ where: { id }, select: { status: true } });
-          if (!work || ['frozen', 'archived', 'closed', 'completed', 'cancelled'].includes(work.status)) throw new ConflictException('Equipment destination is read-only');
-        }
-      }
-      const actionCode = params.movementType === 'issue_to_object' ? 'equipment.assign_object'
-        : params.movementType === 'issue_to_one_time_order' ? 'equipment.assign_order' : 'equipment.return';
-      if (!decideAccess(params.currentUser, actionCode, true, { resourceType: 'equipment_unit', resourceId: current.id, parents })) throw new ForbiddenException('Scoped equipment action denied');
       if (
-        current.status !== params.unit.status ||
-        current.currentObjectId !== params.unit.currentObjectId ||
-        current.currentOneTimeOrderId !== params.unit.currentOneTimeOrderId
+        current.status !== observed.status ||
+        current.currentObjectId !== observed.currentObjectId ||
+        current.currentOneTimeOrderId !== observed.currentOneTimeOrderId
       ) {
         throw new ConflictException('Equipment unit state changed; refresh and retry');
+      }
+      const parents: NonNullable<AccessContext['parents']>[number][] = [];
+      const workScopes: Array<{ status: string; assigned: boolean; deleted: boolean }> = [];
+      const seen = new Set<string>();
+      for (const [entityType, id] of [
+        ['object', observed.currentObjectId], ['object', current.currentObjectId], ['object', params.toObjectId],
+        ['one_time_order', observed.currentOneTimeOrderId], ['one_time_order', current.currentOneTimeOrderId], ['one_time_order', params.toOneTimeOrderId],
+      ] as const) {
+        if (!id || seen.has(`${entityType}:${id}`)) continue;
+        seen.add(`${entityType}:${id}`);
+        if (entityType === 'object') {
+          await tx.$queryRaw`SELECT "id" FROM "object_assignments"
+            WHERE "objectId" = ${id} AND "userId" = ${params.currentUser.id}
+              AND "isActive" = true ORDER BY "id" FOR SHARE`;
+        } else {
+          await tx.$queryRaw`SELECT "id" FROM "one_time_order_assignments"
+            WHERE "oneTimeOrderId" = ${id} AND "userId" = ${params.currentUser.id}
+              AND "assignmentRoleCode" = 'one_time_manager' AND "isActive" = true
+            ORDER BY "id" FOR SHARE`;
+        }
+        const work = entityType === 'object'
+          ? await tx.object.findUnique({ where: { id }, select: { id: true, status: true, deletedAt: true, createdByUserId: true,
+            assignments: { where: { isActive: true }, select: { userId: true, assignmentRoleCode: true } } } })
+          : await tx.oneTimeOrder.findUnique({ where: { id }, select: { id: true, status: true, createdByUserId: true,
+            assignments: { where: { isActive: true }, select: { userId: true, assignmentRoleCode: true } } } });
+        if (!work) throw new ForbiddenException('Equipment work scope unavailable');
+        parents.push({ actionCode: entityType === 'object' ? 'objects.read' : 'one_time_orders.read', context: {
+          resourceType: entityType, resourceId: id, ownerUserId: work.createdByUserId,
+          assignedUserIds: work.assignments.map((assignment) => assignment.userId),
+        } });
+        workScopes.push({ status: work.status,
+          deleted: 'deletedAt' in work && work.deletedAt !== null,
+          assigned: work.assignments.some((assignment) => assignment.userId === params.currentUser.id &&
+            (entityType === 'object' || assignment.assignmentRoleCode === 'one_time_manager')) });
+      }
+      const context = { resourceType: 'equipment_unit', resourceId: current.id, parents };
+      assertAccess(context);
+      // Positive leaf grants never replace this workflow's active assignment.
+      if (workScopes.some((work) => !work.assigned || work.deleted)) throw new ForbiddenException('Equipment assignment was revoked');
+      if (params.movementType === 'return_to_storage') {
+        if (!current.currentObjectId && !current.currentOneTimeOrderId) throw new ConflictException('Equipment unit is not assigned to a work scope');
+      } else {
+        this.assertUnitInStorage(current);
+        if (workScopes.some((work) => ['frozen', 'archived', 'closed', 'completed', 'cancelled'].includes(work.status))) throw new ConflictException('Equipment destination is read-only');
       }
 
       const created = await tx.equipmentMovement.create({
@@ -276,28 +232,30 @@ export class ScopedEquipmentService {
         },
       });
 
-      await tx.equipmentUnit.update({
+      const updated = await tx.equipmentUnit.update({
         where: { id: current.id },
         data: {
           status: params.toStatus,
           currentObjectId: params.toObjectId,
           currentOneTimeOrderId: params.toOneTimeOrderId,
         },
+        select: { id: true, status: true },
       });
-      return created;
-    });
-
-    await this.auditService.writeAuditEvent({
-      entityType: 'equipment_movement',
-      entityId: movement.id,
-      actorUserId: params.currentUser.id,
-      action: `equipment.${params.movementType}.scoped_manager`,
-      newValues: {
-        equipmentUnitId: params.unit.id,
-        toStatus: params.toStatus,
-        toObjectId: params.toObjectId,
-        toOneTimeOrderId: params.toOneTimeOrderId,
-      },
+      await this.auditService.writeAuditEvent({
+        entityType: 'equipment_movement',
+        entityId: created.id,
+        actorUserId: params.currentUser.id,
+        action: `equipment.${params.movementType}.scoped_manager`,
+        newValues: {
+          equipmentUnitId: current.id,
+          toStatus: params.toStatus,
+          toObjectId: params.toObjectId,
+          toOneTimeOrderId: params.toOneTimeOrderId,
+        },
+      }, tx);
+      // Return the authorized operation's receipt before commit. A subsequent
+      // global GET may legitimately be forbidden after the unit leaves its scope.
+      return { id: updated.id, movementId: created.id, status: updated.status };
     });
   }
 }

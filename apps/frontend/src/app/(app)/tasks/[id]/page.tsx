@@ -1,6 +1,8 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useContext, useEffect, useRef, useState } from 'react';
+import { useAuth } from '@/shared/auth/use-auth';
+import { useOpenAccessRefresh } from '@/shared/auth/use-open-access-refresh';
 
 import { listObjects } from '@/entities/object/api/object-client';
 import type { ServiceObject } from '@/entities/object/model/object.types';
@@ -24,6 +26,7 @@ import type {
   TaskCompletionListResponse,
   TaskHistoryEvent,
   TaskItem,
+  TaskMutationResult,
   UpdateTaskPayload,
 } from '@/entities/task/model/task.types';
 import { listSystemUsers } from '@/entities/user/api/user-client';
@@ -37,6 +40,8 @@ import { TaskResultPanel } from '@/features/task-result/ui/task-result-panel';
 import { listFilesByEntity, uploadFileToEntity } from '@/entities/file/api/file-client';
 import type { AttachedFile } from '@/entities/file/model/file.types';
 import { MediaActionPicker } from '@/shared/ui/media-entry/media-action-picker';
+import { AccessSnapshotBlockedContext, AccessSnapshotBoundary } from '@/shared/auth/access-snapshot-boundary';
+import { getAccessGeneration, isAccessGenerationCurrent } from '@/shared/auth/access-generation';
 import { getUserDisplayName } from '@/shared/lib/display-name';
 import { formatTaskHistoryEvent } from '@/shared/lib/task-presentation';
 import { AttachmentPreviewList } from '@/shared/ui/media-entry/attachment-preview-list';
@@ -47,13 +52,45 @@ import { Alert, BackLink, Button, EmptyState, Field, IconButton, LoadingState, S
 import { CloseIcon } from '@/shared/ui/icons/icons';
 import taskStyles from '@/entities/task/ui/task-ui.module.css';
 
+type TaskActionCapability = 'canConfirm' | 'canCompleteNow' | 'canReturnToWork' | 'canReopen' | 'canCancel' | 'canManageAssignees' | 'canEdit';
+type TaskReasonCapability = 'canReturnToWork' | 'canReopen' | 'canCancel';
+
 export default function TaskDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }): React.JSX.Element {
-  const [taskId, setTaskId] = useState('');
+  const [route, setRoute] = useState<{ source: typeof params; id: string } | null>(null);
+  const [routeError, setRouteError] = useState(false);
+  useEffect(() => {
+    let active = true;
+    setRouteError(false);
+    void params.then(({ id }) => {
+      if (active) setRoute({ source: params, id });
+    }).catch(() => { if (active) setRouteError(true); });
+    return () => { active = false; };
+  }, [params]);
+  const routePending = route?.source !== params;
+  return <>
+    {routeError ? <Alert tone="danger">Не удалось загрузить карточку задачи.</Alert>
+      : routePending ? <LoadingState label="Загружаем задачу…" /> : null}
+    <AccessSnapshotBoundary blocked={routePending || routeError}>
+      {route ? <TaskDetailContent key={route.id} taskId={route.id} /> : null}
+    </AccessSnapshotBoundary>
+  </>;
+}
+
+function TaskDetailContent({ taskId }: { taskId: string }): React.JSX.Element {
+  const { user, capabilitiesRefreshError } = useAuth();
+  const ancestorBlocked = useContext(AccessSnapshotBlockedContext);
+  const canUploadFile = user?.capabilities?.canUploadFile === true;
+  const accessRevision = user ? `${user.id}:${user.accessVersion ?? 'legacy'}` : 'signed-out';
   const [item, setItem] = useState<TaskItem | null>(null);
+  const [closedAfterSaveFor, setClosedAfterSaveFor] = useState<string | null>(null);
+  const isClosedAfterSave = closedAfterSaveFor === `${user?.id}:${taskId}`;
+  useOpenAccessRefresh(item !== null && !isClosedAfterSave);
+  const actorIdRef = useRef(user?.id);
+  actorIdRef.current = user?.id;
   const [attachments, setAttachments] = useState<AttachedFile[]>([]);
   const [history, setHistory] = useState<TaskHistoryEvent[]>([]);
   const [completions, setCompletions] = useState<TaskCompletionListResponse>({
@@ -76,57 +113,148 @@ export default function TaskDetailPage({
   const [isActionBusy, setIsActionBusy] = useState(false);
   const [confirm, confirmDialog] = useConfirm();
   const [askReason, reasonDialog] = useReasonPrompt();
+  const [reasonAction, setReasonAction] = useState<TaskReasonCapability | null>(null);
+  const reasonDrafts = useRef<Partial<Record<TaskReasonCapability, { target: string; reason: string }>>>({});
   const [error, setError] = useState<string | null>(null);
+  const [loadedAccessRevision, setLoadedAccessRevision] = useState<string | null>(null);
+  const accessRevisionRef = useRef(accessRevision);
+  accessRevisionRef.current = accessRevision;
+  const loadSequence = useRef(0);
+  const candidateTargetRef = useRef<{ objectId: string; oneTimeOrderId: string } | null>(null);
+  const taskCapabilitiesCurrent = !capabilitiesRefreshError && loadedAccessRevision === accessRevision && item?.id === taskId;
+  const canUploadTaskFiles = taskCapabilitiesCurrent && canUploadFile && item?.capabilities.canEdit === true;
+  const uploadPermissionRef = useRef(canUploadTaskFiles);
+  uploadPermissionRef.current = canUploadTaskFiles;
+  const attachmentTarget = `${taskId}:${item?.objectId ?? ''}:${item?.oneTimeOrderId ?? ''}`;
+  const attachmentTargetRef = useRef(attachmentTarget);
+  attachmentTargetRef.current = attachmentTarget;
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
+  const actionContextRef = useRef({ taskId, target: attachmentTarget, revision: accessRevision, readable: false, capabilities: item?.capabilities });
+  actionContextRef.current = {
+    taskId, target: attachmentTarget, revision: accessRevision,
+    readable: !ancestorBlocked && taskCapabilitiesCurrent && !isLoading,
+    capabilities: item?.capabilities,
+  };
+  const captureTaskAction = (capability: TaskActionCapability): (() => boolean) => {
+    const generation = getAccessGeneration();
+    const context = actionContextRef.current;
+    return () => {
+      const current = actionContextRef.current;
+      return mounted.current && isAccessGenerationCurrent(generation) && current.readable
+        && current.taskId === context.taskId && current.target === context.target
+        && current.revision === context.revision && current.capabilities?.[capability] === true;
+    };
+  };
+  const requestReason = async (
+    capability: TaskReasonCapability,
+    options: Parameters<typeof askReason>[0],
+    action: (reason: string) => Promise<TaskMutationResult>,
+  ): Promise<void> => {
+    const isCurrent = captureTaskAction(capability);
+    if (!isCurrent()) return;
+    const target = attachmentTarget;
+    const retained = reasonDrafts.current[capability];
+    setReasonAction(capability);
+    const reason = await askReason({ ...options, initialValue: retained?.target === target ? retained.reason : '' });
+    if (!mounted.current) return;
+    setReasonAction(null);
+    if (!reason) return;
+    reasonDrafts.current[capability] = { target, reason };
+    if (!isCurrent()) {
+      if (attachmentTargetRef.current === target) setError('Доступ или задача изменились. Причина сохранена; откройте действие заново для нового подтверждения.');
+      return;
+    }
+    if (await runAction(capability, () => action(reason), isCurrent)
+      && mounted.current && user?.id === actorIdRef.current && attachmentTargetRef.current === target) {
+      delete reasonDrafts.current[capability];
+    }
+  };
 
   const loadTask = async (id: string): Promise<void> => {
-    const next = await getTaskById(id);
-    setItem(next);
-    setAttachments(await listFilesByEntity('task', id));
-    setAutoCloseSeconds(next.autoCloseRemainingSeconds);
-
-    if (next.capabilities.canViewHistory) {
-      const [nextHistory, nextCompletions] = await Promise.all([
-        listTaskHistory(id).catch(() => []),
-        listTaskCompletions(id, { page: 1, limit: 10 }).catch(() => ({
-          items: [],
-          page: 1,
-          limit: 10,
-          total: 0,
-          totalPages: 0,
-        })),
-      ]);
+    const sequence = ++loadSequence.current;
+    const revision = accessRevision;
+    const isCurrent = (): boolean => sequence === loadSequence.current && revision === accessRevisionRef.current;
+    setLoadedAccessRevision(null);
+    setIsLoading(true);
+    setError(null);
+    try {
+      const next = await getTaskById(id);
+      if (!isCurrent()) return;
+      const nextAttachments = await listFilesByEntity('task', id);
+      if (!isCurrent()) return;
+      const emptyCompletions = { items: [], page: 1, limit: 10, total: 0, totalPages: 0 };
+      const [nextHistory, nextCompletions]: [TaskHistoryEvent[], TaskCompletionListResponse] = next.capabilities.canViewHistory
+        ? await Promise.all([
+          listTaskHistory(id).catch(() => []),
+          listTaskCompletions(id, { page: 1, limit: 10 }).catch(() => emptyCompletions),
+        ]) : [[], emptyCompletions];
+      if (!isCurrent()) return;
+      // An open editor keeps its private draft, but directory rows must be fresh too.
+      if (isEditing) {
+        const target = candidateTargetRef.current ?? { objectId: next.objectId ?? '', oneTimeOrderId: next.oneTimeOrderId ?? '' };
+        const scope = { ...(target.objectId ? { objectId: target.objectId } : {}), ...(target.oneTimeOrderId ? { oneTimeOrderId: target.oneTimeOrderId } : {}) };
+        const [nextObjects, nextOrders, nextUsers, nextVisibilityUsers] = await Promise.all([
+          listObjects().catch(() => []),
+          listOneTimeOrders({ limit: 100, sortBy: 'title', sortDirection: 'asc' }).catch(() => ({ items: [] })),
+          listSystemUsers({ purpose: 'task_assignee', ...scope }).catch(() => []),
+          listSystemUsers({ purpose: 'task_visibility', ...scope }).catch(() => []),
+        ]);
+        if (!isCurrent()) return;
+        setObjects(nextObjects);
+        setOrders(nextOrders.items);
+        setCandidateUsers(nextUsers);
+        setVisibilityUsers(nextVisibilityUsers);
+      } else {
+        setCandidateUsers([]);
+        setVisibilityUsers([]);
+      }
+      setItem(next);
+      setAttachments(nextAttachments);
+      setAutoCloseSeconds(next.autoCloseRemainingSeconds);
       setHistory(nextHistory);
       setCompletions(nextCompletions);
+      setLoadedAccessRevision(revision);
+    } catch (caught) {
+      if (!isCurrent()) return;
+      const status = caught && typeof caught === 'object' && 'statusCode' in caught ? caught.statusCode : null;
+      setError(status === 403 || status === 404
+        ? 'Карточка задачи недоступна.'
+        : 'Не удалось загрузить карточку задачи.');
+    } finally {
+      if (isCurrent()) setIsLoading(false);
     }
   };
 
   const loadCompletionPage = async (page: number): Promise<void> => {
+    const sequence = loadSequence.current;
+    const revision = accessRevision;
+    const isCurrent = (): boolean => sequence === loadSequence.current && revision === accessRevisionRef.current;
     setIsActionBusy(true);
     setError(null);
     try {
-      setCompletions(
-        await listTaskCompletions(taskId, { page, limit: completions.limit }),
-      );
+      const nextCompletions = await listTaskCompletions(taskId, { page, limit: completions.limit });
+      if (!isCurrent()) return;
+      setCompletions(nextCompletions);
     } catch (caught) {
+      if (!isCurrent()) return;
       setError(
         caught instanceof Error
           ? caught.message
           : 'Не удалось загрузить историю результатов.',
       );
     } finally {
-      setIsActionBusy(false);
+      if (isCurrent()) setIsActionBusy(false);
     }
   };
 
   useEffect(() => {
-    void params
-      .then(({ id }) => {
-        setTaskId(id);
-        return loadTask(id);
-      })
-      .catch(() => setError('Не удалось загрузить карточку задачи.'))
-      .finally(() => setIsLoading(false));
-  }, [params]);
+    void loadTask(taskId);
+    return () => { loadSequence.current += 1; };
+  }, [taskId, accessRevision]);
 
   useEffect(() => {
     if (!item?.autoCloseAt || item.status !== 'pending_auto_close') return;
@@ -148,6 +276,10 @@ export default function TaskDetailPage({
     objectId: string,
     oneTimeOrderId: string,
   ): Promise<void> => {
+    const sequence = loadSequence.current;
+    const revision = accessRevision;
+    const candidateTarget = { objectId, oneTimeOrderId };
+    candidateTargetRef.current = candidateTarget;
     const target = {
       ...(objectId ? { objectId } : {}),
       ...(oneTimeOrderId ? { oneTimeOrderId } : {}),
@@ -156,12 +288,16 @@ export default function TaskDetailPage({
       listSystemUsers({ purpose: 'task_assignee', ...target }),
       listSystemUsers({ purpose: 'task_visibility', ...target }),
     ]);
+    if (sequence !== loadSequence.current || revision !== accessRevisionRef.current || candidateTargetRef.current !== candidateTarget) return;
     setCandidateUsers(nextUsers);
     setVisibilityUsers(nextVisibilityUsers);
   };
 
   const openEditor = async (): Promise<void> => {
     if (!item) return;
+    const sequence = loadSequence.current;
+    const revision = accessRevision;
+    const isCurrent = (): boolean => sequence === loadSequence.current && revision === accessRevisionRef.current;
     setIsActionBusy(true);
     setError(null);
     try {
@@ -173,40 +309,95 @@ export default function TaskDetailPage({
           sortDirection: 'asc',
         }),
       ]);
+      if (!isCurrent()) return;
       setObjects(nextObjects);
       setOrders(nextOrders.items);
       await loadCandidates(item.objectId ?? '', item.oneTimeOrderId ?? '');
+      if (!isCurrent()) return;
       setIsEditing(true);
     } catch {
+      if (!isCurrent()) return;
       setError('Не удалось подготовить форму редактирования.');
     } finally {
-      setIsActionBusy(false);
+      if (isCurrent()) setIsActionBusy(false);
     }
   };
 
-  const runAction = async (action: () => Promise<TaskItem>): Promise<void> => {
+  const closeOnSavedReceipt = (result: TaskMutationResult, actorId: string | undefined): boolean => {
+    if (!result || !('outcome' in result) || result.outcome !== 'saved_without_access') return false;
+    if (mounted.current && actorId && actorId === actorIdRef.current && actionContextRef.current.taskId === taskId) {
+      loadSequence.current += 1;
+      setClosedAfterSaveFor(`${actorId}:${taskId}`);
+      setIsEditing(false);
+      setIsLoading(false);
+      setItem(null);
+      setAttachments([]);
+      setHistory([]);
+      setCompletions({ items: [], page: 1, limit: 10, total: 0, totalPages: 0 });
+      setCandidateUsers([]);
+      setVisibilityUsers([]);
+      setObjects([]);
+      setOrders([]);
+      setNewAssigneeId('');
+      reasonDrafts.current = {};
+      setReasonAction(null);
+      setError(null);
+    }
+    return true;
+  };
+
+  const runAction = async (
+    capability: TaskActionCapability,
+    action: () => Promise<TaskMutationResult>,
+    isCurrent = captureTaskAction(capability),
+  ): Promise<boolean> => {
+    if (!isCurrent()) {
+      if (mounted.current && user?.id && user.id === actorIdRef.current && attachmentTargetRef.current === attachmentTarget) {
+        setError('Доступ или задача изменились. Откройте действие заново для нового подтверждения.');
+      }
+      return false;
+    }
     setIsActionBusy(true);
     setError(null);
     try {
-      await action();
+      const result = await action();
+      if (closeOnSavedReceipt(result, user?.id)) return true;
+      if (!isCurrent()) return false;
       await loadTask(taskId);
+      return true;
     } catch (caught) {
+      if (!isCurrent()) {
+        if (mounted.current && user?.id && user.id === actorIdRef.current && attachmentTargetRef.current === attachmentTarget) {
+          setError('Доступ или задача изменились. Откройте действие заново для нового подтверждения.');
+        }
+        return false;
+      }
       setError(
         caught instanceof Error
           ? caught.message
           : 'Не удалось выполнить действие.',
       );
+      return false;
     } finally {
-      setIsActionBusy(false);
+      if (mounted.current && attachmentTargetRef.current === attachmentTarget) setIsActionBusy(false);
     }
   };
 
-  if (isLoading) return <LoadingState label="Загружаем задачу…" />;
+  if (isClosedAfterSave) return (
+    <Stack gap="md">
+      <BackLink href="/tasks">К списку задач</BackLink>
+      <Alert role="status" title="Изменение сохранено">Карточка задачи больше недоступна.</Alert>
+    </Stack>
+  );
+  if (isLoading && !item) return <LoadingState label="Загружаем задачу…" />;
   if (!item)
     return (
-      <Surface padding="md" className={taskStyles.taskError}>
-        {error ?? 'Задача не найдена.'}
-      </Surface>
+      <Stack gap="md">
+        <BackLink href="/tasks">К списку задач</BackLink>
+        <Surface padding="md" className={taskStyles.taskError}>
+          {error ?? 'Задача не найдена.'}
+        </Surface>
+      </Stack>
     );
 
   const activeAssignees = item.assignees.filter(
@@ -218,9 +409,17 @@ export default function TaskDetailPage({
   const previousCompletions = completions.items.filter((completion) => !currentCompletionIds.has(completion.id));
 
   return (
+    <>
+    {!taskCapabilitiesCurrent || isLoading ? <>
+      <BackLink href="/tasks">Задачи</BackLink>
+      {error ? <Alert tone="danger">{error}</Alert> : <LoadingState label="Обновляем доступ к задаче…" />}
+    </> : null}
+    <AccessSnapshotBoundary blocked={!taskCapabilitiesCurrent || isLoading}>
     <Stack gap="xl" className={`ui-page ${taskStyles.taskDetailPage}`}>
       {confirmDialog}
-      {reasonDialog}
+      <AccessSnapshotBoundary blocked={reasonAction !== null && item.capabilities[reasonAction] !== true}>
+        {reasonDialog}
+      </AccessSnapshotBoundary>
       <div className={taskStyles.taskPageHeading}>
         <BackLink href="/tasks">Задачи</BackLink>
         <div className="ui-inline">
@@ -236,7 +435,7 @@ export default function TaskDetailPage({
             <Button
               variant="primary"
               disabled={isActionBusy}
-              onClick={() => void runAction(() => confirmTask(taskId))}
+              onClick={() => void runAction('canConfirm', () => confirmTask(taskId))}
             >
               Подтвердить и завершить
             </Button>
@@ -245,7 +444,7 @@ export default function TaskDetailPage({
             <Button
               variant={item.capabilities.canConfirm ? 'default' : 'primary'}
               disabled={isActionBusy}
-              onClick={() => void runAction(() => completeTaskNow(taskId))}
+              onClick={() => void runAction('canCompleteNow', () => completeTaskNow(taskId))}
             >
               Завершить сейчас
             </Button>
@@ -253,10 +452,7 @@ export default function TaskDetailPage({
           {item.capabilities.canReturnToWork ? (
             <Button
               disabled={isActionBusy}
-              onClick={async () => {
-                const reason = await askReason({ title: 'Вернуть задачу в работу?', reasonLabel: 'Причина', confirmLabel: 'Вернуть в работу', minLength: 3 });
-                if (reason) void runAction(() => returnTaskToWork(taskId, reason));
-              }}
+              onClick={() => requestReason('canReturnToWork', { title: 'Вернуть задачу в работу?', reasonLabel: 'Причина', confirmLabel: 'Вернуть в работу', minLength: 3 }, (reason) => returnTaskToWork(taskId, reason))}
             >
               Вернуть в работу
             </Button>
@@ -264,10 +460,7 @@ export default function TaskDetailPage({
           {item.capabilities.canReopen ? (
             <Button
               disabled={isActionBusy}
-              onClick={async () => {
-                const reason = await askReason({ title: 'Переоткрыть задачу?', reasonLabel: 'Причина', confirmLabel: 'Переоткрыть', minLength: 3 });
-                if (reason) void runAction(() => reopenTask(taskId, reason));
-              }}
+              onClick={() => requestReason('canReopen', { title: 'Переоткрыть задачу?', reasonLabel: 'Причина', confirmLabel: 'Переоткрыть', minLength: 3 }, (reason) => reopenTask(taskId, reason))}
             >
               Переоткрыть
             </Button>
@@ -276,16 +469,13 @@ export default function TaskDetailPage({
             <Button
               variant="danger"
               disabled={isActionBusy}
-              onClick={async () => {
-                const reason = await askReason({
+              onClick={() => requestReason('canCancel', {
                   title: 'Отменить задачу?',
                   description: 'Исполнители больше не увидят её в работе. Отмену можно будет переоткрыть.',
                   reasonLabel: 'Причина отмены',
                   confirmLabel: 'Отменить задачу',
                   minLength: 3,
-                });
-                if (reason) void runAction(() => cancelTask(taskId, reason));
-              }}
+                }, (reason) => cancelTask(taskId, reason))}
             >
               Отменить задачу
             </Button>
@@ -300,10 +490,22 @@ export default function TaskDetailPage({
       <Surface padding="md">
         <h2 className="ui-section-title">Вложения к задаче</h2>
         <AttachmentPreviewList files={attachments} emptyText="Вложений пока нет." />
-        {item.capabilities.canEdit ? <MediaActionPicker disabled={isActionBusy} onPick={async (file) => {
+        <AccessSnapshotBoundary key={attachmentTarget} blocked={!canUploadTaskFiles}>
+        <MediaActionPicker disabled={isActionBusy || !canUploadTaskFiles} onPick={async (file) => {
+          if (!uploadPermissionRef.current) throw new Error('Прикрепление файлов сейчас недоступно.');
+          if (attachmentTargetRef.current !== attachmentTarget) throw new Error('Цель задачи изменилась. Выберите файлы для новой цели заново.');
           await uploadFileToEntity({ entityType: 'task', entityId: taskId, file });
-          setAttachments(await listFilesByEntity('task', taskId));
-        }} /> : null}
+          if (attachmentTargetRef.current !== attachmentTarget) return;
+          try {
+            const nextAttachments = await listFilesByEntity('task', taskId);
+            if (attachmentTargetRef.current !== attachmentTarget) return;
+            setAttachments(nextAttachments);
+            setError(null);
+          } catch {
+            setError('Файл сохранён, но не удалось обновить вложения задачи. Обновите страницу; повторная загрузка файла не нужна.');
+          }
+        }} />
+        </AccessSnapshotBoundary>
       </Surface>
 
       <div className={taskStyles.taskDetailGrid}>
@@ -347,6 +549,8 @@ export default function TaskDetailPage({
                     <Button
                       disabled={isActionBusy}
                       onClick={() => {
+                        const isCurrent = captureTaskAction('canManageAssignees');
+                        if (!isCurrent()) return;
                         void confirm({
                           title: 'Удалить исполнителя?',
                           consequence: `${getUserDisplayName(assignee)} больше не будет исполнителем этой задачи.`,
@@ -354,8 +558,8 @@ export default function TaskDetailPage({
                           tone: 'danger',
                         }).then((confirmed) => {
                           if (!confirmed) return;
-                          void runAction(() =>
-                            removeTaskAssignee(taskId, assignee.id),
+                          void runAction('canManageAssignees', () =>
+                            removeTaskAssignee(taskId, assignee.id), isCurrent,
                           );
                         });
                       }}
@@ -412,9 +616,9 @@ export default function TaskDetailPage({
               <Button
                 disabled={!newAssigneeId || isActionBusy}
                 onClick={() => {
-                  void runAction(() =>
+                  void runAction('canManageAssignees', () =>
                     addTaskAssignees(taskId, [newAssigneeId]),
-                  ).then(() => setNewAssigneeId(''));
+                  ).then((completed) => { if (completed) setNewAssigneeId(''); });
                 }}
               >
                 Добавить
@@ -424,10 +628,15 @@ export default function TaskDetailPage({
         </Surface>
 
         <TaskResultPanel
+          key={`${attachmentTarget}:${item.workCycle}`}
           taskId={taskId}
+          actorId={user?.id}
+          onSavedWithoutAccess={() => { closeOnSavedReceipt({ outcome: 'saved_without_access' }, user?.id); }}
           requirement={item.completionRequirement}
-          canComplete={item.capabilities.canCompleteMyAssignment}
-          canUndo={item.capabilities.canUndoMyCompletion}
+          canComplete={taskCapabilitiesCurrent && item.capabilities.canCompleteMyAssignment}
+          canCreateCompletionDraft={taskCapabilitiesCurrent && item.capabilities.canCreateCompletionDraft === true}
+          canUploadFiles={canUploadFile}
+          canUndo={taskCapabilitiesCurrent && item.capabilities.canUndoMyCompletion}
           onChanged={() => loadTask(taskId)}
         />
       </div>
@@ -501,6 +710,11 @@ export default function TaskDetailPage({
       ) : null}
 
       {isEditing ? (
+        <>
+        {!item.capabilities.canEdit ? (
+          <Alert tone="warning" role="status">Редактирование задачи недоступно. Черновик сохранён до восстановления доступа.</Alert>
+        ) : null}
+        <AccessSnapshotBoundary blocked={!item.capabilities.canEdit}>
         <div className={taskStyles.taskModalBackdrop} role="presentation">
           <div
             className={taskStyles.taskModal}
@@ -527,9 +741,11 @@ export default function TaskDetailPage({
               }
               onCancel={() => setIsEditing(false)}
               onSubmit={async (formPayload) => {
+                const isCurrent = captureTaskAction('canEdit');
+                if (!isCurrent()) return;
                 const payload = mapEditPayload(formPayload);
                 try {
-                  await updateTask(taskId, payload);
+                  if (closeOnSavedReceipt(await updateTask(taskId, payload), user?.id)) return;
                 } catch (caught) {
                   const requiresReset =
                     caught instanceof Error &&
@@ -543,19 +759,25 @@ export default function TaskDetailPage({
                     }))
                   )
                     throw caught;
-                  await updateTask(taskId, {
+                  if (!isCurrent()) return;
+                  if (closeOnSavedReceipt(await updateTask(taskId, {
                     ...payload,
                     resetCompletions: true,
-                  });
+                  }), user?.id)) return;
                 }
+                if (!isCurrent()) return;
                 setIsEditing(false);
                 await loadTask(taskId);
               }}
             />
           </div>
         </div>
+        </AccessSnapshotBoundary>
+        </>
       ) : null}
     </Stack>
+    </AccessSnapshotBoundary>
+    </>
   );
 }
 

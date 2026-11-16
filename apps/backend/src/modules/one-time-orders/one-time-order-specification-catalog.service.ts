@@ -203,7 +203,7 @@ export class OneTimeOrderSpecificationCatalogService {
         this.templateAuditValues(row),
       );
       return row;
-    });
+    }).catch((error: unknown) => this.rethrowTemplateNameConflict(error));
     return this.mapTemplate(created);
   }
 
@@ -283,7 +283,7 @@ export class OneTimeOrderSpecificationCatalogService {
         this.templateAuditValues(row),
       );
       return row;
-    });
+    }).catch((error: unknown) => this.rethrowTemplateNameConflict(error));
     return this.mapTemplate(updated);
   }
 
@@ -294,6 +294,22 @@ export class OneTimeOrderSpecificationCatalogService {
   ) {
     this.assertLeadership(user);
     return this.updateTemplate(user, id, { expectedVersion, isArchived: true });
+  }
+
+  private rethrowTemplateNameConflict(error: unknown): never {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002" &&
+      Array.isArray(error.meta?.target) &&
+      error.meta.target.length === 1 &&
+      error.meta.target[0] === "name"
+    ) {
+      throw new ConflictException({
+        code: "SPECIFICATION_TEMPLATE_NAME_CONFLICT",
+        message: "Шаблон с таким названием уже существует. Введите другое название.",
+      });
+    }
+    throw error;
   }
 
   private assertCanRead(user: CurrentAuthUser) {

@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   Post,
+  Query,
   Req,
   Res,
   UnauthorizedException,
@@ -46,6 +47,7 @@ export class AuthController {
       this.getRequestMeta(request),
     );
 
+    await this.authService.assertIssuedSessionCurrent(issuedSession);
     setAuthCookies(response, this.configService, issuedSession);
 
     return {
@@ -75,6 +77,7 @@ export class AuthController {
         this.getRequestMeta(request),
       );
 
+      await this.authService.assertIssuedSessionCurrent(issuedSession);
       setAuthCookies(response, this.configService, issuedSession);
 
       return {
@@ -104,8 +107,11 @@ export class AuthController {
 
   @UseGuards(JwtAuthGuard)
   @Get('me')
-  async me(@CurrentUser() user: { id: string }): Promise<MeResponseDto> {
-    return this.authService.getMe(user.id);
+  async me(
+    @CurrentUser() user: { id: string },
+    @Query('confirmLogin') confirmLogin?: string,
+  ): Promise<MeResponseDto> {
+    return this.authService.getMe(user.id, confirmLogin === '1');
   }
 
   private getRequestMeta(request: Request): AuthRequestMeta {

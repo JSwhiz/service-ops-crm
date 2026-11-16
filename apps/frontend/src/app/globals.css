@@ -18,6 +18,13 @@ body {
   line-height: var(--ui-leading-normal);
 }
 
+/* Native modal dialogs make the background inert, but do not lock its scroll.
+   CSS follows the actual top layer, including nested and suspended dialogs. */
+html:has(dialog:modal),
+body:has(dialog:modal) {
+  overflow: hidden;
+}
+
 a {
   text-decoration: none;
 }

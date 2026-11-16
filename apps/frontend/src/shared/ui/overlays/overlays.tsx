@@ -245,6 +245,7 @@ export function ReasonDialog({
   error,
   returnFocusRef,
 }: ReasonDialogProps): React.JSX.Element {
+  const accessBlocked = useContext(AccessSnapshotBlockedContext);
   const canConfirm = !reasonRequired || Boolean(reason.trim());
 
   return (
@@ -286,6 +287,7 @@ export function ReasonDialog({
         <Field label={reasonLabel} required={reasonRequired}>
           <textarea
             data-dialog-initial-focus
+            disabled={!open || pending || accessBlocked}
             className={styles.textarea}
             rows={4}
             value={reason}

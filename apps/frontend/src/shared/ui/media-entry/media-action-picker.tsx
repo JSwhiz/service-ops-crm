@@ -1,17 +1,22 @@
 'use client';
 
-import React, { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
+import React, { useContext, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { ApiError } from '@/shared/api/fetcher';
+import { useAuth } from '@/shared/auth/use-auth';
+import { AccessSnapshotBlockedContext } from '@/shared/auth/access-snapshot-boundary';
+import { getAccessGeneration, isAccessGenerationCurrent } from '@/shared/auth/access-generation';
 import { MediaActionIcon } from '@/shared/ui/app-shell/media-action-icon';
 
 import styles from './media-action-picker.module.css';
 import { Alert, Button, IconButton } from '@/shared/ui/foundation';
 import { AttachmentTrigger } from './attachment-trigger';
 import { getMediaMenuPosition, type MediaMenuPosition } from './media-action-position';
+import { mergeMediaUploadFailures, runMediaUploadBatch, type MediaUploadFailure } from './media-upload-batch';
 
 export function MediaActionPicker({
   onPick,
   disabled = false,
+  uploadAllowed = true,
   allowGenericFile = true,
   genericFileAccept,
   iconOnly = false,
@@ -21,6 +26,8 @@ export function MediaActionPicker({
 }: {
   onPick: (file: File) => Promise<void>;
   disabled?: boolean;
+  /** Live source permission; separate from temporary form/busy disabling. */
+  uploadAllowed?: boolean;
   allowGenericFile?: boolean;
   genericFileAccept?: string;
   iconOnly?: boolean;
@@ -29,26 +36,50 @@ export function MediaActionPicker({
   compactLabel?: string;
   onBusyChange?: (busy: boolean) => void;
 }): React.JSX.Element {
+  const { user, capabilitiesRefreshError } = useAuth();
+  const snapshotBlocked = useContext(AccessSnapshotBlockedContext);
+  const canUpload = uploadAllowed && user?.capabilities?.canUploadFile === true && !snapshotBlocked && !capabilitiesRefreshError;
+  const uploadAvailable = useRef(canUpload);
+  uploadAvailable.current = canUpload;
+  const mountLifetime = useRef(0);
+  const mounted = useRef(false);
+  useEffect(() => {
+    mounted.current = true;
+    mountLifetime.current += 1;
+    return () => {
+      mounted.current = false;
+      mountLifetime.current += 1;
+    };
+  }, []);
   const [isBusy, setIsBusy] = useState(false);
-  const [failedFiles, setFailedFiles] = useState<File[]>([]);
-  const [failureDetails, setFailureDetails] = useState<string[]>([]);
+  const batchInFlight = useRef(false);
+  const [pendingFailures, setPendingFailures] = useState<Array<MediaUploadFailure<File>>>([]);
+  const failedFiles = pendingFailures.map(failure => failure.file);
+  const failureDetails = pendingFailures.map(failure => `${failure.file.name}: ${failure.stopped
+    ? 'доступ изменился или загрузка временно недоступна; файл остался в очереди'
+    : failure.cause instanceof ApiError && failure.cause.statusCode === 413
+        ? 'файл превышает допустимый размер 25 МБ'
+        : 'не удалось подтвердить загрузку; обновите список вложений перед повторной попыткой'}`);
   const processFiles = async (files: File[]): Promise<void> => {
+    if (!mounted.current || batchInFlight.current) return;
+    batchInFlight.current = true;
+    const lifetime = mountLifetime.current;
+    const isCurrentPicker = (): boolean => mounted.current && mountLifetime.current === lifetime;
+    const generation = getAccessGeneration();
+    const availableAtStart = !disabled;
     setIsBusy(true);
     onBusyChange?.(true);
-    const failed: File[] = [];
-    const details: string[] = [];
     try {
-      for (const file of files) {
-        try { await onPick(file); } catch (cause) {
-          failed.push(file);
-          details.push(`${file.name}: ${cause instanceof ApiError && cause.statusCode === 413
-            ? 'файл превышает допустимый размер 25 МБ'
-            : 'не удалось загрузить; проверьте подключение и повторите попытку'}`);
-        }
+      const failures = await runMediaUploadBatch(files,
+        () => isCurrentPicker() && availableAtStart && uploadAvailable.current && isAccessGenerationCurrent(generation), onPick);
+      if (isCurrentPicker()) setPendingFailures(previous => mergeMediaUploadFailures(previous, files, failures));
+    } finally {
+      batchInFlight.current = false;
+      if (isCurrentPicker()) {
+        setIsBusy(false);
+        onBusyChange?.(false);
       }
-      setFailedFiles(failed);
-      setFailureDetails(details);
-    } finally { setIsBusy(false); onBusyChange?.(false); }
+    }
   };
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
   const galleryInputRef = useRef<HTMLInputElement | null>(null);
@@ -59,6 +90,8 @@ export function MediaActionPicker({
   const menuItemRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuPosition, setMenuPosition] = useState<MediaMenuPosition | null>(null);
+  const isDisabled = disabled || isBusy || !canUpload;
+  useEffect(() => { if (isDisabled) setMenuOpen(false); }, [isDisabled]);
 
   useLayoutEffect(() => {
     if (!menuOpen) return;
@@ -107,7 +140,7 @@ export function MediaActionPicker({
   const openSource = (input: React.RefObject<HTMLInputElement | null>): void => {
     setMenuOpen(false);
     triggerRef.current?.focus({ preventScroll: true });
-    input.current?.click();
+    if (!isDisabled) input.current?.click();
   };
 
   const handleFile = async (
@@ -124,8 +157,6 @@ export function MediaActionPicker({
     await processFiles(files);
   };
 
-  const isDisabled = disabled || isBusy;
-
   return (
     <div className={styles.actions} aria-label="Добавить вложение">
       <input
@@ -134,6 +165,7 @@ export function MediaActionPicker({
         accept="image/*"
         capture="environment"
         style={{ display: 'none' }}
+        disabled={isDisabled}
         onChange={(event) => void handleFile(event)}
       />
       <input
@@ -142,6 +174,7 @@ export function MediaActionPicker({
         multiple
         accept="image/*"
         style={{ display: 'none' }}
+        disabled={isDisabled}
         onChange={(event) => void handleFile(event)}
       />
       <input
@@ -150,6 +183,7 @@ export function MediaActionPicker({
         multiple
         accept={genericFileAccept}
         style={{ display: 'none' }}
+        disabled={isDisabled}
         onChange={(event) => void handleFile(event)}
       />
 
@@ -162,10 +196,10 @@ export function MediaActionPicker({
             aria-haspopup="menu"
             aria-controls={menuOpen ? menuId : undefined}
             aria-label={compactLabel}
-            title="Добавить фото или файл"
+            title={canUpload ? 'Добавить фото или файл' : 'Загрузка вложений недоступна'}
             onClick={() => setMenuOpen((open) => !open)}
           />
-          {menuOpen ? (
+          {menuOpen && !isDisabled ? (
             <div
               id={menuId}
               ref={menuRef}
@@ -228,7 +262,7 @@ export function MediaActionPicker({
       ].map((action) => iconOnly ? <IconButton key={action.name} disabled={isDisabled} aria-label={action.label} title={action.label} onClick={() => action.input.current?.click()}><MediaActionIcon name={action.name} /></IconButton>
         : <Button key={action.name} disabled={isDisabled} icon={<MediaActionIcon name={action.name} />} onClick={() => action.input.current?.click()}>{action.label}</Button>)}
       {isBusy ? <span className={styles.visuallyHidden} role="status">Загружаем файл…</span> : null}
-      {failedFiles.length > 0 ? <Alert tone="danger" role="alert"><div className="ui-stack ui-stack--sm"><span>Часть файлов не загружена. Успешно загруженные файлы сохранены.</span><ul className="ui-plain-list">{failureDetails.map((detail, index) => <li key={index}>{detail}</li>)}</ul><div><Button disabled={isDisabled} onClick={() => void processFiles(failedFiles)}>Повторить неудачные</Button></div></div></Alert> : null}
+      {failedFiles.length > 0 ? <Alert tone="danger" role="alert"><div className="ui-stack ui-stack--sm"><span>Для части файлов загрузка не подтверждена. Проверьте список вложений перед повтором.</span><ul className="ui-plain-list">{failureDetails.map((detail, index) => <li key={index}>{detail}</li>)}</ul><div className="ui-actions"><Button disabled={isDisabled} onClick={() => void processFiles(failedFiles)}>Повторить неудачные</Button><Button disabled={isBusy} onClick={() => setPendingFailures([])}>Убрать из очереди</Button></div></div></Alert> : null}
     </div>
   );
 }

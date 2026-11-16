@@ -24,7 +24,7 @@ export function matchesAccessScope(
   if (rule.scope === "own") return context.ownerUserId === subject.id;
   if (rule.scope === "assigned")
     return context.assignedUserIds?.includes(subject.id) === true;
-  return !!context.resourceId && rule.selectedIds.includes(context.resourceId);
+  return Array.isArray(rule.selectedIds) && !!context.resourceId && rule.selectedIds.includes(context.resourceId);
 }
 
 export function hasModuleDeny(
@@ -48,7 +48,7 @@ export function hasModuleDeny(
       (rule) =>
         codes.includes(rule.actionCode) &&
         rule.effect === "deny" &&
-        (getAccessAction(rule.actionCode)?.allowedScopes.includes(
+        ((rule.scope === "selected" && (!Array.isArray(rule.selectedIds) || rule.selectedIds.length === 0)) || getAccessAction(rule.actionCode)?.allowedScopes.includes(
           rule.scope,
         ) !== true ||
           matchesAccessScope(subject, rule, context)),

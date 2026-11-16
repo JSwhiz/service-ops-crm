@@ -1,8 +1,8 @@
-import { fetcher } from "@/shared/api/fetcher";
+import { fetcher, postCommittedWrite } from "@/shared/api/fetcher";
+import type { SavedWithoutAccess } from "@/shared/api/saved-without-access";
 import { historyPageQueryString } from "@/shared/api/history-page";
 import type { HistoryPageQuery, HistoryPageResponse } from "@/shared/api/history-page";
-import { refreshSession } from "@/shared/auth/auth-session";
-import { appConfig } from "@/shared/config/app-config";
+import { downloadFile } from "@/shared/api/download-file";
 
 import type {
   CreateOneTimeOrderPayload,
@@ -444,9 +444,8 @@ export async function assignOneTimeOrderManager(
   id: string,
   userId: string,
   conflictFingerprint?: string,
-): Promise<OneTimeOrderItem> {
-  return fetcher<OneTimeOrderItem>(`/one-time-orders/${id}/managers`, {
-    method: "POST",
+): Promise<OneTimeOrderItem | SavedWithoutAccess> {
+  return postCommittedWrite<OneTimeOrderItem>(`/one-time-orders/${id}/managers`, {
     body: JSON.stringify({ userId, conflictFingerprint }),
   });
 }
@@ -604,26 +603,7 @@ export async function downloadOneTimeOrderCalendarExcel(params: {
   includeCancelled?: boolean;
 }): Promise<Blob> {
   const path = `/one-time-orders/calendar/export.xlsx${buildQuery(params)}`;
-  const request = (): Promise<Response> =>
-    fetch(`${appConfig.apiUrl}${path}`, {
-      method: "GET",
-      credentials: "include",
-      cache: "no-store",
-    });
-  let response = await request();
-
-  if (response.status === 401 && (await refreshSession())) {
-    response = await request();
-  }
-
-  if (!response.ok) {
-    const body = await response.text();
-    throw new Error(
-      `GET ${path} failed with status ${response.status}${body ? `: ${body}` : ""}`,
-    );
-  }
-
-  return response.blob();
+  return downloadFile(path, 'Не удалось скачать календарь. Обновите страницу и повторите попытку.');
 }
 
 export async function checkOneTimeOrderConflicts(payload: {

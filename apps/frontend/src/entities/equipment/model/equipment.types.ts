@@ -36,6 +36,7 @@ export interface EquipmentUnit {
   };
   capabilities: {
     canCreateMovement: boolean;
+    canOpenCard?: boolean;
     canDelete: boolean;
     canAssignToObject: boolean;
     canAssignToOneTimeOrder: boolean;

@@ -1,4 +1,5 @@
-import { fetcher } from '@/shared/api/fetcher';
+import type { SavedWithoutAccess } from '@/shared/api/saved-without-access';
+import { committedWrite, fetcher } from '@/shared/api/fetcher';
 export const correctInventoryMovement = (id: string, reason: string): Promise<{ mode: 'cancelled' | 'reversed' }> => fetcher(`/inventory/movements/${id}/correct`, { method: 'POST', body: JSON.stringify({ reason }) });
 import { sortObjectOptions } from '@/entities/object/lib/sort-object-options';
 
@@ -8,6 +9,7 @@ import type {
   InventoryItem,
   InventoryItemListResponse,
   InventoryMovement,
+  InventoryMovementWriteResult,
   InventoryMovementListResponse,
   InventoryObjectReference,
   InventoryOneTimeOrderReference,
@@ -63,8 +65,8 @@ export async function getInventoryItemById(id: string): Promise<InventoryItem> {
 
 export async function createInventoryItem(
   payload: CreateInventoryItemPayload,
-): Promise<InventoryItem> {
-  return fetcher<InventoryItem>('/inventory/items', {
+): Promise<InventoryItem | SavedWithoutAccess> {
+  return committedWrite<InventoryItem>('/inventory/items', {
     method: 'POST',
     body: JSON.stringify(payload),
   });
@@ -73,8 +75,8 @@ export async function createInventoryItem(
 export async function updateInventoryItem(
   id: string,
   payload: UpdateInventoryItemPayload,
-): Promise<InventoryItem> {
-  return fetcher<InventoryItem>(`/inventory/items/${id}`, {
+): Promise<InventoryItem | SavedWithoutAccess> {
+  return committedWrite<InventoryItem>(`/inventory/items/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(payload),
   });
@@ -82,9 +84,10 @@ export async function updateInventoryItem(
 
 export async function deleteInventoryItem(
   id: string,
-): Promise<{ id: string; mode: 'hard' | 'soft' }> {
-  return fetcher<{ id: string; mode: 'hard' | 'soft' }>(
-    `/inventory/items/${id}`,
+  expectedVersion: number,
+): Promise<{ id: string; mode: 'hard' | 'soft' } | SavedWithoutAccess> {
+  return committedWrite<{ id: string; mode: 'hard' | 'soft' }>(
+    `/inventory/items/${id}?${new URLSearchParams({ expectedVersion: String(expectedVersion) })}`,
     { method: 'DELETE' },
   );
 }
@@ -92,8 +95,8 @@ export async function deleteInventoryItem(
 export async function restoreInventoryItem(
   id: string,
   expectedVersion: number,
-): Promise<InventoryItem> {
-  return fetcher<InventoryItem>(`/inventory/items/${id}/restore`, {
+): Promise<InventoryItem | SavedWithoutAccess> {
+  return committedWrite<InventoryItem>(`/inventory/items/${id}/restore`, {
     method: 'POST',
     body: JSON.stringify({ expectedVersion }),
   });
@@ -114,8 +117,8 @@ export async function listInventoryMovements(
 
 export async function createInventoryMovement(
   payload: CreateInventoryMovementPayload,
-): Promise<InventoryMovement> {
-  return fetcher<InventoryMovement>('/inventory/movements', {
+): Promise<InventoryMovementWriteResult> {
+  return fetcher<InventoryMovementWriteResult>('/inventory/movements', {
     method: 'POST',
     body: JSON.stringify(payload),
   });
@@ -123,8 +126,8 @@ export async function createInventoryMovement(
 
 export async function resolveInventoryMissingPhotoApproval(
   movementId: string,
-): Promise<InventoryMovement> {
-  return fetcher<InventoryMovement>(
+): Promise<InventoryMovementWriteResult> {
+  return committedWrite<InventoryMovement>(
     `/inventory/movements/${movementId}/resolve-missing-photo-approval`,
     {
       method: 'POST',
@@ -155,11 +158,13 @@ export async function getOneTimeOrderInventory(
   );
 }
 
+type OrderInventoryIssueResult = InventoryMovement | { outcome: 'saved_without_access' };
+
 export async function createOneTimeOrderInventoryIssue(
   orderId: string,
   payload: { inventoryItemId: string; quantity: number; comment?: string; requestId: string },
-): Promise<InventoryMovement> {
-  return fetcher<InventoryMovement>(`/one-time-orders/${orderId}/inventory/issue`, {
+): Promise<OrderInventoryIssueResult> {
+  return fetcher<OrderInventoryIssueResult>(`/one-time-orders/${orderId}/inventory/issue`, {
     method: 'POST', body: JSON.stringify(payload),
   });
 }

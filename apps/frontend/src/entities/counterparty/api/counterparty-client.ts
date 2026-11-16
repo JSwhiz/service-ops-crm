@@ -1,5 +1,6 @@
-import { fetcher } from '@/shared/api/fetcher';
+import { committedWrite, fetcher } from '@/shared/api/fetcher';
 import { historyPageQueryString } from '@/shared/api/history-page';
+import type { SavedWithoutAccess } from '@/shared/api/saved-without-access';
 import type { HistoryPageQuery, HistoryPageResponse } from '@/shared/api/history-page';
 
 import type {
@@ -67,12 +68,12 @@ export function listCounterpartyInventoryMovements(
   return fetcher(`/counterparties/${id}/inventory-movements${queryString(params)}`);
 }
 
-export function setCounterpartyMasterObject(id: string, objectId: string): Promise<CounterpartyCard> {
-  return fetcher(`/counterparties/${id}/master-object/${objectId}`, { method: 'POST' });
+export function setCounterpartyMasterObject(id: string, objectId: string): Promise<CounterpartyCard | SavedWithoutAccess> {
+  return committedWrite<CounterpartyCard>(`/counterparties/${id}/master-object/${objectId}`, { method: 'POST' });
 }
 
-export function clearCounterpartyMasterObject(id: string): Promise<CounterpartyCard> {
-  return fetcher(`/counterparties/${id}/master-object`, { method: 'DELETE' });
+export function clearCounterpartyMasterObject(id: string): Promise<CounterpartyCard | SavedWithoutAccess> {
+  return committedWrite<CounterpartyCard>(`/counterparties/${id}/master-object`, { method: 'DELETE' });
 }
 
 export function createCounterparty(payload: {
@@ -81,8 +82,8 @@ export function createCounterparty(payload: {
   contactName?: string | null;
   contactPhone?: string | null;
   notes?: string | null;
-}): Promise<CounterpartyCard> {
-  return fetcher('/counterparties', {
+}): Promise<CounterpartyCard | SavedWithoutAccess> {
+  return committedWrite<CounterpartyCard>('/counterparties', {
     method: 'POST',
     body: JSON.stringify(payload),
   });
@@ -97,8 +98,8 @@ export function updateCounterparty(
     contactPhone?: string | null;
     notes?: string | null;
   },
-): Promise<CounterpartyCard> {
-  return fetcher(`/counterparties/${id}`, {
+): Promise<CounterpartyCard | SavedWithoutAccess> {
+  return committedWrite<CounterpartyCard>(`/counterparties/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(payload),
   });
@@ -107,8 +108,8 @@ export function updateCounterparty(
 export function setCounterpartyArchived(
   id: string,
   archived: boolean,
-): Promise<CounterpartyCard> {
-  return fetcher(`/counterparties/${id}/${archived ? 'archive' : 'restore'}`, {
+): Promise<CounterpartyCard | SavedWithoutAccess> {
+  return committedWrite<CounterpartyCard>(`/counterparties/${id}/${archived ? 'archive' : 'restore'}`, {
     method: 'POST',
   });
 }
@@ -116,8 +117,8 @@ export function setCounterpartyArchived(
 export function linkCounterpartyObject(
   id: string,
   objectId: string,
-): Promise<CounterpartyCard> {
-  return fetcher(`/counterparties/${id}/objects/${objectId}`, {
+): Promise<CounterpartyCard | SavedWithoutAccess> {
+  return committedWrite<CounterpartyCard>(`/counterparties/${id}/objects/${objectId}`, {
     method: 'POST',
   });
 }
@@ -125,8 +126,8 @@ export function linkCounterpartyObject(
 export function unlinkCounterpartyObject(
   id: string,
   objectId: string,
-): Promise<CounterpartyCard> {
-  return fetcher(`/counterparties/${id}/objects/${objectId}`, {
+): Promise<CounterpartyCard | SavedWithoutAccess> {
+  return committedWrite<CounterpartyCard>(`/counterparties/${id}/objects/${objectId}`, {
     method: 'DELETE',
   });
 }

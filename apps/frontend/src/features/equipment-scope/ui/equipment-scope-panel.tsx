@@ -30,7 +30,7 @@ export function EquipmentScopePanel({
         <div className="record-list local-scroll local-scroll--sm">
           {units.map((unit) => (
             <Surface padding="sm" key={unit.id}>
-              {unit.capabilities.canCreateMovement ? (
+              {unit.capabilities.canOpenCard === true ? (
                 <Link href={`/equipment/${unit.id}`}>
                   {unit.catalogItem.name} · {unit.inventoryNumber}
                 </Link>

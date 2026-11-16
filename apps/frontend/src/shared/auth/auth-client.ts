@@ -17,6 +17,15 @@ export interface AuthUser {
     canAccessVisitPlans?: boolean;
     canAccessUserSubstitutions?: boolean;
     canAccessDashboard?: boolean;
+    canUploadFile?: boolean;
+    canViewLeadershipDashboard?: boolean;
+    canViewManagerDashboard?: boolean;
+    canViewHrDashboard?: boolean;
+    canViewOperationsDashboard?: boolean;
+    canReadSpecificationCatalog?: boolean;
+    canCreateSpecificationCatalog?: boolean;
+    canUpdateSpecificationCatalog?: boolean;
+    canArchiveSpecificationCatalog?: boolean;
     canManageUserAccess?: boolean;
     canCreateTask?: boolean;
     canCreateCandidate?: boolean;
@@ -38,6 +47,7 @@ export interface AuthUser {
     canResolveAccountabilityApproval?: boolean;
     canResolveTimesheetApproval?: boolean;
     canCreateObject: boolean;
+    canCreateObjectBudget?: boolean;
     canAccessOneTimeOrders?: boolean;
     canCreateOneTimeOrder?: boolean;
     canViewAllOneTimeOrderReviews?: boolean;
@@ -59,6 +69,7 @@ export interface AuthUser {
     canRecordExternalReceipt?: boolean;
     canIssueAccountabilityFunds?: boolean;
     canReviewAccountability?: boolean;
+    canDiscoverAccountabilityReview?: boolean;
     canApproveAccountabilityClosure?: boolean;
     canAccessInventory?: boolean;
     canManageInventoryCatalog?: boolean;
@@ -71,8 +82,11 @@ export interface AuthUser {
     canWriteoffInventory?: boolean;
     canAdjustInventory?: boolean;
     canViewInventoryReports?: boolean;
+    canViewInventoryMovements?: boolean;
     canResolveInventoryMissingPhotoApproval?: boolean;
     canAccessEquipment?: boolean;
+    canReadEquipmentCatalog?: boolean;
+    canDeleteEquipmentCatalog?: boolean;
     canManageEquipmentCatalog?: boolean;
     canDeleteEquipmentUnit?: boolean;
     canAssignEquipmentToObject?: boolean;
@@ -103,6 +117,8 @@ export interface AuthResponse {
 export async function login(payload: LoginPayload): Promise<AuthResponse> {
   return fetcher<AuthResponse>("/auth/login", {
     method: "POST",
+    skipAuthRetry: true,
+    signal: AbortSignal.timeout(30_000),
     body: JSON.stringify(payload),
   });
 }
@@ -110,17 +126,23 @@ export async function login(payload: LoginPayload): Promise<AuthResponse> {
 export async function refreshSessionRequest(): Promise<AuthResponse> {
   return fetcher<AuthResponse>("/auth/refresh", {
     method: "POST",
+    skipAuthRetry: true,
+    signal: AbortSignal.timeout(30_000),
   });
 }
 
-export async function getMe(): Promise<AuthUser> {
-  return fetcher<AuthUser>("/auth/me", {
+export async function getMe({ confirmLogin = false } = {}): Promise<AuthUser> {
+  return fetcher<AuthUser>(confirmLogin ? "/auth/me?confirmLogin=1" : "/auth/me", {
     method: "GET",
+    ...(confirmLogin ? { skipAuthRetry: true } : {}),
+    signal: AbortSignal.timeout(30_000),
   });
 }
 
 export async function logout(): Promise<{ success: true }> {
   return fetcher<{ success: true }>("/auth/logout", {
     method: "POST",
+    skipAuthRetry: true,
+    signal: AbortSignal.timeout(30_000),
   });
 }

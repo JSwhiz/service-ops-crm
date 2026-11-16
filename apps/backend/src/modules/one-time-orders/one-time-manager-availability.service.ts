@@ -7,7 +7,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import { decideAccess } from '../users-access/utils/access-policy.util';
+import { lockActorAccessRevision } from '../../common/access/lock-actor-access-revision';
+import { availabilityActionAllowed, canManageManagerAvailability, managerAvailabilityCapabilities } from './utils/one-time-manager-availability-capabilities.util';
 
 import {
   ONE_TIME_MANAGER_AVAILABILITY_APPROVAL_SOURCE_ENTITY_TYPE,
@@ -29,7 +30,6 @@ import {
   canBeOneTimeOrderManager,
   hasOneTimeOrderPermission,
   ONE_TIME_ORDER_CALENDAR_APPROVE_PERMISSION,
-  ONE_TIME_ORDER_CALENDAR_MANAGE_PERMISSION,
 } from './utils/one-time-order-access.util';
 import {
   formatAvailabilityDate,
@@ -45,6 +45,7 @@ interface CurrentAuthUser {
   roleCodes?: string[];
   permissionCodes?: string[];
   isActive: boolean;
+  accessVersion?: number;
 }
 
 interface AvailabilityRecord {
@@ -146,7 +147,7 @@ export class OneTimeManagerAvailabilityService {
       return { availability, approvalRequestId: approvalRequest.id };
     });
 
-    return this.mapAvailability(result.availability, result.approvalRequestId);
+    return this.mapAvailability(result.availability, result.approvalRequestId, currentUser);
   }
 
   async listOwnRequests(
@@ -163,7 +164,7 @@ export class OneTimeManagerAvailabilityService {
     );
 
     return entries.map((entry) =>
-      this.mapAvailability(entry, approvalRequestIds.get(entry.id) ?? null),
+      this.mapAvailability(entry, approvalRequestIds.get(entry.id) ?? null, currentUser),
     );
   }
 
@@ -183,6 +184,7 @@ export class OneTimeManagerAvailabilityService {
 
     const availability = await this.prisma.$transaction(async (tx) => {
       await this.lockAvailabilityUser(tx, payload.userId);
+      await lockActorAccessRevision(tx, currentUser);
       await this.assertNoApprovedOverlap(
         tx,
         payload.userId,
@@ -219,7 +221,7 @@ export class OneTimeManagerAvailabilityService {
       return created;
     });
 
-    return this.mapAvailability(availability, null);
+    return this.mapAvailability(availability, null, currentUser);
   }
 
   async approveAvailability(
@@ -262,7 +264,7 @@ export class OneTimeManagerAvailabilityService {
       return approved;
     });
 
-    return this.mapAvailability(availability, approvalRequest.id);
+    return this.mapAvailability(availability, approvalRequest.id, currentUser);
   }
 
   async rejectAvailability(
@@ -309,7 +311,7 @@ export class OneTimeManagerAvailabilityService {
       return rejected;
     });
 
-    return this.mapAvailability(availability, approvalRequest.id);
+    return this.mapAvailability(availability, approvalRequest.id, currentUser);
   }
 
   async cancelAvailability(
@@ -324,12 +326,7 @@ export class OneTimeManagerAvailabilityService {
     ) {
       throw new ConflictException('Manager availability state has changed');
     }
-    const canCancelOwnPending =
-      current.status === 'pending' && current.userId === currentUser.id;
-    const canCancelApproved =
-      current.status === 'approved' && this.canManage(currentUser);
-
-    if (!canCancelOwnPending && !canCancelApproved) {
+    if (!managerAvailabilityCapabilities(currentUser, current).canCancel) {
       throw new ForbiddenException('Availability cancellation denied');
     }
 
@@ -407,6 +404,7 @@ export class OneTimeManagerAvailabilityService {
     return this.mapAvailability(
       result.availability,
       result.approvalRequestId,
+      currentUser,
     );
   }
 
@@ -428,6 +426,7 @@ export class OneTimeManagerAvailabilityService {
 
     const updated = await this.prisma.$transaction(async (tx) => {
       await this.lockAvailabilityUser(tx, current.userId);
+      await lockActorAccessRevision(tx, currentUser);
       await this.assertNoApprovedOverlap(
         tx,
         current.userId,
@@ -464,7 +463,7 @@ export class OneTimeManagerAvailabilityService {
     });
 
     const approvalRequestId = await this.findLatestApprovalRequestId(availabilityId);
-    return this.mapAvailability(updated, approvalRequestId);
+    return this.mapAvailability(updated, approvalRequestId, currentUser);
   }
 
   async applyApprovalDecision(
@@ -585,10 +584,7 @@ export class OneTimeManagerAvailabilityService {
   }
 
   private canManage(currentUser: CurrentAuthUser, userId?: string): boolean {
-    return decideAccess(currentUser, 'one_time_order_calendar.availability.manage', hasOneTimeOrderPermission(
-      currentUser.permissionCodes,
-      ONE_TIME_ORDER_CALENDAR_MANAGE_PERMISSION,
-    ), { resourceType: 'user', resourceId: userId, ownerUserId: userId });
+    return canManageManagerAvailability(currentUser, userId);
   }
 
   private assertCanApprove(currentUser: CurrentAuthUser): void {
@@ -604,7 +600,7 @@ export class OneTimeManagerAvailabilityService {
   }
 
   private assertAvailabilityAction(user: CurrentAuthUser, actionCode: string, legacy: boolean, userId: string): void {
-    if (!decideAccess(user, actionCode, legacy, { resourceType: 'user', resourceId: userId, ownerUserId: userId })) throw new ForbiddenException('Availability access denied');
+    if (!availabilityActionAllowed(user, actionCode, legacy, userId)) throw new ForbiddenException('Availability access denied');
   }
 
   private async getAvailability(id: string): Promise<AvailabilityRecord> {
@@ -782,6 +778,7 @@ export class OneTimeManagerAvailabilityService {
   private mapAvailability(
     availability: AvailabilityRecord,
     approvalRequestId: string | null,
+    currentUser: CurrentAuthUser,
   ): OneTimeManagerAvailabilityResponseDto {
     const durationDays =
       Math.floor(
@@ -790,6 +787,7 @@ export class OneTimeManagerAvailabilityService {
       ) + 1;
     return {
       id: availability.id,
+      capabilities: managerAvailabilityCapabilities(currentUser, availability),
       userId: availability.userId,
       entryType: availability.entryType,
       startDate: formatAvailabilityDate(availability.startDate),

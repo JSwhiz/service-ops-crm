@@ -27,6 +27,7 @@ export interface InventoryGlobalCapabilities {
   canWriteoffInventory: boolean;
   canAdjustInventory: boolean;
   canViewInventoryReports: boolean;
+  canViewInventoryMovements: boolean;
   canResolveInventoryMissingPhotoApproval: boolean;
 }
 
@@ -49,6 +50,7 @@ export function buildInventoryGlobalCapabilities(
     canWriteoffInventory: canWriteoffInventory(roleCodes),
     canAdjustInventory: canAdjustInventory(roleCodes),
     canViewInventoryReports: canViewInventoryReports(roleCodes),
+    canViewInventoryMovements: canAccessInventory(roleCodes),
     canResolveInventoryMissingPhotoApproval:
       canResolveInventoryMissingPhotoApproval(roleCodes),
   };
@@ -58,7 +60,8 @@ export function buildInventoryGlobalCapabilities(
     canRestoreInventoryItem: 'inventory.catalog.restore',
     canCreateInventoryMovement: 'inventory.receipt', canCreateInventoryReceipt: 'inventory.receipt', canIssueInventoryToObject: 'inventory.issue_to_object',
     canIssueInventoryToOneTimeOrder: 'inventory.issue_to_one_time_order', canReturnInventory: 'inventory.return', canWriteoffInventory: 'inventory.writeoff',
-    canAdjustInventory: 'inventory.adjustment', canViewInventoryReports: 'inventory.reports', canResolveInventoryMissingPhotoApproval: 'inventory.resolve_missing_photo',
+    canAdjustInventory: 'inventory.adjustment', canViewInventoryReports: 'inventory.reports',
+    canViewInventoryMovements: 'inventory.movements.read', canResolveInventoryMissingPhotoApproval: 'inventory.resolve_missing_photo',
   };
   for (const key of Object.keys(actions) as Array<keyof InventoryGlobalCapabilities>) legacy[key] = decideAccess(subject, actions[key], legacy[key], context);
   // Non-global order issuers use the order-scoped endpoint and its assignment

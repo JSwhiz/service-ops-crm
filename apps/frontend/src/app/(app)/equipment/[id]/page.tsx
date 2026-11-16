@@ -4,6 +4,9 @@ import { useRouter } from 'next/navigation';
 import React, { useEffect, useState } from 'react';
 import { useAccessRevision } from '@/shared/auth/use-access-revision';
 import { AccessSnapshotBoundary } from '@/shared/auth/access-snapshot-boundary';
+import { useOpenAccessRefresh } from '@/shared/auth/use-open-access-refresh';
+import { ApiError } from '@/shared/api/fetcher';
+import { isSavedWithoutAccess } from '@/shared/api/saved-without-access';
 
 import {
   createEquipmentMovement,
@@ -62,6 +65,8 @@ export default function EquipmentDetailPage({
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [savedWithoutAccess, setSavedWithoutAccess] = useState<{ hasPendingFiles: boolean } | null>(null);
+  useOpenAccessRefresh(unit !== null);
 
   const loadAll = async (id: string, isCancelled: () => boolean = () => false): Promise<void> => {
     const loadedUnit = await getEquipmentUnitById(id);
@@ -121,7 +126,9 @@ export default function EquipmentDetailPage({
         await loadAll(resolved.id, () => cancelled);
       } catch (loadError) {
         if (!cancelled) {
-          setError(getErrorMessage(loadError, 'Не удалось загрузить оборудование.'));
+          setError(loadError instanceof ApiError && (loadError.statusCode === 403 || loadError.statusCode === 404)
+            ? 'Оборудование не найдено или недоступно.'
+            : 'Не удалось загрузить карточку оборудования.');
         }
       } finally {
         if (!cancelled) {
@@ -136,6 +143,24 @@ export default function EquipmentDetailPage({
       cancelled = true;
     };
   }, [params, accessRevision, accessRetry]);
+
+  if (savedWithoutAccess) return (
+    <div className={`ui-page ${inventoryStyles.equipmentWorkspace}`}>
+      <BackLink href="/equipment">Оборудование</BackLink>
+      <Alert tone="success" role="status">
+        Операция сохранена. Доступ к карточке изменился.
+        {savedWithoutAccess.hasPendingFiles ? ' Выбранные файлы не прикрепились.' : ''}
+      </Alert>
+      <Button onClick={() => {
+        setSavedWithoutAccess(null);
+        setUnit(null);
+        setIsLoading(true);
+        setError(null);
+        setLoadedAccessRevision(null);
+        setAccessRetry((value) => value + 1);
+      }}>Проверить доступ</Button>
+    </div>
+  );
 
   return (
     <div className={`ui-page ${inventoryStyles.equipmentWorkspace}`}>
@@ -269,6 +294,17 @@ export default function EquipmentDetailPage({
             orders={orders}
             onCreateMovement={async ({ payload, evidenceFiles }) => {
               const created = await createEquipmentMovement(unit.id, payload);
+
+              if (isSavedWithoutAccess(created)) {
+                setUnit(null);
+                setMovements([]);
+                setObjects([]);
+                setOrders([]);
+                setLoadedAccessRevision(null);
+                setError(null);
+                setSavedWithoutAccess({ hasPendingFiles: evidenceFiles.length > 0 });
+                return;
+              }
 
               await Promise.all(
                 evidenceFiles.map((file) =>

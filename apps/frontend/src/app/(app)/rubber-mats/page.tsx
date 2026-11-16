@@ -4,10 +4,12 @@ import Link from 'next/link';
 import React, { useEffect, useState } from 'react';
 import { useAccessRevision } from '@/shared/auth/use-access-revision';
 import { AccessSnapshotBoundary } from '@/shared/auth/access-snapshot-boundary';
+import { getAccessGeneration, isAccessGenerationCurrent } from '@/shared/auth/access-generation';
+import { ApiError } from '@/shared/api/fetcher';
 import {
   getRubberMatAggregateRegistry, getRubberMatCatalog, getRubberMatCostHistory,
   matMoney, matSizeLabel, setRubberMatCost,
-  type RubberMatAggregateRegistry, type RubberMatCostChange, type RubberMatSize,
+  type RubberMatAggregateRegistry, type RubberMatCatalog, type RubberMatCostChange, type RubberMatSize,
 } from '@/entities/rubber-mat/api/rubber-mat-client';
 import { Alert, Button, Field } from '@/shared/ui/foundation';
 import { DataTable } from '@/shared/ui/data-table/data-table';
@@ -18,9 +20,10 @@ import styles from './rubber-mats.module.css';
 
 export default function RubberMatsPage(): React.JSX.Element {
   const accessRevision = useAccessRevision();
+  const accessGeneration = getAccessGeneration();
   const [catalogRevision, setCatalogRevision] = useState<string | null>(null);
   const [registryRevision, setRegistryRevision] = useState<string | null>(null);
-  const [catalog, setCatalog] = useState<{ items: RubberMatSize[]; canManage: boolean; canEditCost?: boolean } | null>(null);
+  const [catalog, setCatalog] = useState<RubberMatCatalog | null>(null);
   const [registry, setRegistry] = useState<RubberMatAggregateRegistry | null>(null);
   const [query, setQuery] = useState('');
   const [withMatsOnPage, setWithMatsOnPage] = useState(false);
@@ -34,7 +37,7 @@ export default function RubberMatsPage(): React.JSX.Element {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [costDrafts, setCostDrafts] = useState<Record<string, { value: string; version: number }>>({});
-  const [history, setHistory] = useState<{ size: RubberMatSize; changes: RubberMatCostChange[] } | null>(null);
+  const [history, setHistory] = useState<{ accessRevision: string; size: RubberMatSize; changes: RubberMatCostChange[] } | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -64,13 +67,21 @@ export default function RubberMatsPage(): React.JSX.Element {
   }, [query, page, revision, registryRetry, accessRevision]);
   useEffect(() => { setHistory(null); }, [accessRevision]);
 
+  const catalogCurrent = catalogRevision === accessRevision && !catalogError && catalog !== null;
   const run = async (action: () => Promise<unknown>): Promise<void> => {
+    if (busy || !catalogCurrent || !catalog?.canEditCost || !isAccessGenerationCurrent(accessGeneration)) return;
     setBusy(true); setError(null);
     try {
       await action();
+      if (!isAccessGenerationCurrent(accessGeneration)) return;
       setRevision((value) => value + 1);
       setHistory(null);
-    } catch (caught) { setError(caught instanceof Error ? caught.message : 'Не удалось сохранить изменения'); }
+    } catch (caught) {
+      if (isAccessGenerationCurrent(accessGeneration)) {
+        setError(caught instanceof Error ? caught.message : 'Не удалось сохранить изменения');
+        if (caught instanceof ApiError && caught.statusCode === 403) { setCatalogRevision(null); setCatalogRetry((value) => value + 1); }
+      }
+    }
     finally { setBusy(false); }
   };
 
@@ -95,19 +106,20 @@ export default function RubberMatsPage(): React.JSX.Element {
     </AccessSnapshotBoundary>
 
     {catalogError ? <Alert tone="warning" action={<Button onClick={() => setCatalogRetry((value) => value + 1)}>Обновить каталог размеров</Button>}>{catalogError} Каталог недоступен; учёт ковров на объектах проверяется независимо.</Alert> : catalogRevision !== accessRevision ? <p role="status">Проверяем доступ к каталогу размеров…</p> : null}
-    <AccessSnapshotBoundary blocked={catalogRevision !== accessRevision || !!catalogError || !catalog}>
+    <AccessSnapshotBoundary blocked={!catalogCurrent}>
     <div id="rubber-mat-catalog" className="ui-inline"><h2>Каталог размеров</h2>{catalog?.canManage ? <CreateNavigationLink className="ui-button ui-button--primary" href="/rubber-mats/new">Добавить размер</CreateNavigationLink> : null}</div>
     <p>Новые размеры и цены вводятся явно. Пустая цена означает, что стоимость ещё не указана.</p>
     <DataTable label="Каталог размеров ковров" frameClassName={styles.tableFrame}>
       <thead><tr><th>Размер</th><th>Стоимость замены за ковёр</th><th>Действия</th></tr></thead>
       <tbody>{!catalog ? <tr><td colSpan={3}>{error ? 'Каталог не загружен.' : 'Загружаем каталог…'}</td></tr> : catalog.items.length === 0 ? <tr><td colSpan={3}>Размеры пока не добавлены.</td></tr> : catalog.items.map((size) => <tr key={size.id}>
         <td>{matSizeLabel(size)}</td><td>{matMoney(size.replacementCost)}</td>
-        <td>{(catalog.canEditCost ?? catalog.canManage) ? <form className={styles.formGrid} onSubmit={(event) => {
+        <td>{catalog.canEditCost ? <form className={styles.formGrid} onSubmit={(event) => {
           event.preventDefault();
           const draft = costDrafts[size.id];
-          if (!draft) return;
+          if (!draft || draft.version !== size.version) return;
           void run(async () => {
             await setRubberMatCost(size.id, { version: draft.version, replacementCost: draft.value.trim() || null });
+            if (!isAccessGenerationCurrent(accessGeneration)) return;
             setCostDrafts((old) => { const next = { ...old }; delete next[size.id]; return next; });
           });
         }}>
@@ -115,16 +127,25 @@ export default function RubberMatsPage(): React.JSX.Element {
           <Button type="submit" disabled={busy || costDrafts[size.id] === undefined || costDrafts[size.id]?.version !== size.version}>Сохранить</Button>
           {costDrafts[size.id] ? <Button variant="ghost" disabled={busy} onClick={() => setCostDrafts((old) => { const next = { ...old }; delete next[size.id]; return next; })}>Отменить ввод</Button> : null}
         </form> : null}
-          <Button variant="ghost" disabled={busy} onClick={async () => {
+          {catalog.canReadHistory ? <Button variant="ghost" disabled={busy} onClick={async () => {
+            if (busy || !catalogCurrent || !catalog.canReadHistory || !isAccessGenerationCurrent(accessGeneration)) return;
             setBusy(true); setError(null);
-            try { setHistory({ size, changes: await getRubberMatCostHistory(size.id) }); }
-            catch (caught) { setError(caught instanceof Error ? caught.message : 'Не удалось загрузить историю'); }
+            try {
+              const changes = await getRubberMatCostHistory(size.id);
+              if (isAccessGenerationCurrent(accessGeneration)) setHistory({ accessRevision, size, changes });
+            }
+            catch (caught) {
+              if (isAccessGenerationCurrent(accessGeneration)) {
+                setHistory(null); setError(caught instanceof Error ? caught.message : 'Не удалось загрузить историю');
+                if (caught instanceof ApiError && caught.statusCode === 403) { setCatalogRevision(null); setCatalogRetry((value) => value + 1); }
+              }
+            }
             finally { setBusy(false); }
-          }}>История стоимости</Button>
+          }}>История стоимости</Button> : null}
         </td>
       </tr>)}</tbody>
     </DataTable>
-    {history ? <section><h3>История стоимости: {matSizeLabel(history.size)}</h3><ol>{history.changes.length === 0 ? <li>Изменений пока нет.</li> : history.changes.map((change) => <li key={change.id}>{matMoney(change.beforeCost)} → {matMoney(change.afterCost)} · {change.actorName ?? 'Перенос прежних записей'} · {new Date(change.occurredAt).toLocaleString('ru-RU')}</li>)}</ol></section> : null}
+    {catalog?.canReadHistory && history?.accessRevision === accessRevision ? <section><h3>История стоимости: {matSizeLabel(history.size)}</h3><ol>{history.changes.length === 0 ? <li>Изменений пока нет.</li> : history.changes.map((change) => <li key={change.id}>{matMoney(change.beforeCost)} → {matMoney(change.afterCost)} · {change.actorName ?? 'Перенос прежних записей'} · {new Date(change.occurredAt).toLocaleString('ru-RU')}</li>)}</ol></section> : null}
     </AccessSnapshotBoundary>
   </div>;
 }

@@ -1,4 +1,4 @@
-import { hasDelegatedObjectAction } from '../../user-substitutions/object-delegation.context';
+import { delegatedObjectIds, hasDelegatedObjectAction } from '../../user-substitutions/object-delegation.context';
 import { Prisma } from '@prisma/client';
 import { AccessSubject, buildAccessWhere, decideAccess } from '../../users-access/utils/access-policy.util';
 
@@ -96,7 +96,12 @@ export function canViewObjectCompensationRates(params: {
     assignments: Array<{ userId: string; isActive?: boolean }>;
   };
 }): boolean {
-  return decideAccess(params.subject ?? { id: params.currentUserId }, 'objects.rates.read', canEditObjectDailyRate(params.roleCodes) || canViewObjectByScope(params), {
+  const legacyRateRead = canEditObjectDailyRate(params.roleCodes) || canViewObjectByScope({
+    currentUserId: params.currentUserId,
+    roleCodes: params.roleCodes,
+    object: params.object,
+  });
+  return decideAccess(params.subject ?? { id: params.currentUserId }, 'objects.rates.read', legacyRateRead, {
     resourceType: 'object', resourceId: params.object.id, ownerUserId: params.object.createdByUserId,
     assignedUserIds: params.object.assignments.filter(a => a.isActive !== false).map(a => a.userId),
   });
@@ -120,6 +125,26 @@ export function canBeObjectManager(roleCodes: string[]): boolean {
 
 export function hasHrObjectView(permissionCodes: string[] = []): boolean {
   return permissionCodes.includes(OBJECT_HR_VIEW_PERMISSION_CODE);
+}
+
+/** SQL equivalent of basic-card visibility, including HR and delegation.
+ * A count must not use an unrestricted legacy baseline while its list is scoped. */
+export function buildObjectBasicProfileAccessWhere(params: {
+  subject: AccessSubject;
+  roleCodes: string[];
+  permissionCodes?: string[];
+}): Prisma.ObjectWhereInput {
+  const { subject } = params;
+  const operational = buildObjectAccessPolicyWhere(subject, hasWideObjectAccess(params.roleCodes) ? {} : {
+    OR: [
+      { createdByUserId: subject.id },
+      { assignments: { some: { userId: subject.id, isActive: true } } },
+      { id: { in: delegatedObjectIds(subject.id, 'view', 'objects.read') } },
+    ],
+  });
+  const hr = buildObjectAccessPolicyWhere(subject,
+    hasHrObjectView(params.permissionCodes) ? {} : { id: { in: [] } }, 'objects.view_hr');
+  return { AND: [{ OR: [operational, hr] }, buildObjectAccessPolicyWhere(subject, {}, 'objects.read')] };
 }
 
 export function canViewObjectByScope(params: {

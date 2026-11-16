@@ -7,6 +7,8 @@ import type {
   CreateInventoryItemPayload,
   InventoryItem,
 } from '@/entities/inventory/model/inventory.types';
+import { isSavedWithoutAccess, type SavedWithoutAccess } from '@/shared/api/saved-without-access';
+import { useOpenAccessRefresh } from '@/shared/auth/use-open-access-refresh';
 import { useAuth } from '@/shared/auth/use-auth';
 import { useCreateDraft } from '@/shared/drafts';
 import { useCreateNavigation } from '@/shared/create-navigation';
@@ -56,7 +58,7 @@ export function InventoryItemForm({
     notes?: string;
   };
   submitLabel: string;
-  onSubmit: (payload: CreateInventoryItemPayload) => Promise<InventoryItem | void>;
+  onSubmit: (payload: CreateInventoryItemPayload) => Promise<InventoryItem | SavedWithoutAccess | void>;
 }): React.JSX.Element {
   const router = useRouter();
   const navigation = useCreateNavigation();
@@ -77,8 +79,9 @@ export function InventoryItemForm({
   const [createdHref, setCreatedHref] = useState<string | null>(null);
   const [didCreate, setDidCreate] = useState(false);
   const submitLockRef = useRef(false);
-  const canManageInventoryCatalog =
-    user?.capabilities?.canManageInventoryCatalog ?? false;
+  const canCreateInventoryItem =
+    user?.capabilities?.canCreateInventoryItem ?? false;
+  useOpenAccessRefresh(!didCreate);
 
   const updateField = (key: keyof InventoryItemDraft, value: string): void => {
     const next = { ...draft.value, [key]: value };
@@ -88,13 +91,13 @@ export function InventoryItemForm({
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault();
-    if (submitLockRef.current || isSaving || createdHref || !canManageInventoryCatalog) return;
+    if (submitLockRef.current || isSaving || createdHref || !canCreateInventoryItem) return;
 
     submitLockRef.current = true;
     setIsSaving(true);
     setError(null);
 
-    let created: InventoryItem | void;
+    let created: InventoryItem | SavedWithoutAccess | void;
     try {
       created = await draft.submit(() => onSubmit(toCreateInventoryItemPayload(draft.value)));
     } catch (submitError) {
@@ -112,7 +115,7 @@ export function InventoryItemForm({
     draft.clear();
     setDidCreate(true);
     setIsSaving(false);
-    if (created) {
+    if (created && !isSavedWithoutAccess(created)) {
       const href = `/inventory/${created.id}`;
       setCreatedHref(href);
       router.push(href);
@@ -131,9 +134,9 @@ export function InventoryItemForm({
       footer={({ requestClose }) => (
         <div className={styles.footer}>
           <Button onClick={() => void requestClose()} disabled={isSaving}>
-            Отмена
+            {didCreate ? 'Закрыть' : 'Отмена'}
           </Button>
-          {canManageInventoryCatalog ? (
+          {canCreateInventoryItem && !didCreate ? (
             <Button
               variant="primary"
               type="submit"
@@ -148,7 +151,11 @@ export function InventoryItemForm({
         </div>
       )}
     >
-      {canManageInventoryCatalog ? (
+      {didCreate ? (
+        <Alert tone="success" role="status">
+          Позиция создана.{createdHref ? <> <a href={createdHref}>Открыть карточку</a></> : ' Доступ к карточке изменился.'}
+        </Alert>
+      ) : canCreateInventoryItem ? (
         <form id={FORM_ID} className={styles.form} onSubmit={(event) => void handleSubmit(event)}>
           <p className={styles.requiredNote}><span aria-hidden="true">*</span> — обязательные поля</p>
           <div className={styles.fields}>
@@ -186,18 +193,10 @@ export function InventoryItemForm({
             </Field>
           </div>
           {error ? <Alert tone="danger" role="alert">{error}</Alert> : null}
-          {createdHref ? (
-            <Alert tone="success" role="status">
-              Позиция создана. <a href={createdHref}>Открыть карточку</a>
-            </Alert>
-          ) : null}
-          {didCreate && !createdHref ? (
-            <Alert tone="success" role="status">Позиция создана.</Alert>
-          ) : null}
         </form>
       ) : (
         <Alert tone="danger" role="alert">
-          У вас нет доступа к управлению каталогом расходников.
+          У вас нет права создавать позиции. Введённые данные сохраняются до возврата доступа или закрытия формы.
         </Alert>
       )}
     </FormDialog>

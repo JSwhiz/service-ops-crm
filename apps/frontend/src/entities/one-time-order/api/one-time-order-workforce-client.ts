@@ -1,6 +1,5 @@
 import { fetcher } from '@/shared/api/fetcher';
-import { refreshSession } from '@/shared/auth/auth-session';
-import { appConfig } from '@/shared/config/app-config';
+import { downloadFile } from '@/shared/api/download-file';
 
 export interface OneTimeWorkforceEmployee {
   employeeId: string;
@@ -156,11 +155,5 @@ export async function downloadOneTimeWorkforceExcel(params: {
   const query = new URLSearchParams({ month: params.month });
   if (params.employeeId) query.set('employeeId', params.employeeId);
   const path = `/one-time-orders/${params.orderId}/workforce/timesheet/export.xlsx?${query.toString()}`;
-  const request = (): Promise<Response> => fetch(`${appConfig.apiUrl}${path}`, {
-    method: 'GET', credentials: 'include', cache: 'no-store',
-  });
-  let response = await request();
-  if (response.status === 401 && await refreshSession()) response = await request();
-  if (!response.ok) throw new Error(`Не удалось скачать табель (${response.status}).`);
-  return response.blob();
+  return downloadFile(path, 'Не удалось скачать табель. Обновите страницу и повторите попытку.');
 }

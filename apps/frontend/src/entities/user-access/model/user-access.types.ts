@@ -15,6 +15,8 @@ export interface AccessAction {
   module: string;
   resourceType: string;
   allowedScopes: AccessScope[];
+  /** Optional for compatibility with catalogs predating management restrictions. */
+  managementScopes?: AccessScope[];
   parentAction?: string;
   manageable: boolean;
   constraint?: string;

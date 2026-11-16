@@ -132,7 +132,10 @@ export class ObjectPlanningService implements OnModuleInit, OnModuleDestroy {
         ? { notes: payload.notes?.trim() || null }
         : {}),
     };
-    return this.prisma.$transaction(async (tx) => {
+    const savedContact = await this.objects.runObjectSourceWrite(user, objectId, 'objects.contacts.manage', object.capabilities.canEdit, 'edit', async (tx) => {
+      const currentObject = await this.context(user, objectId, true);
+      if (!await this.allowedAction(user, objectId, 'objects.contacts.manage', currentObject.capabilities.canEdit))
+        throw new ForbiddenException("Редактирование контактов недоступно");
       if (id) {
         const updated = await tx.objectContact.updateMany({
           where: { id, objectId, version: payload.expectedVersion },
@@ -166,6 +169,10 @@ export class ObjectPlanningService implements OnModuleInit, OnModuleDestroy {
       );
       return saved;
     });
+    return this.objects.projectCommittedObjectResult(user, objectId, async () => {
+      await this.assertAction(user, objectId, 'objects.contacts.read', true);
+      return savedContact;
+    });
   }
   async deleteContact(
     user: PlanningActor,
@@ -176,7 +183,10 @@ export class ObjectPlanningService implements OnModuleInit, OnModuleDestroy {
     const object = await this.context(user, objectId, true);
     if (!await this.allowedAction(user, objectId, 'objects.contacts.manage', object.capabilities.canEdit))
       throw new ForbiddenException("Редактирование контактов недоступно");
-    return this.prisma.$transaction(async (tx) => {
+    await this.objects.runObjectSourceWrite(user, objectId, 'objects.contacts.manage', object.capabilities.canEdit, 'edit', async (tx) => {
+      const currentObject = await this.context(user, objectId, true);
+      if (!await this.allowedAction(user, objectId, 'objects.contacts.manage', currentObject.capabilities.canEdit))
+        throw new ForbiddenException("Редактирование контактов недоступно");
       const contact = await tx.objectContact.findFirst({
         where: { id, objectId },
       });
@@ -209,6 +219,10 @@ export class ObjectPlanningService implements OnModuleInit, OnModuleDestroy {
         },
         tx,
       );
+      return { success: true };
+    });
+    return this.objects.projectCommittedObjectResult(user, objectId, async () => {
+      await this.assertAction(user, objectId, 'objects.contacts.read', true);
       return { success: true };
     });
   }
@@ -267,6 +281,8 @@ export class ObjectPlanningService implements OnModuleInit, OnModuleDestroy {
     )
       throw new BadRequestException("Выберите настройки для изменения");
     const object = await this.context(user, objectId, true);
+    // The saved response exposes budget data; reject before committing any change.
+    await this.assertAction(user, objectId, 'objects.budget.read', true);
     if (payload.monthlyBudget !== undefined && !await this.allowedAction(user, objectId, 'objects.budget.edit', this.canEditBudget(user, objectId)))
       throw new ForbiddenException("Изменение бюджета недоступно");
     if (

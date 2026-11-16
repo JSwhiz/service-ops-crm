@@ -7,6 +7,7 @@ import {
   updateInventoryItem,
 } from '@/entities/inventory/api/inventory-client';
 import type { InventoryItem } from '@/entities/inventory/model/inventory.types';
+import type { SavedWithoutAccess } from '@/shared/api/saved-without-access';
 import { ApiError } from '@/shared/api/fetcher';
 import { Alert, Button, Field } from '@/shared/ui/foundation';
 
@@ -20,11 +21,13 @@ function getErrorMessage(error: unknown): string {
 
 export function InventoryItemEditor({
   item,
+  canSave,
   onSaved,
   onClose,
 }: {
   item: InventoryItem;
-  onSaved: (item: InventoryItem) => void;
+  canSave: boolean;
+  onSaved: (item: InventoryItem | SavedWithoutAccess) => void;
   onClose: () => void;
 }): React.JSX.Element {
   const [name, setName] = useState(item.name);
@@ -51,6 +54,7 @@ export function InventoryItemEditor({
       style={{ display: 'grid', gap: 14, width: '100%', maxWidth: 800, minWidth: 0 }}
       onSubmit={(event) => {
         event.preventDefault();
+        if (!canSave || isSaving || hasVersionConflict) return;
         setIsSaving(true);
         setError(null);
         setHasVersionConflict(false);
@@ -160,10 +164,13 @@ export function InventoryItemEditor({
         </Alert>
       ) : null}
 
+      {!canSave ? (
+        <Alert tone="warning" role="status">У вас нет права редактировать позицию. Черновик сохранён.</Alert>
+      ) : null}
       {error ? <Alert tone="danger" role="alert">{error}</Alert> : null}
 
       <div className="ui-inline">
-        <Button variant="primary" type="submit" disabled={isSaving || hasVersionConflict}>
+        <Button variant="primary" type="submit" disabled={!canSave || isSaving || hasVersionConflict}>
           {isSaving ? 'Сохраняем...' : 'Сохранить изменения'}
         </Button>
         <Button

@@ -1,8 +1,11 @@
 import { createHash } from "node:crypto";
+import { lockActorAccessRevision } from "../../common/access/lock-actor-access-revision";
+import { projectCommittedWrite, type SavedWithoutAccess } from "../../common/access/project-committed-write";
 import { resourceAccessTarget } from '../../common/access/resource-access-context';
 
 import { assertOneTimeOrderAction } from "./utils/one-time-order-access.util";
-import { decideAccess } from '../users-access/utils/access-policy.util';
+import { decideAccess, hasModuleDeny } from '../users-access/utils/access-policy.util';
+import { canEnterAccessModule } from '../users-access/utils/access-summary.util';
 import {
   BadRequestException,
   ConflictException,
@@ -34,6 +37,7 @@ import { PrismaService } from "../prisma/prisma.service";
 import { TaskResponseDto } from "../tasks/dto/task-response.dto";
 import { TasksService } from "../tasks/tasks.service";
 import { buildTaskAccessWhere } from "../tasks/utils/task-access.util";
+import { taskVisibilityWhere } from "../tasks/utils/task-policy.util";
 
 import { AssignOneTimeOrderManagerDto } from "./dto/assign-one-time-order-manager.dto";
 import { ChangeOneTimeOrderStatusDto } from "./dto/change-one-time-order-status.dto";
@@ -387,7 +391,7 @@ export class OneTimeOrdersService {
   }
 
   private async findCreationReplay(
-    createdByUserId: string,
+    currentUser: CurrentAuthUser,
     creationRequestId: string | undefined,
     fingerprint: string,
   ): Promise<OneTimeOrderView | null> {
@@ -395,13 +399,14 @@ export class OneTimeOrdersService {
     const existing = await this.prisma.oneTimeOrder.findUnique({
       where: {
         createdByUserId_creationRequestId: {
-          createdByUserId,
+          createdByUserId: currentUser.id,
           creationRequestId,
         },
       },
       include: this.getOrderInclude(),
     });
     if (!existing) return null;
+    await assertOneTimeOrderAction(this.prisma, currentUser, existing.id, 'one_time_orders.read');
     if (existing.creationRequestFingerprint !== fingerprint) {
       throw new ConflictException(
         "Ключ отправки уже использован с другими данными. Обновите форму и повторите создание.",
@@ -423,6 +428,8 @@ export class OneTimeOrdersService {
     currentUser: CurrentAuthUser,
     query: ListOneTimeOrdersQueryDto,
   ): Promise<OneTimeOrderListResponseDto> {
+    if (hasModuleDeny(currentUser, 'one_time_orders.access'))
+      throw new ForbiddenException('One-time order registry access denied');
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
     const sortBy = query.sortBy ?? "updatedAt";
@@ -559,10 +566,10 @@ export class OneTimeOrdersService {
             where: {
               AND: [
                 { oneTimeOrderId: { in: orderIds } },
-                buildTaskAccessWhere({
+                taskVisibilityWhere(currentUser, buildTaskAccessWhere({
                   currentUserId: currentUser.id,
                   roleCodes: this.getRoleCodes(currentUser),
-                }),
+                })),
               ],
             },
             _count: { _all: true },
@@ -602,7 +609,8 @@ export class OneTimeOrdersService {
       { OR: [{ reviewText: { not: null } }, { reviewRating: { not: null } }] },
       buildOneTimeOrderAccessWhere({ subject: currentUser, currentUserId: currentUser.id,
         roleCodes: this.getRoleCodes(currentUser), permissionCodes: this.getPermissionCodes(currentUser),
-        legacyWhere: {}, actionCode: 'one_time_orders.review.view_all' }),
+        legacyWhere: this.hasLegacyAllReviewsAccess(currentUser) ? {} : { id: { in: [] } },
+        actionCode: 'one_time_orders.review.view_all' }),
     ];
     if (query.status) clauses.push({ status: query.status });
     if (query.managerUserId) {
@@ -834,7 +842,7 @@ export class OneTimeOrdersService {
 
     const requestFingerprint = this.creationFingerprint(payload);
     const replay = await this.findCreationReplay(
-      currentUser.id,
+      currentUser,
       payload.creationRequestId,
       requestFingerprint,
     );
@@ -868,6 +876,7 @@ export class OneTimeOrdersService {
           currentUser,
           payload,
         );
+        await lockActorAccessRevision(tx, currentUser);
         const order = await tx.oneTimeOrder.create({
           data: {
             title: payload.title.trim(),
@@ -912,6 +921,8 @@ export class OneTimeOrdersService {
           include: this.getOrderInclude(),
         });
 
+        await assertOneTimeOrderAction(tx, currentUser, order.id, "one_time_orders.read");
+
         await this.writeScheduleConflictOverrideAudit(
           tx,
           currentUser,
@@ -950,7 +961,7 @@ export class OneTimeOrdersService {
     } catch (error) {
       const racedReplay = this.isUniqueConstraintError(error)
         ? await this.findCreationReplay(
-            currentUser.id,
+            currentUser,
             payload.creationRequestId,
             requestFingerprint,
           )
@@ -1018,7 +1029,7 @@ export class OneTimeOrdersService {
       sourceOneTimeOrderId,
     );
     const replay = await this.findCreationReplay(
-      currentUser.id,
+      currentUser,
       payload.creationRequestId,
       requestFingerprint,
     );
@@ -1097,6 +1108,8 @@ export class OneTimeOrdersService {
           include: this.getOrderInclude(),
         });
 
+        await assertOneTimeOrderAction(tx, currentUser, order.id, "one_time_orders.read");
+
         await this.writeScheduleConflictOverrideAudit(
           tx,
           currentUser,
@@ -1132,7 +1145,7 @@ export class OneTimeOrdersService {
     } catch (error) {
       const racedReplay = this.isUniqueConstraintError(error)
         ? await this.findCreationReplay(
-            currentUser.id,
+            currentUser,
             payload.creationRequestId,
             requestFingerprint,
           )
@@ -1277,6 +1290,7 @@ export class OneTimeOrdersService {
       .map((assignment) => assignment.userId);
     const updated = await this.prisma.$transaction(async (tx) => {
       await this.lockOneTimeOrder(tx, id);
+      await lockActorAccessRevision(tx, currentUser);
       if (nextValues.agreedSum !== undefined) {
         const components = await tx.oneTimeOrderServiceLine.findMany({
           where: { oneTimeOrderId: id },
@@ -1384,7 +1398,7 @@ export class OneTimeOrdersService {
     payload: UpdateOneTimeOrderReviewDto,
   ): Promise<OneTimeOrderResponseDto> {
     await assertOneTimeOrderAction(this.prisma, currentUser, id, "one_time_orders.review.edit");
-    const existing = await this.getOrderForReviewChange(currentUser, id);
+    await this.getOrderForReviewChange(currentUser, id);
     if (
       payload.reviewText === undefined &&
       payload.reviewRating === undefined
@@ -1392,29 +1406,23 @@ export class OneTimeOrdersService {
       throw new BadRequestException("Review update payload is empty");
     }
 
-    const reviewText =
-      payload.reviewText === undefined
-        ? existing.reviewText
-        : payload.reviewText?.trim() || null;
-    const reviewRating =
-      payload.reviewRating === undefined
-        ? existing.reviewRating
-        : payload.reviewRating;
-
-    if (reviewText === null && reviewRating === null) {
-      throw new BadRequestException(
-        "Review text or rating must be provided; use DELETE to clear review",
-      );
-    }
-
-    if (
-      reviewText === existing.reviewText &&
-      reviewRating === existing.reviewRating
-    ) {
-      return this.mapOrder(existing, currentUser);
-    }
-
     const updated = await this.prisma.$transaction(async (tx) => {
+      await this.lockOneTimeOrder(tx, id);
+      await lockActorAccessRevision(tx, currentUser);
+      const existing = await this.getOrderForReviewChange(currentUser, id, 'one_time_orders.review.edit', tx);
+      // Omitted fields belong to the locked version, not the preflight snapshot.
+      const reviewText = payload.reviewText === undefined
+        ? existing.reviewText : payload.reviewText?.trim() || null;
+      const reviewRating = payload.reviewRating === undefined
+        ? existing.reviewRating : payload.reviewRating;
+      if (reviewText === null && reviewRating === null) {
+        throw new BadRequestException(
+          "Review text or rating must be provided; use DELETE to clear review",
+        );
+      }
+      if (reviewText === existing.reviewText && reviewRating === existing.reviewRating) {
+        return existing;
+      }
       const order = (await tx.oneTimeOrder.update({
         where: { id },
         data: {
@@ -1453,12 +1461,15 @@ export class OneTimeOrdersService {
     id: string,
   ): Promise<OneTimeOrderResponseDto> {
     await assertOneTimeOrderAction(this.prisma, currentUser, id, "one_time_orders.review.delete");
-    const existing = await this.getOrderForReviewChange(currentUser, id, 'one_time_orders.review.delete');
-    if (existing.reviewText === null && existing.reviewRating === null) {
-      return this.mapOrder(existing, currentUser);
-    }
+    await this.getOrderForReviewChange(currentUser, id, 'one_time_orders.review.delete');
 
     const updated = await this.prisma.$transaction(async (tx) => {
+      await this.lockOneTimeOrder(tx, id);
+      await lockActorAccessRevision(tx, currentUser);
+      const existing = await this.getOrderForReviewChange(currentUser, id, 'one_time_orders.review.delete', tx);
+      if (existing.reviewText === null && existing.reviewRating === null) {
+        return existing;
+      }
       const order = (await tx.oneTimeOrder.update({
         where: { id },
         data: {
@@ -1555,7 +1566,7 @@ export class OneTimeOrdersService {
     const content = payload.content.trim();
     if (!content) throw new BadRequestException("Comment cannot be empty");
     const created = await this.prisma.$transaction(async (tx) => {
-      await this.lockSpecification(tx, orderId);
+      await this.lockSpecification(tx, orderId, currentUser);
       await this.assertSpecificationExecutionWritableTx(tx, currentUser, orderId, 'one_time_orders.specification.comments');
       const item = await this.getSpecificationItemFromTx(tx, orderId, itemId);
       const prior = await tx.oneTimeOrderSpecificationComment.findFirst({
@@ -1600,7 +1611,7 @@ export class OneTimeOrdersService {
     await assertOneTimeOrderAction(this.prisma, currentUser, orderId, "one_time_orders.specification.detach");
     await this.getOrderForSpecificationWrite(currentUser, orderId, 'one_time_orders.specification.detach');
     await this.prisma.$transaction(async (tx) => {
-      await this.lockSpecification(tx, orderId);
+      await this.lockSpecification(tx, orderId, currentUser);
       await this.assertSpecificationExecutionWritableTx(tx, currentUser, orderId, 'one_time_orders.specification.detach');
       const item = await this.getSpecificationItemFromTx(tx, orderId, itemId);
       const attachment = await tx.fileAttachment.findFirst({
@@ -1659,7 +1670,11 @@ export class OneTimeOrdersService {
       .digest("hex");
 
     const itemIds = await this.prisma.$transaction(async (tx) => {
-      await this.lockSpecification(tx, id);
+      await this.lockSpecification(tx, id, currentUser);
+      const currentOrder = await this.getOrderForSpecificationStructureWrite(currentUser, id, tx);
+      if (currentOrder.status === 'in_progress' && (!reason || reason.length < 5)) {
+        throw new BadRequestException('A reason of at least 5 characters is required while the order is in progress');
+      }
       const priorRequest =
         await tx.oneTimeOrderSpecificationApplyRequest.findUnique({
           where: {
@@ -1859,7 +1874,8 @@ export class OneTimeOrdersService {
     }
 
     const item = await this.prisma.$transaction(async (tx) => {
-      await this.lockSpecification(tx, id);
+      await this.lockSpecification(tx, id, currentUser);
+      await this.getOrderForSpecificationStructureWrite(currentUser, id, tx);
       const lastItem = await tx.oneTimeOrderSpecificationItem.findFirst({
         where: { oneTimeOrderId: id, deletedAt: null },
         orderBy: { sortOrder: "desc" },
@@ -1910,7 +1926,8 @@ export class OneTimeOrdersService {
     await assertOneTimeOrderAction(this.prisma, currentUser, id, "one_time_orders.specification.manage");
     await this.getOrderForSpecificationStructureWrite(currentUser, id);
     const updated = await this.prisma.$transaction(async (tx) => {
-      await this.lockSpecification(tx, id);
+      await this.lockSpecification(tx, id, currentUser);
+      await this.getOrderForSpecificationStructureWrite(currentUser, id, tx);
       const existing = await this.getSpecificationItemFromTx(tx, id, itemId);
       const title =
         payload.title === undefined ? existing.title : payload.title.trim();
@@ -1986,7 +2003,8 @@ export class OneTimeOrdersService {
     await assertOneTimeOrderAction(this.prisma, currentUser, id, "one_time_orders.specification.manage");
     await this.getOrderForSpecificationStructureWrite(currentUser, id);
     const deleted = await this.prisma.$transaction(async (tx) => {
-      await this.lockSpecification(tx, id);
+      await this.lockSpecification(tx, id, currentUser);
+      await this.getOrderForSpecificationStructureWrite(currentUser, id, tx);
       const existing = await this.getSpecificationItemFromTx(tx, id, itemId);
       const item = (await tx.oneTimeOrderSpecificationItem.update({
         where: { id: itemId },
@@ -2023,7 +2041,7 @@ export class OneTimeOrdersService {
     await assertOneTimeOrderAction(this.prisma, currentUser, id, "one_time_orders.specification.execute");
     await this.getOrderForSpecificationWrite(currentUser, id);
     const completed = await this.prisma.$transaction(async (tx) => {
-      await this.lockSpecification(tx, id);
+      await this.lockSpecification(tx, id, currentUser);
       await this.assertSpecificationExecutionWritableTx(tx, currentUser, id);
       const existing = await this.getSpecificationItemFromTx(tx, id, itemId);
 
@@ -2067,7 +2085,7 @@ export class OneTimeOrdersService {
     await assertOneTimeOrderAction(this.prisma, currentUser, id, "one_time_orders.specification.execute");
     await this.getOrderForSpecificationWrite(currentUser, id);
     const reopened = await this.prisma.$transaction(async (tx) => {
-      await this.lockSpecification(tx, id);
+      await this.lockSpecification(tx, id, currentUser);
       await this.assertSpecificationExecutionWritableTx(tx, currentUser, id);
       const existing = await this.getSpecificationItemFromTx(tx, id, itemId);
 
@@ -2111,7 +2129,8 @@ export class OneTimeOrdersService {
     await assertOneTimeOrderAction(this.prisma, currentUser, id, "one_time_orders.specification.manage");
     await this.getOrderForSpecificationStructureWrite(currentUser, id);
     await this.prisma.$transaction(async (tx) => {
-      await this.lockSpecification(tx, id);
+      await this.lockSpecification(tx, id, currentUser);
+      await this.getOrderForSpecificationStructureWrite(currentUser, id, tx);
       const existing = await tx.oneTimeOrderSpecificationItem.findMany({
         where: { oneTimeOrderId: id, deletedAt: null },
         select: { id: true, sortOrder: true },
@@ -2202,6 +2221,7 @@ export class OneTimeOrdersService {
       .map((assignment) => assignment.userId);
     const updated = await this.prisma.$transaction(async (tx) => {
       await this.lockOneTimeOrder(tx, id);
+      await lockActorAccessRevision(tx, currentUser);
       const current = await tx.oneTimeOrder.findUnique({
         where: { id },
         select: { status: true, workCycle: true },
@@ -2268,6 +2288,7 @@ export class OneTimeOrdersService {
 
     const completion = await this.prisma.$transaction(async (tx) => {
       await this.lockOneTimeOrder(tx, id);
+      await lockActorAccessRevision(tx, currentUser);
       const order = await this.getOrderForCompletionTx(tx, currentUser, id);
       if (payload.payments.length > 0) await assertOneTimeOrderAction(tx, currentUser, id, 'one_time_orders.payments.create');
       if (payload.payments.length > 0 && !buildOneTimeOrderCapabilities({ subject: currentUser, currentUserId: currentUser.id,
@@ -2412,6 +2433,7 @@ export class OneTimeOrdersService {
 
     const reopened = await this.prisma.$transaction(async (tx) => {
       await this.lockOneTimeOrder(tx, id);
+      await lockActorAccessRevision(tx, currentUser);
       const order = await this.getOrderForCompletionTx(tx, currentUser, id);
       const capabilities = buildOneTimeOrderCapabilities({ subject: currentUser,
         currentUserId: currentUser.id,
@@ -2518,6 +2540,7 @@ export class OneTimeOrdersService {
     const completion = await this.prisma.$transaction(async (tx) => {
       await this.lockOneTimeOrder(tx, orderId);
       await tx.$queryRaw`SELECT "id" FROM "one_time_order_completion_payments" WHERE "id" = ${paymentId} FOR UPDATE`;
+      await lockActorAccessRevision(tx, currentUser);
 
       const sourcePayment = await tx.oneTimeOrderCompletionPayment.findUnique({
         where: { id: paymentId },
@@ -2780,7 +2803,7 @@ export class OneTimeOrdersService {
     currentUser: CurrentAuthUser,
     id: string,
     payload: AssignOneTimeOrderManagerDto,
-  ): Promise<OneTimeOrderResponseDto> {
+  ): Promise<OneTimeOrderResponseDto | SavedWithoutAccess> {
     await assertOneTimeOrderAction(this.prisma, currentUser, id, "one_time_orders.managers.manage");
     const order = await this.getOrderForManagerChange(currentUser, id);
     const [manager] = await this.loadManagerUsers([payload.userId]);
@@ -2790,16 +2813,19 @@ export class OneTimeOrdersService {
     }
 
     await this.prisma.$transaction(async (tx) => {
-      const conflictResult =
-        order.status === "cancelled"
-          ? null
-          : await this.checkScheduleConflicts(tx, currentUser, {
-              executionStartDate: order.executionStartDate,
-              executionEndDate: order.executionEndDate,
-              managerUserIds: [manager.id],
-              excludeOrderId: id,
-              conflictFingerprint: payload.conflictFingerprint,
-            });
+      await lockActorAccessRevision(tx, currentUser);
+      await this.lockOneTimeOrder(tx, id);
+      const currentOrder = await tx.oneTimeOrder.findUniqueOrThrow({
+        where: { id },
+        select: { executionStartDate: true, executionEndDate: true },
+      });
+      const conflictResult = await this.checkScheduleConflicts(tx, currentUser, {
+        executionStartDate: currentOrder.executionStartDate,
+        executionEndDate: currentOrder.executionEndDate,
+        managerUserIds: [manager.id],
+        excludeOrderId: id,
+        conflictFingerprint: payload.conflictFingerprint,
+      }, { orderId: id, managerUserId: manager.id });
       const assignment = await tx.oneTimeOrderAssignment.upsert({
         where: {
           oneTimeOrderId_userId_assignmentRoleCode: {
@@ -2819,8 +2845,8 @@ export class OneTimeOrdersService {
         },
       });
       await this.writeScheduleConflictOverrideAudit(tx, currentUser, id, {
-        executionStartDate: order.executionStartDate,
-        executionEndDate: order.executionEndDate,
+        executionStartDate: currentOrder.executionStartDate,
+        executionEndDate: currentOrder.executionEndDate,
         managerUserIds: [manager.id],
         conflictResult,
       });
@@ -2853,7 +2879,7 @@ export class OneTimeOrdersService {
       }
     });
 
-    return this.getOrderById(currentUser, id);
+    return projectCommittedWrite(this.prisma, currentUser, () => this.getOrderById(currentUser, id));
   }
 
   async removeManager(
@@ -2865,6 +2891,10 @@ export class OneTimeOrdersService {
     await this.getOrderForManagerChange(currentUser, id);
 
     await this.prisma.$transaction(async (tx) => {
+      // Order-scoped stock shipments hold this lock while they authorize and write.
+      await this.lockOneTimeOrder(tx, id);
+      await lockActorAccessRevision(tx, currentUser);
+      await this.getOrderForManagerChange(currentUser, id, tx);
       const assignment = await tx.oneTimeOrderAssignment.findFirst({
         where: {
           oneTimeOrderId: id,
@@ -2978,27 +3008,31 @@ export class OneTimeOrdersService {
       throw new ForbiddenException("One-time order comment creation denied");
     }
 
-    const created = await this.prisma.oneTimeOrderComment.create({
-      data: {
-        oneTimeOrderId: id,
-        content: payload.content.trim(),
-        commentType: payload.commentType?.trim() || "manual",
-        createdByUserId: currentUser.id,
-      },
-      include: {
-        createdBy: true,
-      },
-    });
+    const created = await this.prisma.$transaction(async (tx) => {
+      await lockActorAccessRevision(tx, currentUser);
+      const created = await tx.oneTimeOrderComment.create({
+        data: {
+          oneTimeOrderId: id,
+          content: payload.content.trim(),
+          commentType: payload.commentType?.trim() || "manual",
+          createdByUserId: currentUser.id,
+        },
+        include: {
+          createdBy: true,
+        },
+      });
 
-    await this.auditService.writeAuditEvent({
-      entityType: "one_time_order",
-      entityId: id,
-      actorUserId: currentUser.id,
-      action: "one_time_order.comment_created",
-      metadata: {
-        commentId: created.id,
-        commentType: created.commentType,
-      },
+      await this.auditService.writeAuditEvent({
+        entityType: "one_time_order",
+        entityId: id,
+        actorUserId: currentUser.id,
+        action: "one_time_order.comment_created",
+        metadata: {
+          commentId: created.id,
+          commentType: created.commentType,
+        },
+      }, tx);
+      return created;
     });
 
     return this.mapComment(created, []);
@@ -3044,37 +3078,42 @@ export class OneTimeOrdersService {
     await assertOneTimeOrderAction(this.prisma, currentUser, id, "one_time_orders.reports.update");
     await this.getOrderForWrite(currentUser, id, "one_time_orders.reports.update");
 
-    const item = (await this.prisma.oneTimeOrderDailyReport.upsert({
-      where: {
-        oneTimeOrderId_reportDate: {
-          oneTimeOrderId: id,
-          reportDate: this.startOfToday(),
+    const reportDate = this.startOfToday();
+    const item = await this.prisma.$transaction(async (tx) => {
+      await lockActorAccessRevision(tx, currentUser);
+      const item = (await tx.oneTimeOrderDailyReport.upsert({
+        where: {
+          oneTimeOrderId_reportDate: {
+            oneTimeOrderId: id,
+            reportDate: reportDate,
+          },
         },
-      },
-      update: {
-        content: payload.content,
-        updatedByUserId: currentUser.id,
-      },
-      create: {
-        oneTimeOrderId: id,
-        reportDate: this.startOfToday(),
-        content: payload.content,
-        updatedByUserId: currentUser.id,
-      },
-      include: {
-        updatedBy: true,
-      },
-    })) as OneTimeOrderDailyReportView;
+        update: {
+          content: payload.content,
+          updatedByUserId: currentUser.id,
+        },
+        create: {
+          oneTimeOrderId: id,
+          reportDate: reportDate,
+          content: payload.content,
+          updatedByUserId: currentUser.id,
+        },
+        include: {
+          updatedBy: true,
+        },
+      })) as OneTimeOrderDailyReportView;
 
-    await this.auditService.writeAuditEvent({
-      entityType: "one_time_order",
-      entityId: id,
-      actorUserId: currentUser.id,
-      action: "one_time_order.daily_report_upserted",
-      metadata: {
-        reportId: item.id,
-        reportDate: item.reportDate.toISOString(),
-      },
+      await this.auditService.writeAuditEvent({
+        entityType: "one_time_order",
+        entityId: id,
+        actorUserId: currentUser.id,
+        action: "one_time_order.daily_report_upserted",
+        metadata: {
+          reportId: item.id,
+          reportDate: item.reportDate.toISOString(),
+        },
+      }, tx);
+      return item;
     });
 
     return this.mapDailyReport(item, []);
@@ -3386,16 +3425,22 @@ export class OneTimeOrdersService {
     tx: Prisma.TransactionClient,
     currentUser: CurrentAuthUser,
     input: ScheduleConflictCheckInput,
+    managerAssignment?: { orderId: string; managerUserId: string },
   ): Promise<OneTimeOrderConflictResponseDto | null> {
     if (
-      !input.executionStartDate ||
-      !input.executionEndDate ||
-      input.managerUserIds.length === 0
+      !managerAssignment && (
+        !input.executionStartDate ||
+        !input.executionEndDate ||
+        input.managerUserIds.length === 0)
     ) {
       return null;
     }
 
-    const result = await this.oneTimeOrderConflictService.checkConflicts(
+    const result = managerAssignment
+      ? await this.oneTimeOrderConflictService.checkManagerAssignmentConflicts(
+          currentUser, managerAssignment.orderId, managerAssignment.managerUserId, tx,
+        )
+      : await this.oneTimeOrderConflictService.checkConflicts(
       currentUser,
       {
         executionStartDate: formatBusinessDate(input.executionStartDate)!,
@@ -3408,6 +3453,8 @@ export class OneTimeOrdersService {
         lockManagerSchedules: true,
       },
     );
+
+    if (!result) return null;
 
     if (
       result.hasConflicts &&
@@ -3623,8 +3670,9 @@ export class OneTimeOrdersService {
     currentUser: CurrentAuthUser,
     id: string,
     actionCode = 'one_time_orders.review.edit',
+    database: Prisma.TransactionClient = this.prisma,
   ): Promise<OneTimeOrderView> {
-    const order = (await this.prisma.oneTimeOrder.findFirst({
+    const order = (await database.oneTimeOrder.findFirst({
       where: {
         id,
         ...buildOneTimeOrderAccessWhere({ subject: currentUser,
@@ -3702,8 +3750,9 @@ export class OneTimeOrdersService {
   private async getOrderForSpecificationStructureWrite(
     currentUser: CurrentAuthUser,
     id: string,
+    database: Prisma.TransactionClient = this.prisma,
   ): Promise<OneTimeOrderView> {
-    const order = await this.getOrderForCompletionTx(this.prisma, currentUser, id);
+    const order = await this.getOrderForCompletionTx(database, currentUser, id);
     const capabilities = buildOneTimeOrderCapabilities({ subject: currentUser,
       currentUserId: currentUser.id,
       roleCodes: this.getRoleCodes(currentUser),
@@ -3842,8 +3891,9 @@ export class OneTimeOrdersService {
   private async getOrderForManagerChange(
     currentUser: CurrentAuthUser,
     id: string,
+    database: Prisma.TransactionClient = this.prisma,
   ): Promise<OneTimeOrderView> {
-    const order = (await this.prisma.oneTimeOrder.findFirst({
+    const order = (await database.oneTimeOrder.findFirst({
       where: {
         id,
         ...buildOneTimeOrderAccessWhere({ subject: currentUser,
@@ -4792,10 +4842,19 @@ export class OneTimeOrdersService {
   private async lockSpecification(
     tx: Prisma.TransactionClient,
     oneTimeOrderId: string,
+    currentUser: CurrentAuthUser,
   ): Promise<void> {
     await tx.$executeRaw(
       Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${oneTimeOrderId}))`,
     );
+    const orders = await tx.$queryRaw<Array<{ status: string }>>`
+      SELECT "status" FROM "one_time_orders" WHERE "id" = ${oneTimeOrderId} FOR UPDATE
+    `;
+    await lockActorAccessRevision(tx, currentUser);
+    if (!orders[0]) throw new NotFoundException('One-time order not found');
+    if (orders[0].status === 'completed' || orders[0].status === 'cancelled') {
+      throw new ConflictException('One-time order specification is read-only in the current status');
+    }
   }
 
   private async writeSpecificationAudit(
@@ -5038,17 +5097,17 @@ export class OneTimeOrdersService {
   }
 
   private assertCanViewAllReviews(currentUser: CurrentAuthUser): void {
-    if (
-      !hasWideOneTimeOrderAccess(this.getRoleCodes(currentUser)) &&
-      !hasOneTimeOrderPermission(
-        this.getPermissionCodes(currentUser),
-        ONE_TIME_ORDER_REVIEW_VIEW_ALL_PERMISSION,
-      )
-    ) {
+    if (!canEnterAccessModule(currentUser, 'one_time_orders.access',
+      ['one_time_orders.review.view_all'], this.hasLegacyAllReviewsAccess(currentUser))) {
       throw new ForbiddenException(
         "One-time order review registry access denied",
       );
     }
+  }
+
+  private hasLegacyAllReviewsAccess(currentUser: CurrentAuthUser): boolean {
+    return hasWideOneTimeOrderAccess(this.getRoleCodes(currentUser)) ||
+      hasOneTimeOrderPermission(this.getPermissionCodes(currentUser), ONE_TIME_ORDER_REVIEW_VIEW_ALL_PERMISSION);
   }
 
   private async notifyOrderCreated(

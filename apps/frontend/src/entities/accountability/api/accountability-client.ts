@@ -1,4 +1,5 @@
-import { fetcher } from '@/shared/api/fetcher';
+import type { SavedWithoutAccess } from '@/shared/api/saved-without-access';
+import { fetcher, postCommittedWrite, committedWrite } from '@/shared/api/fetcher';
 
 import type {
   AccountabilityAccountListItem,
@@ -54,11 +55,10 @@ export async function listAccountabilityUsers(): Promise<
 export async function issueAccountabilityFunding(
   userId: string,
   payload: CreateAccountabilityFundingPayload,
-): Promise<AccountabilityFundingEntry> {
-  return fetcher<AccountabilityFundingEntry>(
+): Promise<AccountabilityFundingEntry | SavedWithoutAccess> {
+  return postCommittedWrite<AccountabilityFundingEntry>(
     `/accountability/accounts/${userId}/fundings`,
     {
-      method: 'POST',
       body: JSON.stringify(payload),
     },
   );
@@ -68,9 +68,8 @@ export async function recordExternalAccountabilityReceipt(payload: {
   amount: number;
   source: string;
   comment: string;
-}): Promise<AccountabilityFundingEntry> {
-  return fetcher<AccountabilityFundingEntry>('/accountability/me/fundings/external', {
-    method: 'POST',
+}): Promise<AccountabilityFundingEntry | SavedWithoutAccess> {
+  return postCommittedWrite<AccountabilityFundingEntry>('/accountability/me/fundings/external', {
     body: JSON.stringify(payload),
   });
 }
@@ -78,18 +77,16 @@ export async function recordExternalAccountabilityReceipt(payload: {
 export async function reverseExternalAccountabilityReceipt(
   fundingId: string,
   reason: string,
-): Promise<AccountabilityFundingEntry> {
-  return fetcher<AccountabilityFundingEntry>(`/accountability/fundings/${fundingId}/reverse`, {
-    method: 'POST',
+): Promise<AccountabilityFundingEntry | SavedWithoutAccess> {
+  return postCommittedWrite<AccountabilityFundingEntry>(`/accountability/fundings/${fundingId}/reverse`, {
     body: JSON.stringify({ reason }),
   });
 }
 
 export async function createAccountabilityExpense(
   payload: SaveAccountabilityExpensePayload,
-): Promise<AccountabilityExpenseItem> {
-  return fetcher<AccountabilityExpenseItem>('/accountability/me/expenses', {
-    method: 'POST',
+): Promise<AccountabilityExpenseItem | SavedWithoutAccess> {
+  return postCommittedWrite<AccountabilityExpenseItem>('/accountability/me/expenses', {
     body: JSON.stringify(payload),
   });
 }
@@ -97,8 +94,8 @@ export async function createAccountabilityExpense(
 export async function updateAccountabilityExpense(
   expenseId: string,
   payload: SaveAccountabilityExpensePayload,
-): Promise<AccountabilityExpenseItem> {
-  return fetcher<AccountabilityExpenseItem>(
+): Promise<AccountabilityExpenseItem | SavedWithoutAccess> {
+  return committedWrite<AccountabilityExpenseItem>(
     `/accountability/me/expenses/${expenseId}`,
     {
       method: 'PATCH',
@@ -109,22 +106,20 @@ export async function updateAccountabilityExpense(
 
 export async function submitAccountabilityExpense(
   expenseId: string,
-): Promise<AccountabilityExpenseItem> {
-  return fetcher<AccountabilityExpenseItem>(
+): Promise<AccountabilityExpenseItem | SavedWithoutAccess> {
+  return postCommittedWrite<AccountabilityExpenseItem>(
     `/accountability/me/expenses/${expenseId}/submit`,
     {
-      method: 'POST',
     },
   );
 }
 
 export async function approveAccountabilityExpense(
   expenseId: string,
-): Promise<AccountabilityExpenseItem> {
-  return fetcher<AccountabilityExpenseItem>(
+): Promise<AccountabilityExpenseItem | SavedWithoutAccess> {
+  return postCommittedWrite<AccountabilityExpenseItem>(
     `/accountability/expenses/${expenseId}/approve`,
     {
-      method: 'POST',
     },
   );
 }
@@ -132,29 +127,25 @@ export async function approveAccountabilityExpense(
 export async function rejectAccountabilityExpense(
   expenseId: string,
   comment: string,
-): Promise<AccountabilityExpenseItem> {
-  return fetcher<AccountabilityExpenseItem>(
+): Promise<AccountabilityExpenseItem | SavedWithoutAccess> {
+  return postCommittedWrite<AccountabilityExpenseItem>(
     `/accountability/expenses/${expenseId}/reject`,
     {
-      method: 'POST',
       body: JSON.stringify({ comment }),
     },
   );
 }
 
-export async function requestAccountabilityClosure(): Promise<AccountabilityClosureItem> {
-  return fetcher<AccountabilityClosureItem>('/accountability/me/closures/request', {
-    method: 'POST',
-  });
+export async function requestAccountabilityClosure(): Promise<AccountabilityClosureItem | SavedWithoutAccess> {
+  return postCommittedWrite<AccountabilityClosureItem>('/accountability/me/closures/request', {});
 }
 
 export async function approveAccountabilityClosure(
   closureId: string,
-): Promise<AccountabilityClosureItem> {
-  return fetcher<AccountabilityClosureItem>(
+): Promise<AccountabilityClosureItem | SavedWithoutAccess> {
+  return postCommittedWrite<AccountabilityClosureItem>(
     `/accountability/closures/${closureId}/approve`,
     {
-      method: 'POST',
     },
   );
 }
@@ -162,11 +153,10 @@ export async function approveAccountabilityClosure(
 export async function rejectAccountabilityClosure(
   closureId: string,
   comment: string,
-): Promise<AccountabilityClosureItem> {
-  return fetcher<AccountabilityClosureItem>(
+): Promise<AccountabilityClosureItem | SavedWithoutAccess> {
+  return postCommittedWrite<AccountabilityClosureItem>(
     `/accountability/closures/${closureId}/reject`,
     {
-      method: 'POST',
       body: JSON.stringify({ comment }),
     },
   );

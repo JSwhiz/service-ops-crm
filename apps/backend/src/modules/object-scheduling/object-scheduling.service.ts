@@ -88,7 +88,8 @@ export class ObjectSchedulingService {
       const start = assignments.map(a => a.from).sort()[0];
       const end = assignments.some(a => !a.to) ? null : assignments.map(a => a.to!).sort().at(-1)!;
       if (await this.employeeScoped(tx, objectId, employeeId, start, end)) continue;
-      if (!decideAccess(user,'objects.staffing.manage',canAssign,{resourceType:'object',resourceId:objectId}) || !decideAccess(user,'employees.assignments.manage',canAssign,{resourceType:'employee',resourceId:employeeId})) throw new ForbiddenException('Сначала назначьте сотрудника на объект; требуется employees.assignments.manage');
+      await this.access(tx, user, objectId, false, 'objects.staffing.manage', canAssign);
+      if (!decideAccess(user,'employees.assignments.manage',canAssign,{resourceType:'employee',resourceId:employeeId})) throw new ForbiddenException('Сначала назначьте сотрудника на объект; требуется employees.assignments.manage');
       if (!persistAssignments) continue;
       const existing = await tx.objectEmployeeAssignment.findUnique({where: {objectId_employeeId: {objectId, employeeId}}});
       if (existing?.isActive) throw new BadRequestException('Даты назначения в группу выходят за период назначения на объект');
@@ -402,7 +403,9 @@ export class ObjectSchedulingService {
   }
   async applyFinancialDecision(tx: Prisma.TransactionClient, user: SchedulingUser, id: string, decision: 'approve' | 'reject' | 'cancel') {
     const item = await tx.objectCompensationAdjustment.findUniqueOrThrow({where: {id}});
-    await this.lock(tx, user, item.objectId, 'objects.compensation.correct_past');
+    const object = await this.lock(tx, user, item.objectId, 'objects.compensation.correct_past');
+    if (!decideAccess(user, 'objects.compensation.manage', true, objectPolicyContext(object)))
+      throw new ForbiddenException('Нет доступа к изменению начислений объекта');
     if (item.status !== 'pending') conflict('APPROVAL_ALREADY_RESOLVED', 'Финансовая заявка уже обработана');
     if (decision !== 'approve') {
       await tx.objectCompensationAdjustment.update({where: {id}, data: {status: decision === 'reject' ? 'rejected' : 'cancelled'}}); return;

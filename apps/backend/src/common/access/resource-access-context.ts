@@ -1,4 +1,4 @@
-import type { PrismaService } from '../../modules/prisma/prisma.service';
+import type { Prisma } from '@prisma/client';
 import type { AccessContext } from '../../modules/users-access/types/access-policy.type';
 
 export interface ResourceAccessTarget {
@@ -9,7 +9,7 @@ export interface ResourceAccessTarget {
 /** Resolve opaque attachment/event IDs to their real domain ancestors. Never
  * derive authorization from a URL, filename, client-supplied owner or role. */
 export async function resourceAccessTarget(
-  prisma: PrismaService,
+  prisma: Prisma.TransactionClient,
   entityType: string,
   entityId: string,
 ): Promise<ResourceAccessTarget | null> {
@@ -111,7 +111,10 @@ export async function resourceAccessTarget(
     ]);
     return { actionCode: 'inventory.movements.read', context: {
       resourceType: 'inventory_item', resourceId: row.inventoryItemId, ownerUserId: row.createdByUserId,
-      parents: parents.filter((parent): parent is ResourceAccessTarget => parent !== null),
+      parents: [
+        { actionCode: 'inventory.read', context: { resourceType: 'inventory_item', resourceId: row.inventoryItemId } },
+        ...parents.filter((parent): parent is ResourceAccessTarget => parent !== null),
+      ],
     } };
   }
   if (entityType === 'equipment_movement') {
@@ -125,7 +128,10 @@ export async function resourceAccessTarget(
     ]);
     return { actionCode: 'equipment.history', context: {
       resourceType: 'equipment_unit', resourceId: row.equipmentUnitId, ownerUserId: row.createdByUserId,
-      parents: parents.filter((parent): parent is ResourceAccessTarget => parent !== null),
+      parents: [
+        { actionCode: 'equipment.read', context: { resourceType: 'equipment_unit', resourceId: row.equipmentUnitId } },
+        ...parents.filter((parent): parent is ResourceAccessTarget => parent !== null),
+      ],
     } };
   }
   if (entityType === 'accountability_expense' || entityType === 'accountability_funding') {

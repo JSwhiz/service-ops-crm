@@ -6,6 +6,7 @@ import type { OneTimeOrderCommentItem } from '@/entities/one-time-order/model/on
 import { getUserDisplayName } from '@/shared/lib/display-name';
 import { AttachmentPreviewList } from '@/shared/ui/media-entry/attachment-preview-list';
 import { MediaActionPicker } from '@/shared/ui/media-entry/media-action-picker';
+import { AccessSnapshotBoundary } from '@/shared/auth/access-snapshot-boundary';
 import { PendingMediaList } from '@/shared/ui/media-entry/pending-media-list';
 import { Button, Surface } from '@/shared/ui/foundation';
 
@@ -37,10 +38,11 @@ export function OneTimeOrderCommentsPanel({
         </div>
       </div>
 
-      {canCreate ? (
+      <AccessSnapshotBoundary blocked={!canCreate}>
         <form
           onSubmit={async (event) => {
             event.preventDefault();
+            if (!canCreate || isSubmitting) return;
 
             if (!content.trim() && pendingFiles.length === 0) {
               return;
@@ -70,7 +72,7 @@ export function OneTimeOrderCommentsPanel({
           <div style={{ display: 'grid', gap: 8, marginTop: 12 }}>
             <div className="ui-text-muted">Медиа и файлы комментария</div>
             <MediaActionPicker
-              disabled={isSubmitting}
+              disabled={isSubmitting || !canCreate}
               onPick={async (file) => {
                 setPendingFiles((prev) => [...prev, file]);
               }}
@@ -96,7 +98,7 @@ export function OneTimeOrderCommentsPanel({
             </Button>
           </div>
         </form>
-      ) : null}
+      </AccessSnapshotBoundary>
 
       {items.length === 0 ? (
         <div className="ui-text-muted">Комментариев пока нет.</div>

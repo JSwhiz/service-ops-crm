@@ -25,8 +25,10 @@ function getErrorMessage(error: unknown, fallback: string): string {
 export default function InventoryPage(): React.JSX.Element {
   const { user } = useAuth();
   const canAccessInventory = user?.capabilities?.canAccessInventory ?? false;
-  const canManageInventoryCatalog =
-    user?.capabilities?.canManageInventoryCatalog ?? false;
+  const canCreateInventoryItem =
+    user?.capabilities?.canCreateInventoryItem ?? false;
+  const canViewInventoryMovements =
+    user?.capabilities?.canViewInventoryMovements ?? false;
   const canViewInventoryReports =
     user?.capabilities?.canViewInventoryReports ?? false;
   const [items, setItems] = useState<InventoryItem[]>([]);
@@ -146,11 +148,9 @@ export default function InventoryPage(): React.JSX.Element {
                 sortDirection === 'asc' ? { id: 'direction', label: 'Порядок', options: [{ value: 'desc', label: 'По убыванию' }], onAdd: (value: string) => { setSortDirection(value as 'asc' | 'desc'); setPage(1); } } : null,
               ].filter((filter): filter is NonNullable<typeof filter> => filter !== null)}
             actions={<>
-              {canViewInventoryReports ? <>
-                <ButtonLink href="/inventory/movements">Движения</ButtonLink>
-                <ButtonLink href="/inventory/reports">Отчёты</ButtonLink>
-              </> : null}
-              {canManageInventoryCatalog ? <CreateNavigationLink href="/inventory/new" className="ui-button ui-button--primary"><span className="ui-button__icon" aria-hidden="true"><PlusIcon /></span>Добавить позицию</CreateNavigationLink> : null}
+              {canViewInventoryMovements ? <ButtonLink href="/inventory/movements">Движения</ButtonLink> : null}
+              {canViewInventoryReports ? <ButtonLink href="/inventory/reports">Отчёты</ButtonLink> : null}
+              {canCreateInventoryItem ? <CreateNavigationLink href="/inventory/new" className="ui-button ui-button--primary"><span className="ui-button__icon" aria-hidden="true"><PlusIcon /></span>Добавить позицию</CreateNavigationLink> : null}
             </>}
           />
 

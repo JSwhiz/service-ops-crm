@@ -48,7 +48,7 @@ export function InventoryItemListTable({
               </td>
               <td>{item.currentEstimatedTotalValue.toLocaleString('ru-RU')} ₽</td>
               <td>{item.isActive ? 'Активна' : 'Удалена'}</td>
-              <td>{item.summary.movementsCount}</td>
+              <td>{item.summary?.movementsCount ?? '—'}</td>
               <td className="registry-open-cell"><RegistryOpenLink href={`/inventory/${item.id}`} label={`Открыть ${item.name}`} /></td>
             </tr>
           ))}

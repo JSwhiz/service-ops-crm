@@ -141,7 +141,9 @@ export async function notificationAccessWhere(prisma: PrismaService, userId: str
         : assigned ? await childIds(prisma.object, { assignments: { some: { userId, isActive: true } } }) : selectedIds;
       if (action.module === 'mats') {
         addIds('rubber_mat', await childIds(prisma.rubberMat, { objectId: { in: objects } }));
-        addIds('object_rubber_mat_quantity', await childIds(prisma.objectRubberMatQuantity, { objectId: { in: objects } }));
+        // Quantity uses a composite (objectId, sizeId) key, not an `id` column.
+        // There is no notification identity contract/producer for this source;
+        // positive source membership rejects it rather than inventing an ID.
       } else addIds('user_substitution', await childIds(prisma.userSubstitution, { objects: { some: { objectId: { in: objects } } } }));
       continue;
     }
@@ -182,5 +184,13 @@ export async function notificationAccessWhere(prisma: PrismaService, userId: str
   // Approval events use the endpoint's exact approval/source policy through
   // notificationSourceVisibilityWhere below. Converting unrelated module leaf
   // exclusions into source-wide approval exclusions would hide readable cards.
-  return { AND: [where, await notificationSourceVisibilityWhere(prisma, subject, options.includeDismissed), ...exclusions.map(exclusion => ({ NOT: exclusion }))] };
+  // SQL NOT over a nullable source field yields UNKNOWN, not TRUE. Generic
+  // notifications have no domain source and must not disappear merely because
+  // the recipient has an unrelated resource deny. Covered source types still
+  // require positive membership in notificationSourceVisibilityWhere.
+  const outsideExclusions = exclusions.map(exclusion => ({ OR: [
+    { entityType: null },
+    { NOT: exclusion },
+  ] }));
+  return { AND: [where, await notificationSourceVisibilityWhere(prisma, subject, options.includeDismissed), ...outsideExclusions] };
 }

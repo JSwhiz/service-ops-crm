@@ -97,6 +97,7 @@ export class AccountabilityAccountViewDto {
   summary!: AccountabilityAccountSummaryDto;
   capabilities!: {
     canCreateExpense: boolean;
+    canSubmitExpense: boolean;
     canRequestClosure: boolean;
     canIssueFunding: boolean;
     canReviewExpenses: boolean;
@@ -133,6 +134,7 @@ export class OneTimeOrderAccountabilityViewDto {
   visibilityScope!: 'own' | 'administrative';
   capabilities!: {
     canCreateExpense: boolean;
+    canSubmitExpense: boolean;
     canCreateEmployeePayout: boolean;
     canReviewExpenses: boolean;
   };

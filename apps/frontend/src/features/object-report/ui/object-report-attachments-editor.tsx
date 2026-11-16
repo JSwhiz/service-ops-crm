@@ -1,9 +1,14 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useContext, useEffect, useRef, useState } from 'react';
+import { AccessSnapshotBoundary, AccessSnapshotBlockedContext } from '@/shared/auth/access-snapshot-boundary';
+import { getAccessGeneration, isAccessGenerationCurrent } from '@/shared/auth/access-generation';
 
 import { correctDailyReportAttachments, stageDailyReportAttachment } from '@/entities/object/api/object-operations-client';
 import type { CorrectDailyReportAttachmentsPayload, ObjectDailyReport } from '@/entities/object/model/object-operations.types';
+import { isSavedWithoutAccess } from '@/shared/api/saved-without-access';
+import { ObjectWriteAcknowledgedWithoutAccess } from '@/features/object-shared-ui/object-write-fence';
+import { getAccessSessionGeneration } from '@/shared/auth/access-generation';
 import { ApiError } from '@/shared/api/fetcher';
 import { Alert, Button } from '@/shared/ui/foundation';
 import { useConfirm, useReasonPrompt } from '@/shared/ui/overlays/use-dialogs';
@@ -20,14 +25,19 @@ interface AttachmentMutation {
 export function ObjectReportAttachmentsEditor({
   report,
   hasUnsavedText = false,
+  accessCurrent = true,
   onUpdated,
+  onSavedWithoutAccess,
   onEditStateChange,
 }: {
   report: ObjectDailyReport;
   hasUnsavedText?: boolean;
-  onUpdated: () => Promise<void>;
+  accessCurrent?: boolean;
+  onUpdated: () => Promise<boolean | void>;
+  onSavedWithoutAccess?: () => void;
   onEditStateChange?: (state: { dirty: boolean; busy: boolean }) => void;
 }): React.JSX.Element {
+  const [acknowledged, setAcknowledged] = useState(false);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [removedIds, setRemovedIds] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
@@ -35,14 +45,26 @@ export function ObjectReportAttachmentsEditor({
   const [result, setResult] = useState<string | null>(null);
   const [retryMutation, setRetryMutation] = useState<AttachmentMutation | null>(null);
   const [needsReview, setNeedsReview] = useState(false);
+  const [abandonedDialog, setAbandonedDialog] = useState(false);
+  const [applyContext, setApplyContext] = useState<{ generation: number; objectId: string; id: string; revision: number } | null>(null);
   const correctionDraft = useRef(createAttachmentCorrectionDraft<AttachmentMutation>());
   const [confirm, confirmDialog] = useConfirm();
   const [askReason, reasonDialog] = useReasonPrompt();
   const sent = report.publicationState === 'submitted';
-  const canCorrect = report.capabilities.editAttachments;
+  const ancestorBlocked = useContext(AccessSnapshotBlockedContext);
+  const canCorrect = accessCurrent && report.capabilities.editAttachments && !ancestorBlocked;
   const hasUnsentDraft = report.publicationState === 'draft_after_submission';
   const hasChanges = pendingFiles.length > 0 || removedIds.length > 0;
-  const blockedByDraft = hasUnsavedText || hasUnsentDraft || !canCorrect;
+  const blockedByDraft = acknowledged || hasUnsavedText || hasUnsentDraft || !canCorrect;
+  const current = useRef({ report, blockedByDraft, onUpdated });
+  current.current = { report, blockedByDraft, onUpdated };
+  const mounted = useRef(true);
+  const applying = useRef(false);
+  const activeApply = useRef<{ allowed: () => boolean; cancel: () => void } | null>(null);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; activeApply.current?.cancel(); }; }, []);
+  // Suspension intentionally leaves the shared overlay promise unresolved.
+  // End only our logical operation; keep that overlay and the private queue.
+  useEffect(() => { if (activeApply.current && !activeApply.current.allowed()) activeApply.current.cancel(); });
 
   useEffect(() => {
     onEditStateChange?.({ dirty: hasChanges || !!retryMutation || needsReview, busy });
@@ -54,7 +76,27 @@ export function ObjectReportAttachmentsEditor({
   }, [report.attachments]);
 
   const apply = async (mutation?: AttachmentMutation): Promise<void> => {
-    if (busy || blockedByDraft || (needsReview && !mutation)) return;
+    const generation = getAccessGeneration();
+    const session = getAccessSessionGeneration();
+    const target = { objectId: report.objectId, id: report.id, revision: report.revision };
+    const sameTarget = () => mounted.current && getAccessSessionGeneration() === session && current.current.report.objectId === target.objectId && current.current.report.id === target.id;
+    const acknowledge = () => { if (sameTarget()) { setAcknowledged(true); setResult('Запись подтверждена без доступных подробностей. Очередь сохранена; повтор не отправлялся.'); onSavedWithoutAccess?.(); } };
+    let invalidated = false;
+    let cancelWait!: () => void;
+    const cancelled = new Promise<null>(resolve => { cancelWait = () => {
+      if (invalidated) return;
+      invalidated = true;
+      setAbandonedDialog(true);
+      resolve(null);
+    }; });
+    const allowed = () => !invalidated && mounted.current && isAccessGenerationCurrent(generation) && !current.current.blockedByDraft &&
+      current.current.report.objectId === target.objectId && current.current.report.id === target.id && current.current.report.revision === target.revision;
+    if (applying.current || busy || !allowed() || (needsReview && !mutation)) return;
+    applying.current = true;
+    const operation = { allowed, cancel: cancelWait };
+    activeApply.current = operation;
+    setAbandonedDialog(false);
+    setApplyContext({ generation, ...target });
     setBusy(true);
     setError(null);
     setResult(null);
@@ -63,33 +105,49 @@ export function ObjectReportAttachmentsEditor({
       if (!selectedMutation) {
         let reason = correctionDraft.current.getReason();
         if (sent && !reason) {
-          reason = await askReason({
+          // A new ask replaces the suspended hook request. Seed it from the
+          // still-mounted ReasonDialog's private field, not an approved reason:
+          // the user must explicitly confirm/validate this text again.
+          const privateReason = React.isValidElement<{ reason?: string }>(reasonDialog) ? reasonDialog.props.reason : undefined;
+          reason = await Promise.race([askReason({
             title: 'Причина исправления отчёта',
             description: 'Причина сохранится в истории исправлений.',
             reasonLabel: 'Причина',
             confirmLabel: 'Продолжить',
             minLength: 1,
-          }) ?? undefined;
+            initialValue: privateReason,
+          }), cancelled]) ?? undefined;
           if (!reason) return;
           correctionDraft.current.setReason(reason);
+          if (!allowed()) return;
         }
         if (sent) {
-          const accepted = await confirm({
+          const accepted = await Promise.race([confirm({
             title: 'Исправить отправленный отчёт?',
             consequence: 'Изменение будет записано в историю и опубликовано как обновление отчёта.',
             confirmLabel: 'Исправить отчёт',
             tone: 'danger',
-          });
-          if (!accepted) return;
+          }), cancelled]);
+          if (!accepted || !allowed()) return;
         }
 
-        const stagedFileIds = await Promise.all(pendingFiles.map((file) => correctionDraft.current.stageFile(
-          file,
-          async (requestId) => (await stageDailyReportAttachment(report.objectId, report.id, file, requestId)).file.id,
-        )));
+        const stagedFileIds: string[] = [];
+        for (const file of pendingFiles) {
+          if (!allowed()) return;
+          const fileId = await correctionDraft.current.stageFile(file, async (requestId) => {
+            if (!allowed()) throw new Error('Исправление вложений сейчас недоступно. Выбранные файлы сохранены.');
+            const staged = await stageDailyReportAttachment(target.objectId, target.id, file, requestId);
+            if (isSavedWithoutAccess(staged) || !allowed()) throw new ObjectWriteAcknowledgedWithoutAccess();
+            return staged.file.id;
+          });
+          // stageFile retains an acknowledged ID even if access changed during
+          // upload. Stop here; only an explicit later action may continue.
+          if (!allowed()) return;
+          stagedFileIds.push(fileId);
+        }
         selectedMutation = {
           payload: {
-            expectedRevision: report.revision,
+            expectedRevision: target.revision,
             requestId: crypto.randomUUID(),
             removeAttachmentIds: [...removedIds],
             addFileIds: stagedFileIds,
@@ -100,17 +158,22 @@ export function ObjectReportAttachmentsEditor({
         setRetryMutation(selectedMutation);
       }
 
-      const response = await correctDailyReportAttachments(report.objectId, report.id, selectedMutation.payload);
+      if (!allowed()) return;
+      const response = await correctDailyReportAttachments(target.objectId, target.id, selectedMutation.payload);
+      if (isSavedWithoutAccess(response) || !allowed()) { acknowledge(); return; }
+      // Keep the private queue until the authorized reread has completed.
+      const refreshed = await current.current.onUpdated().catch(() => false);
+      if (!sameTarget()) return;
+      if (!isAccessGenerationCurrent(generation) || refreshed === false) { acknowledge(); return; }
       setRetryMutation(null);
       correctionDraft.current.clearMutation();
       correctionDraft.current.reset();
       setPendingFiles([]);
       setRemovedIds([]);
       setResult(response.publication.status === 'queued' ? 'Исправление сохранено. Публикация обновления поставлена в очередь.' : 'Изменения вложений сохранены в черновике.');
-      await onUpdated().catch(() => {
-        setError('Изменения применены, но отчёт не удалось перечитать. Повторите обновление данных.');
-      });
     } catch (caught) {
+      if (caught instanceof ObjectWriteAcknowledgedWithoutAccess) { acknowledge(); return; }
+      if (!allowed()) return;
       if (caught instanceof ApiError && caught.statusCode === 409) {
         setRetryMutation(null);
         correctionDraft.current.markConflict();
@@ -121,12 +184,25 @@ export function ObjectReportAttachmentsEditor({
         setError(caught instanceof Error ? caught.message : 'Не удалось применить изменения вложений.');
       }
     } finally {
-      setBusy(false);
+      if (activeApply.current === operation) {
+        activeApply.current = null;
+        applying.current = false;
+        if (sameTarget()) setBusy(false);
+      }
     }
   };
 
   return <div className={styles.mediaSection}>
-    {confirmDialog}{reasonDialog}
+    {acknowledged ? <Alert tone="warning" role="status">Запись подтверждена. Выбранные файлы и изменения сохранены для проверки.
+      <Button onClick={async () => {
+        const generation = getAccessGeneration();
+        const session = getAccessSessionGeneration();
+        const target = current.current.report;
+        const refreshed = await current.current.onUpdated().catch(() => false);
+        if (refreshed && mounted.current && getAccessSessionGeneration() === session && isAccessGenerationCurrent(generation) && current.current.report.objectId === target.objectId && current.current.report.id === target.id) setAcknowledged(false);
+      }}>Проверить отчёт — продолжить вручную</Button>
+    </Alert> : null}
+    <AccessSnapshotBoundary blocked={abandonedDialog || blockedByDraft || (!!applyContext && (!isAccessGenerationCurrent(applyContext.generation) || report.objectId !== applyContext.objectId || report.id !== applyContext.id || report.revision !== applyContext.revision))}>{confirmDialog}{reasonDialog}</AccessSnapshotBoundary>
     <div className="ui-inline ui-inline--sm">
       <MediaActionPicker
         compactMenu

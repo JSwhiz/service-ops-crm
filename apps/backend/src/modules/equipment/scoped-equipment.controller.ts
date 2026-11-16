@@ -3,8 +3,7 @@ import { Body, Controller, Param, Post, UseGuards } from '@nestjs/common';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
-import { ScopedEquipmentActionDto } from './dto/scoped-equipment-action.dto';
-import { EquipmentUnitResponseDto } from './dto/equipment-response.dto';
+import { ScopedEquipmentActionDto, ScopedEquipmentMovementReceiptDto } from './dto/scoped-equipment-action.dto';
 import { ScopedEquipmentService } from './scoped-equipment.service';
 
 interface CurrentAuthUser {
@@ -28,7 +27,7 @@ export class ScopedEquipmentController {
     @Param('unitId') unitId: string,
     @Param('objectId') objectId: string,
     @Body() payload: ScopedEquipmentActionDto,
-  ): Promise<EquipmentUnitResponseDto> {
+  ): Promise<ScopedEquipmentMovementReceiptDto> {
     return this.scopedEquipmentService.assignToObject(
       user,
       unitId,
@@ -43,7 +42,7 @@ export class ScopedEquipmentController {
     @Param('unitId') unitId: string,
     @Param('orderId') orderId: string,
     @Body() payload: ScopedEquipmentActionDto,
-  ): Promise<EquipmentUnitResponseDto> {
+  ): Promise<ScopedEquipmentMovementReceiptDto> {
     return this.scopedEquipmentService.assignToOneTimeOrder(
       user,
       unitId,
@@ -57,7 +56,7 @@ export class ScopedEquipmentController {
     @CurrentUser() user: CurrentAuthUser,
     @Param('unitId') unitId: string,
     @Body() payload: ScopedEquipmentActionDto,
-  ): Promise<EquipmentUnitResponseDto> {
+  ): Promise<ScopedEquipmentMovementReceiptDto> {
     return this.scopedEquipmentService.returnToStorage(user, unitId, payload);
   }
 }

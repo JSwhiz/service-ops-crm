@@ -8,6 +8,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { decideAccess } from '../users-access/utils/access-policy.util';
 import { buildTaskAccessWhere } from '../tasks/utils/task-access.util';
+import { taskVisibilityWhere } from '../tasks/utils/task-policy.util';
 import {
   createSimpleXlsxWorkbook,
   type XlsxCell,
@@ -16,6 +17,7 @@ import {
 import { ListOneTimeOrderCalendarQueryDto } from './dto/list-one-time-order-calendar-query.dto';
 import {
   CalendarAvailabilityDto,
+  CalendarManagerCapabilities,
   CalendarOrderDto,
   OneTimeOrderCalendarResponseDto,
 } from './dto/one-time-order-calendar-response.dto';
@@ -29,6 +31,7 @@ import {
 } from './utils/one-time-order-access.util';
 import { listOneTimeOrderCalendarRoster } from './utils/one-time-order-calendar-roster.util';
 import { formatAvailabilityDate } from './utils/one-time-manager-availability-date.util';
+import { availabilityActionAllowed, canManageManagerAvailability, managerAvailabilityCapabilities } from './utils/one-time-manager-availability-capabilities.util';
 
 interface CurrentAuthUser {
   id: string;
@@ -65,8 +68,11 @@ export class OneTimeOrderCalendarService {
     currentUser: CurrentAuthUser,
     query: ListOneTimeOrderCalendarQueryDto,
   ): Promise<{ fileName: string; buffer: Buffer }> {
-    if (!decideAccess(currentUser, 'one_time_order_calendar.export', true, { resourceType: 'user', resourceId: query.managerUserId, ownerUserId: query.managerUserId })) throw new ForbiddenException('Calendar export denied');
     const calendar = await this.getCalendar(currentUser, query);
+    if (!calendar.capabilities.canExport) throw new ForbiddenException('Calendar export denied');
+    // An unfiltered export is a union of permitted manager rows, not permission
+    // on an undefined manager. Never export a denied row's absence/comments.
+    calendar.managers = calendar.managers.filter(manager => manager.capabilities.canExport);
     const accessibleOrders = await this.loadAccessibleExportOrders(
       currentUser,
       query,
@@ -226,6 +232,27 @@ export class OneTimeOrderCalendarService {
       managerUserId: effectiveManagerUserId,
     });
     const managerIds = eligibleUsers.map((user) => user.id);
+    // Keep the existing manager-directory visibility policy. Availability grants
+    // do not reveal additional people or private absence reasons.
+    const targetUsers = await this.listManagers(currentUser);
+    const targetIds = [...new Set([...managerIds, ...targetUsers.map(user => user.id), currentUser.id])];
+    const eligibleTargets = await this.prisma.user.findMany({
+      where: { id: { in: targetIds }, isActive: true, deletedAt: null },
+      select: {
+        id: true,
+        roles: { select: { role: { select: { code: true } } } },
+        oneTimeOrderAssignments: { where: { assignmentRoleCode: 'one_time_manager', isActive: true }, select: { id: true }, take: 1 },
+        oneTimeOrderCalendarProfile: { select: { isVisible: true } },
+      },
+    });
+    const canCreateFor = new Set(eligibleTargets.filter(target => target.oneTimeOrderCalendarProfile?.isVisible &&
+      (canBeOneTimeOrderManager(target.roles.map(item => item.role.code)) || target.oneTimeOrderAssignments.length > 0)).map(target => target.id));
+    const managerCapabilities = (userId: string): CalendarManagerCapabilities => ({
+      canRequestOwnAvailability: userId === currentUser.id && canCreateFor.has(userId) &&
+        availabilityActionAllowed(currentUser, 'one_time_order_calendar.availability.own', true, userId),
+      canCreateAvailability: canCreateFor.has(userId) && canManageManagerAvailability(currentUser, userId),
+      canExport: availabilityActionAllowed(currentUser, 'one_time_order_calendar.export', true, userId),
+    });
     const orders =
       managerIds.length === 0
         ? []
@@ -338,6 +365,13 @@ export class OneTimeOrderCalendarService {
     return {
       month: query.month,
       daysInMonth,
+      capabilities: {
+        canRequestOwnAvailability: managerCapabilities(currentUser.id).canRequestOwnAvailability,
+        canExport: query.managerUserId
+          ? managerCapabilities(query.managerUserId).canExport
+          : eligibleUsers.some(manager => managerCapabilities(manager.id).canExport),
+      },
+      availabilityTargets: targetUsers.map(user => ({ user, capabilities: managerCapabilities(user.id) })),
       managers: eligibleUsers.map((manager) => {
           const managerOrders = (ordersByManagerId.get(manager.id) ?? []).filter((order) => {
             if (!accessibleOrderIds.has(order.id)) {
@@ -424,6 +458,7 @@ export class OneTimeOrderCalendarService {
               fullName: manager.fullName,
             },
             isActive: manager.isActive && manager.deletedAt === null,
+            capabilities: managerCapabilities(manager.id),
             workedDays,
             orderCount: managerOrders.length,
             completedOrderCount: managerOrders.filter(
@@ -518,10 +553,10 @@ export class OneTimeOrderCalendarService {
       const tasks = await this.prisma.task.findMany({
         where: {
           AND: [
-            buildTaskAccessWhere({
+            taskVisibilityWhere(currentUser, buildTaskAccessWhere({
               currentUserId: currentUser.id,
               roleCodes: this.getRoleCodes(currentUser),
-            }),
+            })),
             { oneTimeOrderId: { in: orders.map((order) => order.id) } },
           ],
         },
@@ -768,6 +803,7 @@ export class OneTimeOrderCalendarService {
   }, currentUser: CurrentAuthUser): CalendarAvailabilityDto {
     return {
       id: entry.id,
+      capabilities: managerAvailabilityCapabilities(currentUser, entry),
       entryType: entry.entryType,
       startDate: formatAvailabilityDate(entry.startDate),
       endDate: formatAvailabilityDate(entry.endDate),

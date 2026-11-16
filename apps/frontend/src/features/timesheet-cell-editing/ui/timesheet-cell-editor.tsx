@@ -75,6 +75,13 @@ export function TimesheetCellEditor({
   const canMutate = canOfferCorrection && !mutationsBlocked && !retryBlocked;
 
   useEffect(() => {
+    if (blockedAtRevision === null || dataRevision <= blockedAtRevision || mutationsBlocked) return;
+    // A fresh read replaces the old rejection; retain the user's amount/reason.
+    setMessage(null);
+    setBlockedAtRevision(null);
+  }, [blockedAtRevision, dataRevision, mutationsBlocked]);
+
+  useEffect(() => {
     if (!open) return;
     const trigger = triggerRef.current;
     return () => { if (trigger?.isConnected) trigger.focus({ preventScroll: true }); };

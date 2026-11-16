@@ -17,10 +17,12 @@ import {
 import { getUserDisplayName } from '@/shared/lib/display-name';
 import { AttachmentPreviewList } from '@/shared/ui/media-entry/attachment-preview-list';
 import { MediaActionPicker } from '@/shared/ui/media-entry/media-action-picker';
+import { AccessSnapshotBoundary } from '@/shared/auth/access-snapshot-boundary';
 import { PendingMediaList } from '@/shared/ui/media-entry/pending-media-list';
 import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-select';
 import { DatePicker } from '@/shared/ui/date-picker/date-picker';
 import { Alert, Badge, Button, StatusBadge, Surface } from '@/shared/ui/foundation';
+import { getExpenseCycleLabel } from '../model/expense-cycle-label';
 
 const CATEGORY_OPTIONS: Array<{
   value: AccountabilityExpenseCategory;
@@ -98,6 +100,7 @@ export function OneTimeOrderAccountabilityPanel({
   }, [completionOptionsKey, completions, orderStatus]);
 
   const save = async (submitAfterSave: boolean): Promise<void> => {
+    if (!view.capabilities.canCreateExpense || isSaving || (submitAfterSave && !view.capabilities.canSubmitExpense)) return;
     const normalizedAmount = Number(amount);
     const normalizedDescription = description.trim();
 
@@ -157,7 +160,7 @@ export function OneTimeOrderAccountabilityPanel({
         </Badge>
       </div>
 
-      {view.capabilities.canCreateExpense ? (
+      <AccessSnapshotBoundary blocked={!view.capabilities.canCreateExpense}>
         <Surface padding="sm" style={{ display: 'grid', gap: 14 }}>
           <div>
             <strong>Добавить расход по заказу</strong>
@@ -238,7 +241,7 @@ export function OneTimeOrderAccountabilityPanel({
             </label>
           </div>
           <MediaActionPicker
-            disabled={isSaving}
+            disabled={isSaving || !view.capabilities.canCreateExpense}
             onPick={async (file) => setFiles((current) => [...current, file])}
           />
           <PendingMediaList
@@ -261,6 +264,8 @@ export function OneTimeOrderAccountabilityPanel({
             <Button
               disabled={
                 isSaving ||
+                !view.capabilities.canCreateExpense ||
+                !view.capabilities.canSubmitExpense ||
                 (!isEmployeePayout && !completionSelection) ||
                 (!isEmployeePayout && files.length === 0)
               }
@@ -270,7 +275,7 @@ export function OneTimeOrderAccountabilityPanel({
             </Button>
           </div>
         </Surface>
-      ) : null}
+      </AccessSnapshotBoundary>
 
       {view.accounts.length === 0 ? (
         <div className="ui-text-muted">
@@ -359,15 +364,10 @@ export function OneTimeOrderAccountabilityPanel({
                               {expense.employeeFullName
                                 ? ` · ${expense.employeeFullName}`
                                 : ''}
-                              {expense.oneTimeOrderWorkCycle
-                                ? ` · Цикл ${expense.oneTimeOrderWorkCycle}`
-                                : ''}
+                              {` · ${getExpenseCycleLabel(expense, completions)}`}
                               {expense.expenseDate
                                 ? ` · ${new Date(`${expense.expenseDate}T00:00:00`).toLocaleDateString('ru-RU')}`
                                 : ''}
-                              {expense.oneTimeOrderCompletionId
-                                ? ` · Цикл ${completions.find((completion) => completion.id === expense.oneTimeOrderCompletionId)?.workCycle ?? 'не найден'}`
-                                : ' · Без привязки к циклу'}
                             </div>
                           </div>
                           <StatusBadge

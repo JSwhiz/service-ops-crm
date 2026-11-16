@@ -6,6 +6,7 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
+import { lockActorAccessRevision } from '../../common/access/lock-actor-access-revision';
 import { decideAccess } from '../users-access/utils/access-policy.util';
 import { AuditService } from "../audit/audit.service";
 import { PrismaService } from "../prisma/prisma.service";
@@ -212,6 +213,7 @@ export class OneTimeOrderOperationsService {
       );
     await this.prisma.$transaction(async (tx) => {
       await this.lockOrder(tx, id);
+      await lockActorAccessRevision(tx, user);
       const { order, capabilities } = await this.order(user, id, tx);
       if (!capabilities.canUpdateServiceLines)
         throw new ForbiddenException("Financial edit denied");
@@ -297,6 +299,7 @@ export class OneTimeOrderOperationsService {
       throw new BadRequestException("Explicit deadline or null required");
     await this.prisma.$transaction(async (tx) => {
       await this.lockOrder(tx, id);
+      await lockActorAccessRevision(tx, user);
       const { order, capabilities } = await this.order(user, id, tx);
       if (!capabilities.canUpdateDeadline)
         throw new ForbiddenException("Order edit denied");

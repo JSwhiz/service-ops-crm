@@ -1,3 +1,4 @@
+import {isChatMessageSourceAllowed} from '../../common/access/chat-message-source-access';
 import {
   Injectable,
   Logger,
@@ -200,9 +201,9 @@ export class ChatRealtimeService implements OnModuleInit, OnModuleDestroy {
     }
 
     const payload = await this.jwtService.verifyAsync<{ sub: string }>(token);
-    const user = await this.usersService.findById(payload.sub);
+    const user = await this.loadRealtimeActor(payload.sub);
 
-    if (!user || !user.isActive) {
+    if (!user) {
       throw new UnauthorizedException('Realtime user is not available');
     }
 
@@ -228,11 +229,19 @@ export class ChatRealtimeService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  private async canDeliver(userId: string, event: RealtimeEvent): Promise<boolean> {
+  private async loadRealtimeActor(userId: string) {
     const record = await this.usersService.findById(userId);
-    if (!record?.isActive) return false;
-    // Never trust the JWT or a recipient list produced before a revocation.
+    if (!record?.isActive) return null;
     const subject = this.usersService.sanitizeUser(record);
+    return decideAccess(subject, 'auth.access', true, {
+      resourceType: 'user', resourceId: userId, ownerUserId: userId,
+    }) ? subject : null;
+  }
+
+  private async canDeliver(userId: string, event: RealtimeEvent): Promise<boolean> {
+    // Never trust the JWT or a recipient list produced before a revocation.
+    const subject = await this.loadRealtimeActor(userId);
+    if (!subject) return false;
     if (event.type === 'notification.created') {
       const stillVisible = await this.prisma.notification.findFirst({ where: {
         AND: [await notificationAccessWhere(this.prisma, userId, 'notifications.realtime'), { id: event.payload.id }],
@@ -249,11 +258,23 @@ export class ChatRealtimeService implements OnModuleInit, OnModuleDestroy {
         parents: target ? [target] : [],
       });
     }
+    let messageCreatedAt: Date | null = null;
+    if(event.type==='chat.message_created'||event.type==='chat.message_updated'){
+      const id=event.payload.messageId;
+      if(typeof id!=='string')return false;
+      const message=await this.prisma.chatMessage.findFirst({where:{id,chatRoomId:event.roomId},select:{messageType:true,metadata:true,createdAt:true}});
+      if(!message||!await isChatMessageSourceAllowed(this.prisma,subject,message))return false;
+      messageCreatedAt = message.createdAt;
+    }
     const room = await this.prisma.chatRoom.findUnique({ where: { id: event.roomId }, select: {
       id: true, deletedAt: true, createdByUserId: true, visibilityType: true,
-      participants: { where: { leftAt: null }, select: { userId: true } },
+      participants: { where: { leftAt: null }, select: { userId: true, joinedAt: true } },
     } });
     if (!room) return false;
+    const participant = room.participants.find((entry) => entry.userId === userId);
+    // A current membership must not reveal an old queued message excluded by
+    // the same joinedAt boundary used by direct/history/file reads.
+    if (messageCreatedAt && participant && messageCreatedAt < participant.joinedAt) return false;
     const assignedUserIds = room.participants.map(participant => participant.userId);
     let eligible = false;
     switch (room.visibilityType) {

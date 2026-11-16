@@ -23,11 +23,12 @@ import { TimesheetCorrectionsPanel } from '@/features/timesheet-corrections/ui/t
 import { CompensationExplanationPanel } from '@/features/object-compensation/ui/compensation-explanation-panel';
 import { TimesheetOverviewGrid } from '@/features/timesheet-overview/ui/timesheet-overview-grid';
 import { getOverviewRefreshState, type OverviewSnapshot } from '@/features/timesheet-overview/model/overview-refresh';
+import { isSavedWithoutAccess } from '@/shared/api/saved-without-access';
 import { ApiError } from '@/shared/api/fetcher';
 import { useAccessRevision } from '@/shared/auth/use-access-revision';
 import { AccessSnapshotBoundary } from '@/shared/auth/access-snapshot-boundary';
 import { getAccessGeneration, isAccessGenerationCurrent } from '@/shared/auth/access-generation';
-import { Button, Surface } from '@/shared/ui/foundation';
+import { Alert, Button, Surface } from '@/shared/ui/foundation';
 import { MonthPeriodPicker } from '@/shared/ui/month-period-picker/month-period-picker';
 import {
   SearchableSelect,
@@ -77,10 +78,13 @@ export default function TimesheetPage(): React.JSX.Element {
   const [corrections, setCorrections] = useState<TimesheetCorrectionItem[]>([]);
   const [selectedObject, setSelectedObject] = useState<SearchableSelectOption | null>(null);
   const [selectedEmployee, setSelectedEmployee] = useState<SearchableSelectOption | null>(null);
+  const [savedNotice, setSavedNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [detailError, setDetailError] = useState<string | null>(null);
+  const [correctionsLoading, setCorrectionsLoading] = useState(false);
+  const [correctionsError, setCorrectionsError] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [refreshVersion, setRefreshVersion] = useState(0);
   const overviewRequestRef = useRef(0);
@@ -137,19 +141,36 @@ export default function TimesheetPage(): React.JSX.Element {
       setObjectTimesheet(null);
       setCorrections([]);
       setDetailError(null);
+      setCorrectionsError(null);
+      setCorrectionsLoading(false);
       setDetailLoading(false);
       return;
     }
     setDetailLoading(true);
     setDetailError(null);
-    void Promise.all([
-      getTimesheet({ objectId, year, month }),
-      getTimesheetCorrections({ objectId, year, month }),
-    ])
-      .then(([timesheet, nextCorrections]) => {
+    setCorrections([]);
+    setCorrectionsError(null);
+    setCorrectionsLoading(true);
+    // History is independently permissioned. Its failure must not discard a
+    // successful main read, nor be presented as an empty correction history.
+    void getTimesheetCorrections({ objectId, year, month })
+      .then((nextCorrections) => {
+        if (requestId !== detailRequestRef.current) return;
+        setCorrections(nextCorrections);
+      })
+      .catch((caught: unknown) => {
+        if (requestId !== detailRequestRef.current) return;
+        setCorrectionsError(caught instanceof ApiError && caught.statusCode === 403
+          ? 'Нет доступа к истории корректировок.'
+          : 'Не удалось загрузить историю корректировок.');
+      })
+      .finally(() => {
+        if (requestId === detailRequestRef.current) setCorrectionsLoading(false);
+      });
+    void getTimesheet({ objectId, year, month })
+      .then((timesheet) => {
         if (requestId !== detailRequestRef.current) return;
         setObjectTimesheet(timesheet);
-        setCorrections(nextCorrections);
         setDetailAccessRevision(accessRevision);
       })
       .catch(() => {
@@ -202,7 +223,12 @@ export default function TimesheetPage(): React.JSX.Element {
 
   const directChange = async (payload: TimesheetCellMutation): Promise<'pending' | void> => {
     if (mutationsBlocked || refreshLockRef.current) throw new ApiError('Refresh required', 409, 'TIMESHEET_REFRESH_REQUIRED');
+    const generation = getAccessGeneration();
     const result = await upsertTimesheetEntry({ year, month, ...payload });
+    if (isSavedWithoutAccess(result) || !isAccessGenerationCurrent(generation)) {
+      setSavedNotice('Корректировка сохранена.');
+      return;
+    }
     if ('approvalType' in result) return 'pending';
     refreshLockRef.current = true;
     setLoading(true);
@@ -211,7 +237,11 @@ export default function TimesheetPage(): React.JSX.Element {
 
   const requestCorrection = async (payload: Required<TimesheetCellMutation>): Promise<void> => {
     if (mutationsBlocked || refreshLockRef.current) throw new ApiError('Refresh required', 409, 'TIMESHEET_REFRESH_REQUIRED');
-    await requestTimesheetManualException({ year, month, ...payload });
+    const generation = getAccessGeneration();
+    const result = await requestTimesheetManualException({ year, month, ...payload });
+    if (isSavedWithoutAccess(result) || !isAccessGenerationCurrent(generation)) {
+      setSavedNotice('Запрос на корректировку отправлен.');
+    }
   };
 
   const refreshOverview = (): void => {
@@ -230,6 +260,13 @@ export default function TimesheetPage(): React.JSX.Element {
   const visibleCorrections = employeeId
     ? corrections.filter((item) => item.employeeId === employeeId)
     : corrections;
+
+  if (savedNotice) return (
+    <Alert tone="success" role="status" title={savedNotice}>
+      <p>Доступ изменился. Карточка закрыта.</p>
+      <Button onClick={() => window.location.reload()}>Вернуться к табелю</Button>
+    </Alert>
+  );
 
   return (
     <div className={timesheetStyles.timesheetPage}>
@@ -361,10 +398,12 @@ export default function TimesheetPage(): React.JSX.Element {
                   <strong>{moneyFormatter.format(overview.totals.monthTotal)}</strong>
                 </div>
               </div>
-              <TimesheetCorrectionsPanel
+              {correctionsLoading ? <Surface padding="md" role="status">Загрузка истории корректировок…</Surface>
+                : correctionsError ? <Surface padding="md" role="alert">{correctionsError}</Surface>
+                : <TimesheetCorrectionsPanel
                 items={visibleCorrections}
                 employeeName={selectedEmployee?.label ?? null}
-              />
+              />}
               <CompensationExplanationPanel key={`${objectId}:${year}:${month}`} objectId={objectId} year={year} month={month} employeeId={employeeId || undefined} revision={refreshVersion} />
             </>
           ) : null}

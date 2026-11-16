@@ -10,6 +10,7 @@ import styles from './login-form.module.css';
 export function LoginForm(): React.JSX.Element {
   const router = useRouter();
   const { login } = useAuth();
+  const passwordInputId = React.useId();
 
   const [form, setForm] = useState({
     login: '',
@@ -57,10 +58,11 @@ export function LoginForm(): React.JSX.Element {
           />
         </label>
 
-        <label className={styles.field}>
-          <span>Пароль</span>
+        <div className={styles.field}>
+          <label htmlFor={passwordInputId}>Пароль</label>
           <span className={styles.passwordControl}>
             <input
+              id={passwordInputId}
               type={showPassword ? 'text' : 'password'}
               autoComplete="current-password"
               value={form.password}
@@ -79,7 +81,7 @@ export function LoginForm(): React.JSX.Element {
               {showPassword ? 'Скрыть' : 'Показать'}
             </button>
           </span>
-        </label>
+        </div>
       </div>
 
       {error ? (

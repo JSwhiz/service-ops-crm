@@ -13,6 +13,7 @@ import { contourPayload, newContourDraft, type ContourDraft } from '@/features/o
 import { positionPayload, type PositionDraft } from '@/features/object-scheduling/model/schedule-draft';
 import { ObjectSetupEditor } from '@/features/object-setup/ui/object-setup-editor';
 import { OBJECT_CREATE_SECTIONS } from '@/features/object-create/model/object-create-sections';
+import { createPayloadForAccess, projectCreatePositions } from '@/features/object-create/model/object-create-access';
 import { findSectionValidationIssue, revealSectionValidationIssue } from '@/features/object-create/model/section-validation';
 import { isNativeValidationIssueResolved, type NativeValidationIssue } from '@/features/object-create/model/stale-native-validation';
 import { setupDraft, setupPayload } from '@/features/object-setup/model/setup-draft';
@@ -20,7 +21,10 @@ import type { SetupCapabilities } from '@/entities/object/model/object-setup.typ
 import { ContactEditor, contactPayload, newContactDraft, type ContactDraft } from '@/features/object-contacts/ui/contact-editor';
 import { SeasonFields } from '@/features/object-planning/ui/season-fields';
 import { seasonPlanningPayload } from '@/features/object-planning/model/season-planning';
-import { FormDialog } from '@/shared/ui/overlays';
+import { FormDialog, useConfirm } from '@/shared/ui/overlays';
+import { fetcher } from '@/shared/api/fetcher';
+import { useAccessRevision } from '@/shared/auth/use-access-revision';
+import { AccessSnapshotBoundary } from '@/shared/auth/access-snapshot-boundary';
 import { useCreateDraft } from '@/shared/drafts';
 import { useCreateNavigation } from '@/shared/create-navigation';
 import { Alert } from '@/shared/ui/foundation';
@@ -226,6 +230,8 @@ export function ObjectCreateDialog(): React.JSX.Element {
   const router = useRouter();
   const navigation = useCreateNavigation();
   const { user } = useAuth();
+  const accessRevision = useAccessRevision();
+  const [confirmOmissions, omissionDialog] = useConfirm();
   const draft = useCreateDraft<ObjectCreateDraft>('object-create', {});
   const [activeSection, setActiveSection] = useState('basic');
   const fallbackSearch = navigation.getTargetSearchParams().toString();
@@ -261,16 +267,15 @@ export function ObjectCreateDialog(): React.JSX.Element {
     instructionStepsText: '',
   });
 
-  const [responsibleCandidates, setResponsibleCandidates] = useState<SystemUserOption[]>([]);
-  const [managerUsers, setManagerUsers] = useState<SystemUserOption[]>([]);
-  const [isUsersLoading, setIsUsersLoading] = useState(true);
-  const [usersError, setUsersError] = useState<string | null>(null);
+  const [responsibles, setResponsibles] = useState<{ revision: string; options: SystemUserOption[]; error: string | null } | null>(null);
+  const [managers, setManagers] = useState<{ revision: string; options: SystemUserOption[]; error: string | null } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [nativeValidationIssue, setNativeValidationIssue] = useState<NativeValidationIssue | null>(null);
   useEffect(() => {
     if (nativeValidationIssue && isNativeValidationIssueResolved(nativeValidationIssue.control)) setNativeValidationIssue(null);
   });
   const [localSubmitting, setIsSubmitting] = useState(false);
+  const submitLock = useRef(false);
   const isSubmitting = localSubmitting || draft.submitting;
   const [setup, setSetup] = useState(draft.value.setup ?? setupDraft());
   const [positions, setPositions] = useState<PositionDraft[]>(draft.value.positions ?? []);
@@ -282,6 +287,23 @@ export function ObjectCreateDialog(): React.JSX.Element {
   const [responsibleUserId, setResponsibleUserId] = useState(draft.value.responsibleUserId ?? '');
   const [managerUserIds, setManagerUserIds] = useState<string[]>(draft.value.managerUserIds ?? []);
   const [counterpartyId, setCounterpartyId] = useState(draft.value.counterpartyId ?? '');
+  const employeeIds = [...new Set(positions.flatMap(position => position.groups.flatMap(group => group.assignments.map(assignment => assignment.employeeId))))].sort();
+  const creationContext = JSON.stringify({ status: form.status, responsibleUserId: responsibleUserId || undefined, managerUserIds: [...managerUserIds].sort(), employeeIds });
+  const [projectionRetry, setProjectionRetry] = useState(0);
+  const scope = `${accessRevision}:${projectionRetry}:${creationContext}`;
+  const scopeRef = useRef(scope);
+  scopeRef.current = scope;
+  const [projection, setProjection] = useState<{ scope: string; value: { base: boolean; rates: boolean; materials: boolean; setup: { core: boolean; contract: boolean; budgets: boolean; coefficient: boolean }; schedule: boolean; contours: boolean; selectPayConditions: boolean; counterparty: boolean; preview: boolean; employees: Record<string, boolean> } } | null>(null);
+  const [projectionError, setProjectionError] = useState<string | null>(null);
+  useEffect(() => {
+    let active = true;
+    setProjectionError(null);
+    void fetcher<NonNullable<typeof projection>['value']>('/objects/creation-capabilities', { method: 'POST', body: creationContext })
+      .then(value => { if (active) setProjection({ scope, value }); })
+      .catch((caught: unknown) => { if (active) setProjectionError(caught instanceof Error ? caught.message : 'Не удалось проверить права создания.'); });
+    return () => { active = false; };
+  }, [scope, creationContext, projectionRetry]);
+  const createCaps = projection?.scope === scope && !projectionError ? projection.value : null;
   const currentDraft = { form, setup, positions, payContours, contacts, automaticSeasons, summerStartsOn, winterStartsOn, responsibleUserId, managerUserIds, counterpartyId };
   const pristineSnapshot = useRef(JSON.stringify(currentDraft));
   const wasDirtyOnMount = useRef(draft.dirty);
@@ -294,14 +316,14 @@ export function ObjectCreateDialog(): React.JSX.Element {
 
   const allowCreateObject = user?.capabilities?.canCreateObject ?? false;
   const allowLinkCounterparty =
-    user?.capabilities?.canLinkCounterpartyObjects ?? false;
-  const allowEmployees = !!user?.capabilities?.canAccessEmployeesHr && !!user?.capabilities?.canManageEmployeeAssignments;
-  const roles = user?.roleCodes?.length ? user.roleCodes : [user?.roleCode];
+    (user?.capabilities?.canLinkCounterpartyObjects ?? false) && (createCaps?.counterparty ?? false);
+  const allowEmployees = !!user?.capabilities?.canAccessEmployeesHr && !!createCaps?.schedule;
+  const canEditInitialBudget = createCaps?.setup.budgets ?? false;
   const setupCapabilities: SetupCapabilities = {
-    canEditCore: allowCreateObject, canViewContractAmount: allowCreateObject, canEditContractAmount: allowCreateObject,
-    canViewBudgets: allowCreateObject, canEditBudgets: roles.some((role) => role === 'founder' || role === 'director'),
+    canEditCore: createCaps?.setup.core ?? false, canViewContractAmount: createCaps?.setup.contract ?? false, canEditContractAmount: createCaps?.setup.contract ?? false,
+    canViewBudgets: allowCreateObject && canEditInitialBudget, canEditBudgets: canEditInitialBudget,
     // Object-scoped coefficient capability is returned after creation; do not infer it from identity.
-    canViewCoefficient: false, canEditCoefficient: false,
+    canViewCoefficient: createCaps?.setup.coefficient ?? false, canEditCoefficient: createCaps?.setup.coefficient ?? false,
   };
 
   const compensationProfiles: ObjectCompensationProfilesValue = {
@@ -327,41 +349,29 @@ export function ObjectCreateDialog(): React.JSX.Element {
   const invalidScheduleProfiles = getInvalidObjectScheduleProfiles(compensationProfiles);
 
   useEffect(() => {
-    const loadUsers = async (): Promise<void> => {
-      if (!allowCreateObject) {
-        setResponsibleCandidates([]);
-        setManagerUsers([]);
-        setUsersError(null);
-        setIsUsersLoading(false);
-        return;
-      }
+    let active = true;
+    setResponsibles(null);
+    setManagers(null);
+    if (allowCreateObject) {
+      const load = (purpose: 'object_responsible' | 'object_manager', setResult: typeof setResponsibles) => {
+        void listSystemUsers({ purpose }).then(options => {
+          if (active) setResult({ revision: accessRevision, options, error: null });
+        }).catch((caught: unknown) => {
+          if (active) setResult({ revision: accessRevision, options: [], error: caught instanceof Error && caught.message ? caught.message : 'Не удалось загрузить пользователей системы.' });
+        });
+      };
+      load('object_responsible', setResponsibles);
+      load('object_manager', setManagers);
+    }
+    return () => { active = false; };
+  }, [allowCreateObject, accessRevision]);
 
-      setIsUsersLoading(true);
-      setUsersError(null);
-
-      try {
-        const [responsibles, managers] = await Promise.all([
-          listSystemUsers({ purpose: 'object_responsible' }),
-          listSystemUsers({ purpose: 'object_manager' }),
-        ]);
-        setResponsibleCandidates(responsibles);
-        setManagerUsers(managers);
-      } catch (caughtError) {
-        setUsersError(
-          caughtError instanceof Error && caughtError.message
-            ? caughtError.message
-            : 'Не удалось загрузить пользователей системы.',
-        );
-      } finally {
-        setIsUsersLoading(false);
-      }
-    };
-
-    void loadUsers();
-  }, [allowCreateObject]);
-
-  const managerCandidates = managerUsers.filter((candidate) => candidate.id !== user?.id);
-  const responsibleOptions = responsibleCandidates.map((candidate) => ({
+  const responsibleResult = allowCreateObject && responsibles?.revision === accessRevision ? responsibles : null;
+  const managerResult = allowCreateObject && managers?.revision === accessRevision ? managers : null;
+  const referencesReady = (!responsibleUserId || (!!responsibleResult && !responsibleResult.error)) &&
+    (!managerUserIds.length || (!!managerResult && !managerResult.error));
+  const managerCandidates = (managerResult?.options ?? []).filter((candidate) => candidate.id !== user?.id);
+  const responsibleOptions = (responsibleResult?.options ?? []).map((candidate) => ({
     value: candidate.id,
     label: getUserDisplayName(candidate),
     description: getUserSecondaryLabel(candidate) || undefined,
@@ -370,13 +380,17 @@ export function ObjectCreateDialog(): React.JSX.Element {
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault();
-    if (isSubmitting) return;
+    if (isSubmitting || submitLock.current) return;
     setError(null);
 
     setNativeValidationIssue(null);
 
-    if (!allowCreateObject) {
-      setError('У вашей роли нет прав на создание объектов.');
+    if (!allowCreateObject || !createCaps?.base) {
+      setError('Создание объекта сейчас недоступно. Проверьте выданные права или обновите доступ.');
+      return;
+    }
+    if (!referencesReady) {
+      setError('Не удалось подтвердить выбранную команду. Черновик сохранён; повторите после восстановления доступа.');
       return;
     }
 
@@ -387,30 +401,55 @@ export function ObjectCreateDialog(): React.JSX.Element {
       return;
     }
 
-    if (invalidScheduleProfiles.length > 0) {
+    if (createCaps.rates && invalidScheduleProfiles.length > 0) {
       setActiveSection('payment');
       setError(`Проверьте график в профилях: ${invalidScheduleProfiles.join(', ')}.`);
       return;
     }
 
+    const projectedPositions = projectCreatePositions(positions, createCaps);
+    const omitted: string[] = [];
+    if (!createCaps.rates && (automaticSeasons || summerStartsOn || winterStartsOn ||
+      [form.paymentType, form.summerPaymentType, form.winterPaymentType].some(value => value !== 'monthly') ||
+      [form.paymentScheduleCode, form.summerScheduleCode, form.winterScheduleCode].some(value => value !== '5/2') ||
+      [form.paymentScheduleWeekdays, form.summerScheduleWeekdays, form.winterScheduleWeekdays].some(value => value.length > 0) ||
+      [form.paymentScheduleCycleStartDate, form.summerScheduleCycleStartDate, form.winterScheduleCycleStartDate].some(Boolean) ||
+      [form.dailyRate, form.monthlySalary, form.summerDailyRate, form.summerMonthlySalary, form.winterDailyRate, form.winterMonthlySalary].some(value => Number(value) !== 0))) omitted.push('условия оплаты и сезоны');
+    if (!createCaps.materials && form.instructionStepsText.trim()) omitted.push('инструкции');
+    if ((!createCaps.setup.core && (setup.legalName || setup.areaSqM || setup.plannedLaunchDate || setup.contractStartsOn || setup.contractEndsOn || setup.salesResponsibleUserId)) || (!createCaps.setup.contract && setup.contractMonthlyAmount) || (!createCaps.setup.budgets && setup.budgets.length) || (!createCaps.setup.coefficient && setup.coefficient)) omitted.push('настройки и бюджет');
+    if (!createCaps.contours && payContours.length) omitted.push('отдельные условия оплаты');
+    if (projectedPositions.omittedPositions) omitted.push('недоступные позиции');
+    if (projectedPositions.omittedAssignments) omitted.push('недоступные назначения сотрудников');
+    if (!allowLinkCounterparty && counterpartyId) omitted.push('связь с контрагентом');
+    submitLock.current = true;
+    if (omitted.length && !await confirmOmissions({ title: 'Создать объект без части данных?', consequence: `Не будут сохранены: ${omitted.join(', ')}. Отмена сохранит весь черновик.`, confirmLabel: 'Создать без этих данных' })) { submitLock.current = false; return; }
+    if (scopeRef.current !== scope) { submitLock.current = false; setError('Права или выбранные данные изменились. Проверьте форму ещё раз.'); return; }
     setIsSubmitting(true);
 
     try {
-      await draft.submit(() => createObject({
-        planning: seasonPlanningPayload(automaticSeasons, summerStartsOn, winterStartsOn),
-        payContours: payContours.map(contourPayload),
+      await draft.submit(() => createObject(createPayloadForAccess({
         contacts: contacts.map(contactPayload),
-        setup: setupPayload(setup, setupCapabilities),
-        staffingPositions: positions.map(positionPayload),
         name: form.name.trim(),
         internalName: form.internalName.trim() || undefined,
         address: form.address.trim(),
         status: form.status,
-        seasonMode: null,
         summerWindowCleaning: form.summerWindowCleaning,
         engineeringRequired: form.engineeringRequired,
         winterTractorMode: form.winterTractorMode,
-        instructionSteps: form.instructionStepsText.split('\n').map((step) => step.trim()).filter(Boolean),
+        notes: form.notes.trim() || undefined,
+        managerUserIds,
+        responsibleUserId: responsibleUserId || undefined,
+      }, {
+        rates: createCaps.rates,
+        materials: createCaps.materials,
+        setup: createCaps.setup.core || createCaps.setup.contract || createCaps.setup.budgets || createCaps.setup.coefficient,
+        contours: createCaps.contours,
+        positions: projectedPositions.positions.length > 0,
+        counterparty: allowLinkCounterparty && !!counterpartyId,
+      }, {
+        rates: () => ({
+        planning: seasonPlanningPayload(automaticSeasons, summerStartsOn, winterStartsOn),
+        seasonMode: null,
         paymentType: form.paymentType,
         monthlySalary: Number(form.monthlySalary) || 0,
         dailyRate: Number(form.dailyRate) || 0,
@@ -429,11 +468,13 @@ export function ObjectCreateDialog(): React.JSX.Element {
         winterScheduleCode: form.winterScheduleWeekdays.length ? null : form.winterScheduleCode || '5/2',
         winterScheduleWeekdays: form.winterScheduleWeekdays,
         winterScheduleCycleStartDate: form.winterScheduleWeekdays.length || form.winterScheduleCode === '5/2' ? null : form.winterScheduleCycleStartDate,
-        notes: form.notes.trim() || undefined,
-        counterpartyId: allowLinkCounterparty ? counterpartyId || null : null,
-        managerUserIds,
-        responsibleUserId: responsibleUserId || undefined,
-      }));
+        }),
+        materials: () => ({ instructionSteps: form.instructionStepsText.split('\n').map((step) => step.trim()).filter(Boolean) }),
+        setup: () => ({ setup: setupPayload(setup, setupCapabilities) }),
+        contours: () => ({ payContours: payContours.map(contourPayload) }),
+        positions: () => ({ staffingPositions: projectedPositions.positions.map(positionPayload) }),
+        counterparty: () => ({ counterpartyId }),
+      })));
       draft.clear();
       router.push('/objects');
     } catch (caughtError) {
@@ -443,21 +484,24 @@ export function ObjectCreateDialog(): React.JSX.Element {
           : 'Не удалось создать объект.',
       );
     } finally {
+      submitLock.current = false;
       setIsSubmitting(false);
     }
   };
 
-  return (
+  return (<>
+    {omissionDialog}
     <FormDialog open title="Новый объект" size="wide" busy={isSubmitting} dirty={dirty}
       closeContext={closeContext} clearDraft={draft.clear}
       sections={{ sections: OBJECT_CREATE_SECTIONS, activeSectionId: activeSection, onSectionChange: setActiveSection }}
       footer={({ requestClose }) => <div className={styles.actions}>
         <Button variant="ghost" onClick={() => void requestClose()} disabled={isSubmitting}>Отмена</Button>
-        <Button variant="primary" type="submit" form="object-create-form" disabled={isSubmitting || isUsersLoading || !allowCreateObject}>
+        <Button variant="primary" type="submit" form="object-create-form" disabled={isSubmitting || !allowCreateObject || !createCaps?.base || !referencesReady}>
           {isSubmitting ? 'Создаём…' : 'Создать объект'}
         </Button>
       </div>}>
       <div className={`ui-page object-create-page ${styles.page}`}>
+      {projectionError ? <Alert tone="danger" action={<Button onClick={() => setProjectionRetry(value => value + 1)}>Повторить</Button>}>{projectionError}</Alert> : !createCaps ? <Alert tone="info">Проверяем права создания…</Alert> : null}
       <form id="object-create-form" className={styles.form} data-active-section={activeSection} noValidate onSubmit={handleSubmit}>
         <section data-create-section="basic" className={styles.section}>
           <div className={styles.sectionHeader}>
@@ -535,10 +579,12 @@ export function ObjectCreateDialog(): React.JSX.Element {
         </section>
 
         <section data-create-section="setup" className={styles.section}>
-          <ObjectSetupEditor value={setup} onChange={setSetup} capabilities={setupCapabilities} disabled={isSubmitting}
+          <AccessSnapshotBoundary blocked={!createCaps || !(createCaps.setup.core || createCaps.setup.contract || createCaps.setup.budgets || createCaps.setup.coefficient)}>
+          <ObjectSetupEditor value={{ ...setup, ...(createCaps?.setup.core ? {} : { legalName: '', areaSqM: '', plannedLaunchDate: '', contractStartsOn: '', contractEndsOn: '', salesResponsibleUserId: '' }), ...(createCaps?.setup.contract ? {} : { contractMonthlyAmount: '' }), ...(canEditInitialBudget ? {} : { budgets: [] }), ...(createCaps?.setup.coefficient ? {} : { coefficient: '' }) }} onChange={(next) => setSetup((current) => ({ ...next, ...(createCaps?.setup.core ? {} : { legalName: current.legalName, areaSqM: current.areaSqM, plannedLaunchDate: current.plannedLaunchDate, contractStartsOn: current.contractStartsOn, contractEndsOn: current.contractEndsOn, salesResponsibleUserId: current.salesResponsibleUserId }), ...(createCaps?.setup.contract ? {} : { contractMonthlyAmount: current.contractMonthlyAmount }), ...(canEditInitialBudget ? {} : { budgets: current.budgets }), ...(createCaps?.setup.coefficient ? {} : { coefficient: current.coefficient }) }))} capabilities={setupCapabilities} disabled={isSubmitting}
             activeSection={activeSection === 'articles' ? 'articles' : 'contract'}
             selectedSalesUser={responsibleOptions.find((option) => option.value === setup.salesResponsibleUserId)}
             searchUsers={async (q) => (await listSystemUsers({ purpose: 'object_responsible', q, limit: 20 })).map((candidate) => ({ value: candidate.id, label: getUserDisplayName(candidate), description: getUserSecondaryLabel(candidate) ?? undefined }))} />
+          </AccessSnapshotBoundary>
           <p className={styles.helperText}>Коэффициент и дополнительные персональные права доступны после создания в настройках объекта.</p>
         </section>
 
@@ -547,18 +593,18 @@ export function ObjectCreateDialog(): React.JSX.Element {
             <h2>Условия и оплата</h2>
           </div>
 
-          <div className={styles.conditionsGrid}>
-            <div className={styles.fullWidth}><SeasonFields automatic={automaticSeasons} summer={summerStartsOn} winter={winterStartsOn} onAutomaticChange={setAutomaticSeasons} onSummerChange={setSummerStartsOn} onWinterChange={setWinterStartsOn} disabled={isSubmitting} /></div>
+          <AccessSnapshotBoundary blocked={!createCaps?.rates}><div className={styles.conditionsGrid}>
+            <div className={styles.fullWidth}><SeasonFields automatic={automaticSeasons} summer={summerStartsOn} winter={winterStartsOn} onAutomaticChange={setAutomaticSeasons} onSummerChange={setSummerStartsOn} onWinterChange={setWinterStartsOn} disabled={isSubmitting || !createCaps?.rates} /></div>
 
             <div className={`${styles.fullWidth}`}>
               <ObjectCompensationProfiles
                 value={compensationProfiles}
                 showSeasonalProfiles={automaticSeasons}
-                disabled={isSubmitting}
+                disabled={isSubmitting || !createCaps?.rates}
                 onChange={(nextValue) => setForm((previous) => ({ ...previous, ...nextValue }))}
               />
             </div>
-          </div>
+          </div></AccessSnapshotBoundary>
         </section>
 
         <section data-create-section="people" className={styles.section}>
@@ -568,12 +614,8 @@ export function ObjectCreateDialog(): React.JSX.Element {
             </div>
           </div>
 
-          {isUsersLoading ? (
-            <div className={styles.notice}>Загрузка пользователей…</div>
-          ) : usersError ? (
-            <div className={styles.error}>{usersError}</div>
-          ) : (
             <div className={styles.teamGrid}>
+              {!responsibleResult ? <div className={styles.notice}>Загрузка ответственных…</div> : responsibleResult.error ? <div className={styles.error}>Ответственные: {responsibleResult.error}</div> : (
               <SearchableSelect
                 label="Ответственный"
                 value={responsibleUserId}
@@ -586,15 +628,16 @@ export function ObjectCreateDialog(): React.JSX.Element {
                 onChange={setResponsibleUserId}
                 disabled={isSubmitting}
               />
-
+              )}
+              {!managerResult ? <div className={styles.notice}>Загрузка менеджеров…</div> : managerResult.error ? <div className={styles.error}>Менеджеры: {managerResult.error}</div> : (
               <ManagerMultiSelect
                 options={managerCandidates}
                 value={managerUserIds}
                 onChange={setManagerUserIds}
                 disabled={isSubmitting}
               />
+              )}
             </div>
-          )}
         </section>
 
         <section data-create-section="people" className={styles.section}>
@@ -608,20 +651,23 @@ export function ObjectCreateDialog(): React.JSX.Element {
         </section>
 
         <section data-create-section="payment" className={styles.section}>
+          <AccessSnapshotBoundary blocked={!createCaps?.contours}>
           <h2 className="ui-section-title">Отдельные условия оплаты</h2>
           <p className={styles.helperText}>Необязательно. Для дневной и ночной работы можно явно задать разные контуры. Каждый контур оплачивается сотруднику один раз в день; разные контуры суммируются. Они применимы к оплате за выход, не к месячной модели.</p>
           {payContours.map((contour) => <div key={contour.code} className={styles.section}>
-            <PayContourEditor value={contour} disabled={isSubmitting} onChange={(next) => setPayContours((previous) => previous.map((item) => item.code === contour.code ? next : item))} />
+            <PayContourEditor value={contour} disabled={isSubmitting || !createCaps?.contours} onChange={(next) => setPayContours((previous) => previous.map((item) => item.code === contour.code ? next : item))} />
             <div><Button disabled={isSubmitting || positions.some((position) => position.groups.some((group) => group.intervals.some((interval) => interval.contourId === `draft:${contour.code}`)))} onClick={() => setPayContours((previous) => previous.filter((item) => item.code !== contour.code))}>Убрать условия</Button></div>
             {positions.some((position) => position.groups.some((group) => group.intervals.some((interval) => interval.contourId === `draft:${contour.code}`))) ? <p className={styles.helperText}>Чтобы убрать условия, сначала выберите другие в интервалах графика.</p> : null}
           </div>)}
           <div><Button disabled={isSubmitting} onClick={() => setPayContours((previous) => [...previous, newContourDraft()])}>Добавить условия оплаты</Button></div>
+          </AccessSnapshotBoundary>
         </section>
 
         <section data-create-section="staffing" className={styles.section}>
-          <PositionsEditor value={positions} onChange={setPositions} disabled={isSubmitting}
-            contours={payContours.map((contour) => ({ value: `draft:${contour.code}`, label: contour.name || 'Новые условия оплаты' }))} canSelectPayConditions={allowCreateObject}
-            onPreview={(position, from, to) => previewNewObjectSchedule({ from, to, draft: positionPayload(position) })}
+          <AccessSnapshotBoundary blocked={!createCaps?.schedule || employeeIds.some(id => !createCaps.employees[id])}>
+          <PositionsEditor value={positions} onChange={setPositions} disabled={isSubmitting || !createCaps?.schedule || employeeIds.some(id => !createCaps.employees[id])}
+            contours={createCaps?.contours ? payContours.map((contour) => ({ value: `draft:${contour.code}`, label: contour.name || 'Новые условия оплаты' })) : []} canSelectPayConditions={createCaps?.selectPayConditions ?? false}
+            onPreview={createCaps?.preview ? (position, from, to) => previewNewObjectSchedule({ from, to, draft: positionPayload(position) }) : undefined}
             canAssignEmployees={allowEmployees}
             employeeAccessMessage="Кадровый реестр недоступен. Создайте объект без сотрудников; доступный состав можно выбрать позднее в «Команде»."
             searchEmployees={async (search) => {
@@ -630,6 +676,7 @@ export function ObjectCreateDialog(): React.JSX.Element {
               return response.items.map((employee) => ({ value: employee.id, label: employee.fullName, description: employee.position ?? undefined }));
             }} />
           {positions.length ? <Alert tone="info">Сведения, контуры и позиции сохраняются вместе. Предпросмотр не создаёт объект, присутствие или начисление.</Alert> : null}
+          </AccessSnapshotBoundary>
         </section>
 
         <section data-create-section="payment" className={styles.section}>
@@ -671,6 +718,7 @@ export function ObjectCreateDialog(): React.JSX.Element {
         </section>
 
         <section data-create-section="instructions" className={styles.section}>
+          <AccessSnapshotBoundary blocked={!createCaps?.materials}>
           <div className={styles.sectionHeader}>
             <h2>Инструкции для объекта</h2>
           </div>
@@ -681,9 +729,10 @@ export function ObjectCreateDialog(): React.JSX.Element {
             value={form.instructionStepsText}
             onChange={(event) => setForm((prev) => ({ ...prev, instructionStepsText: event.target.value }))}
             placeholder="Один постоянный шаг на строку, например: Проверить входную группу"
-            disabled={isSubmitting}
+            disabled={isSubmitting || !createCaps?.materials}
           />
           <p className={styles.helperText}>Это постоянные инструкции, а не отметки выполнения смены. Отчёт по каждому выходу добавим отдельно.</p>
+          </AccessSnapshotBoundary>
         </section>
 
         <section data-create-section="instructions" className={styles.section}>
@@ -705,6 +754,7 @@ export function ObjectCreateDialog(): React.JSX.Element {
       </form>
       </div>
     </FormDialog>
+  </>
   );
 }
 

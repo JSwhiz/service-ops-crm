@@ -47,6 +47,7 @@ import { ObjectAttendanceSubmissionService } from './object-attendance-submissio
 import { ObjectOperationsService } from './object-operations.service';
 import { CorrectDailyReportAttachmentsDto } from './dto/correct-daily-report-attachments.dto';
 import { FilesService } from '../files/files.service';
+import type { SavedWithoutAccess } from '../../common/access/project-committed-write';
 
 interface CurrentAuthUser {
   id: string;
@@ -81,7 +82,7 @@ export class ObjectOperationsController {
     @CurrentUser() user: CurrentAuthUser,
     @Param('id') objectId: string,
     @Body() payload: CreateArrivalPhotoDto,
-  ): Promise<ObjectArrivalPhotoResponseDto> {
+  ): Promise<ObjectArrivalPhotoResponseDto | SavedWithoutAccess> {
     return this.objectOperationsService.upsertTodayArrivalPhoto(
       user,
       objectId,
@@ -103,7 +104,7 @@ export class ObjectOperationsController {
   }
 
   @Post('daily-report/today/submit')
-  submitDailyReport(@CurrentUser() user: CurrentAuthUser, @Param('id') objectId: string, @Body() payload: SubmitDailyReportDto): Promise<ObjectDailyReportResponseDto> {
+  submitDailyReport(@CurrentUser() user: CurrentAuthUser, @Param('id') objectId: string, @Body() payload: SubmitDailyReportDto): Promise<ObjectDailyReportResponseDto | SavedWithoutAccess> {
     return this.objectOperationsService.submitTodayDailyReport(user, objectId, payload.expectedRevision);
   }
 
@@ -112,7 +113,7 @@ export class ObjectOperationsController {
     @CurrentUser() user: CurrentAuthUser,
     @Param('id') objectId: string,
     @Body() payload: UpsertDailyReportDto,
-  ): Promise<ObjectDailyReportResponseDto> {
+  ): Promise<ObjectDailyReportResponseDto | SavedWithoutAccess> {
     return this.objectOperationsService.upsertTodayDailyReport(
       user,
       objectId,
@@ -156,7 +157,7 @@ export class ObjectOperationsController {
     @CurrentUser() user: CurrentAuthUser,
     @Param('id') objectId: string,
     @Body() payload: CreateObjectCommentDto,
-  ): Promise<ObjectCommentResponseDto> {
+  ): Promise<ObjectCommentResponseDto | SavedWithoutAccess> {
     return this.objectOperationsService.createComment(user, objectId, payload);
   }
 

@@ -1,6 +1,8 @@
 'use client';
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { AccessSnapshotBlockedContext } from '@/shared/auth/access-snapshot-boundary';
+import { getAccessGeneration, isAccessGenerationCurrent } from '@/shared/auth/access-generation';
 
 import type {
   CompleteOneTimeOrderPayload,
@@ -26,7 +28,7 @@ import {
 import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-select';
 import { Alert, Button, StatusBadge, Surface } from '@/shared/ui/foundation';
 import { ChevronDownIcon } from '@/shared/ui/icons/icons';
-import { useConfirm } from '@/shared/ui/overlays';
+import { ConfirmDialog, useConfirm } from '@/shared/ui/overlays';
 import orderStyles from '@/entities/one-time-order/ui/one-time-order-ui.module.css';
 
 const PAYMENT_METHODS: OneTimeOrderPaymentMethod[] = [
@@ -188,6 +190,16 @@ export function OneTimeOrderCompletionPanel({
     payload: CompleteOneTimeOrderPayload;
   } | null>(null);
   const [confirm, confirmDialog] = useConfirm();
+  const snapshotBlocked = useContext(AccessSnapshotBlockedContext);
+  const reopenContext = useRef({ item, snapshotBlocked });
+  reopenContext.current = { item, snapshotBlocked };
+  const [reopenIntent, setReopenIntent] = useState<(() => boolean) | null>(null);
+  const reopenIntentRef = useRef(reopenIntent);
+  reopenIntentRef.current = reopenIntent;
+  useEffect(() => {
+    if (reopenIntent && !reopenIntent()) setReopenIntent(null);
+  }, [reopenIntent, item, snapshotBlocked]);
+  useEffect(() => () => { reopenContext.current = { ...reopenContext.current, snapshotBlocked: true }; }, []);
 
   const isDraftDirty = Boolean(
     completionComment ||
@@ -544,26 +556,13 @@ export function OneTimeOrderCompletionPanel({
           <Button
             id="order-reopen-trigger"
             disabled={isReopening}
-            onClick={() => void confirm({
-              title: 'Возобновить работу?',
-              consequence: 'Заказ снова перейдёт в работу. Предыдущие поступления и история сохранятся.',
-              confirmLabel: 'Возобновить работу',
-            }).then((accepted) => {
-              if (!accepted) return;
-              void (async () => {
-                setIsReopening(true);
-                setError(null);
-                try {
-                  await onReopen();
-                } catch {
-                  setError(
-                    'Не удалось возобновить работу. Обновите карточку и повторите действие.',
-                  );
-                } finally {
-                  setIsReopening(false);
-                }
-              })();
-            })}
+            onClick={() => {
+              const generation = getAccessGeneration();
+              const isCurrent = (): boolean => isAccessGenerationCurrent(generation) && !reopenContext.current.snapshotBlocked &&
+                reopenContext.current.item === item && reopenContext.current.item.id === item.id && reopenContext.current.item.workCycle === item.workCycle &&
+                reopenContext.current.item.status === 'completed' && reopenContext.current.item.capabilities.canReopen;
+              if (isCurrent()) setReopenIntent(() => isCurrent);
+            }}
           >
             {isReopening ? 'Возобновляем…' : 'Возобновить работу'}
           </Button>
@@ -579,6 +578,23 @@ export function OneTimeOrderCompletionPanel({
         completions={completions}
         currentCompletedStageId={currentCompletedStage?.id ?? null}
         onCorrectPayment={onCorrectPayment}
+      />
+      <ConfirmDialog
+        open={reopenIntent !== null && reopenIntent()}
+        onOpenChange={(open) => { if (!open) setReopenIntent(null); }}
+        title="Возобновить работу?"
+        consequence="Заказ снова перейдёт в работу. Предыдущие поступления и история сохранятся."
+        confirmLabel="Возобновить работу"
+        pending={isReopening}
+        onConfirm={() => {
+          const isCurrent = (): boolean => reopenIntentRef.current === reopenIntent && reopenIntent?.() === true;
+          if (!isCurrent() || isReopening) return;
+          setIsReopening(true);
+          setError(null);
+          void onReopen().then(() => { if (isCurrent()) setReopenIntent(null); })
+            .catch(() => { if (isCurrent()) setError('Не удалось возобновить работу. Обновите карточку и повторите действие.'); })
+            .finally(() => setIsReopening(false));
+        }}
       />
       {confirmDialog}
     </Surface>

@@ -85,6 +85,7 @@ export interface ServiceObject {
   winterScheduleWeekdays: string[];
   winterScheduleCycleStartDate: string | null;
   notes: string | null;
+  counterpartyAccessRestricted?: boolean;
   counterparty: {
     id: string;
     name: string;
@@ -127,6 +128,10 @@ export interface ServiceObject {
     canManageResponsibles: boolean;
     canManageManagers: boolean;
     canCreateTask: boolean;
+    canCreateArrivalPhoto?: boolean;
+    canEditDailyReport?: boolean;
+    canSubmitDailyReport?: boolean;
+    canCreateComment?: boolean;
     canViewBasicProfile: boolean;
     canViewOperationalSections: boolean;
     canViewReportsHistory?: boolean;

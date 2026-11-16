@@ -6,6 +6,8 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
+import { lockActorAccessRevision } from "../../common/access/lock-actor-access-revision";
+import { projectCommittedWrite, type SavedWithoutAccess } from "../../common/access/project-committed-write";
 import type {
   AccessContext,
   AccessSubject,
@@ -233,7 +235,7 @@ export class ApprovalsService {
     currentUser: CurrentAuthUser,
     requestId: string,
     payload: ApproveApprovalRequestDto,
-  ): Promise<ApprovalRequestResponseDto> {
+  ): Promise<ApprovalRequestResponseDto | SavedWithoutAccess> {
     const comment = payload.comment?.trim() || null;
 
     const approved = await this.prisma.$transaction(async (tx) => {
@@ -243,7 +245,9 @@ export class ApprovalsService {
         currentUser,
         request,
         this.resolveAction(request),
+        tx,
       );
+      await lockActorAccessRevision(tx, currentUser);
       await this.applyApprovalBusinessEffect(tx, request, currentUser, comment);
 
       const updated = (await tx.approvalRequest.update({
@@ -289,14 +293,16 @@ export class ApprovalsService {
       });
     }
 
-    return this.mapRequest(approved, currentUser);
+    return projectCommittedWrite(this.prisma, currentUser, () =>
+      this.getRequestById(currentUser, approved.id),
+    );
   }
 
   async rejectRequest(
     currentUser: CurrentAuthUser,
     requestId: string,
     payload: RejectApprovalRequestDto,
-  ): Promise<ApprovalRequestResponseDto> {
+  ): Promise<ApprovalRequestResponseDto | SavedWithoutAccess> {
     const comment = payload.comment.trim();
 
     if (!comment) {
@@ -310,7 +316,9 @@ export class ApprovalsService {
         currentUser,
         request,
         this.resolveAction(request),
+        tx,
       );
+      await lockActorAccessRevision(tx, currentUser);
       await this.applyRejectionBusinessEffect(
         tx,
         request,
@@ -339,20 +347,23 @@ export class ApprovalsService {
       return updated;
     });
 
-    return this.mapRequest(rejected, currentUser);
+    return projectCommittedWrite(this.prisma, currentUser, () =>
+      this.getRequestById(currentUser, rejected.id),
+    );
   }
 
   async cancelRequest(
     currentUser: CurrentAuthUser,
     requestId: string,
     payload: CancelApprovalRequestDto,
-  ): Promise<ApprovalRequestResponseDto> {
+  ): Promise<ApprovalRequestResponseDto | SavedWithoutAccess> {
     const comment = payload.comment?.trim() || null;
 
     const cancelled = await this.prisma.$transaction(async (tx) => {
       const request = await this.loadRequestForUpdate(tx, requestId);
       this.assertCanCancel(currentUser, request);
-      await this.assertRequestPolicy(currentUser, request, "approvals.cancel");
+      await this.assertRequestPolicy(currentUser, request, "approvals.cancel", tx);
+      await lockActorAccessRevision(tx, currentUser);
       await this.applyCancellationBusinessEffect(
         tx,
         request,
@@ -381,13 +392,16 @@ export class ApprovalsService {
       return updated;
     });
 
-    return this.mapRequest(cancelled, currentUser);
+    return projectCommittedWrite(this.prisma, currentUser, () =>
+      this.getRequestById(currentUser, cancelled.id),
+    );
   }
 
   private requestContext(
     request: ApprovalReadReference,
+    database: Prisma.TransactionClient = this.prisma,
   ): Promise<AccessContext> {
-    return approvalSourceReadContext(this.prisma, request);
+    return approvalSourceReadContext(database, request);
   }
   private resolveAction(request: { approvalType: string }) {
     if (request.approvalType === "task_result_confirmation")
@@ -409,8 +423,9 @@ export class ApprovalsService {
     user: CurrentAuthUser,
     request: ApprovalRequestRecord,
     actionCode: string,
+    database: Prisma.TransactionClient = this.prisma,
   ) {
-    const context = await this.requestContext(request);
+    const context = await this.requestContext(request, database);
     // The legacy resolver was already checked; policy may narrow it, never replace independent approval.
     if (
       !decideAccess(user, "approvals.read", true, context) ||
@@ -550,6 +565,19 @@ export class ApprovalsService {
     tx: Prisma.TransactionClient,
     requestId: string,
   ): Promise<ApprovalRequestRecord> {
+    // Match direct source writes by locking the domain row before its approval.
+    // Reviewer, creator, policy and unsupported-flow guards remain below.
+    const reference = await tx.approvalRequest.findUnique({ where: { id: requestId }, select: {
+      approvalType: true, sourceEntityType: true, sourceEntityId: true,
+    } });
+    const inventoryException = reference?.approvalType === INVENTORY_EXCEPTION_CONFIRMATION_TYPE &&
+      reference.sourceEntityType === 'inventory_movement';
+    const taskResult = reference?.approvalType === TASK_RESULT_CONFIRMATION_TYPE &&
+      reference.sourceEntityType === 'task';
+    if (inventoryException) await this.inventoryService.lockInventoryExceptionSource(tx, reference.sourceEntityId);
+    if (taskResult) {
+      await tx.$queryRaw`SELECT "id" FROM "tasks" WHERE "id" = ${reference.sourceEntityId} FOR UPDATE`;
+    }
     await tx.$queryRaw`
       SELECT "id"
       FROM "approval_requests"
@@ -565,6 +593,11 @@ export class ApprovalsService {
 
     if (!request) {
       throw new NotFoundException("Approval request not found");
+    }
+
+    if ((inventoryException || taskResult) && (request.approvalType !== reference.approvalType ||
+      request.sourceEntityType !== reference.sourceEntityType || request.sourceEntityId !== reference.sourceEntityId)) {
+      throw new ConflictException("Approval source changed");
     }
 
     if (request.status !== "pending") {
@@ -602,6 +635,9 @@ export class ApprovalsService {
     currentUser: CurrentAuthUser,
     request: ApprovalRequestRecord,
   ): void {
+    if (request.approvalType === INVENTORY_EXCEPTION_CONFIRMATION_TYPE && request.createdByUserId === currentUser.id) {
+      throw new ForbiddenException("Собственную заявку подтверждает другой пользователь");
+    }
     if (
       request.approvalType === "object_compensation_confirmation" ||
       (request.approvalType === MANUAL_TIMESHEET_EXCEPTION_CONFIRMATION_TYPE &&
@@ -929,6 +965,7 @@ export class ApprovalsService {
     );
     const legacyCanApprove =
       request.status === "pending" &&
+      !(request.approvalType === INVENTORY_EXCEPTION_CONFIRMATION_TYPE && request.createdByUserId === currentUser.id) &&
       (request.approvalType === "object_compensation_confirmation" ||
       (request.approvalType === MANUAL_TIMESHEET_EXCEPTION_CONFIRMATION_TYPE &&
         payloadSnapshot.independentLeadershipRequired === true)

@@ -28,7 +28,7 @@
   min-width: 0;
 }
 
-.field > span:first-child {
+.field > :first-child {
   color: var(--ui-text-secondary);
   font-size: 12px;
   font-weight: 670;

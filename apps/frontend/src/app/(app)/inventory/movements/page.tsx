@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useDeferredValue, useEffect, useState } from 'react';
 
 import {
   createInventoryMovement,
+  getInventoryItemById,
   listInventoryItems,
   listInventoryMovements,
   listInventoryObjectReferenceOptions,
@@ -14,19 +15,23 @@ import type {
   InventoryMovement,
   InventoryObjectReference,
   InventoryOneTimeOrderReference,
+  InventoryItemListResponse,
 } from '@/entities/inventory/model/inventory.types';
 import { uploadFileToEntity } from '@/entities/file/api/file-client';
 import { InventoryMovementForm } from '@/features/inventory-movement-form/ui/inventory-movement-form';
 import { InventoryMovementList } from '@/features/inventory-movement-list/ui/inventory-movement-list';
 import { INVENTORY_MOVEMENT_TYPE_OPTIONS } from '@/shared/lib/inventory-presentation';
 import { useAuth } from '@/shared/auth/use-auth';
+import { useAccessRevision } from '@/shared/auth/use-access-revision';
+import { AccessSnapshotBoundary } from '@/shared/auth/access-snapshot-boundary';
+import { mergeInventoryChoices } from '@/features/inventory-movement-form/model/strict-scope';
 import { PlusIcon } from '@/shared/ui/icons/icons';
 import { RegistryToolbar } from '@/shared/ui/registry-filters/registry-toolbar';
 import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-select';
 import { usePageSizeParam } from '@/shared/lib/use-page-size-param';
 import { TablePagination } from '@/shared/ui/table-pagination/table-pagination';
 import { DatePicker } from '@/shared/ui/date-picker/date-picker';
-import { Alert, BackLink, Button, LoadingState, Surface } from '@/shared/ui/foundation';
+import { Alert, BackLink, Button, Field, LoadingState, Surface } from '@/shared/ui/foundation';
 import inventoryStyles from '@/app/(app)/inventory/inventory-workspace.module.css';
 
 function getErrorMessage(error: unknown, fallback: string): string {
@@ -37,20 +42,26 @@ function getErrorMessage(error: unknown, fallback: string): string {
   return fallback;
 }
 
+type ReadSnapshot<T> = { key: string; data: T | null; error: string | null };
+
 export default function InventoryMovementsPage(): React.JSX.Element {
   const { user } = useAuth();
   const capabilities = user?.capabilities;
   const canAccessInventory = capabilities?.canAccessInventory ?? false;
+  const canReadMovements = capabilities?.canViewInventoryMovements === true;
+  const accessRevision = useAccessRevision();
+  const [reload, setReload] = useState(0);
 
-  const [items, setItems] = useState<InventoryItem[]>([]);
+  const [itemSearch, setItemSearch] = useState('');
+  const deferredItemSearch = useDeferredValue(itemSearch);
+  const [itemPage, setItemPage] = useState(1);
+  const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
+  const [catalogSnapshot, setCatalogSnapshot] = useState<ReadSnapshot<InventoryItemListResponse> | null>(null);
+  const [selectedSnapshot, setSelectedSnapshot] = useState<ReadSnapshot<InventoryItem[]> | null>(null);
+  const [objectSnapshot, setObjectSnapshot] = useState<ReadSnapshot<InventoryObjectReference[]> | null>(null);
+  const [orderSnapshot, setOrderSnapshot] = useState<ReadSnapshot<InventoryOneTimeOrderReference[]> | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [movements, setMovements] = useState<InventoryMovement[]>([]);
-  const [objectOptions, setObjectOptions] = useState<InventoryObjectReference[]>(
-    [],
-  );
-  const [oneTimeOrderOptions, setOneTimeOrderOptions] = useState<
-    InventoryOneTimeOrderReference[]
-  >([]);
   const [movementType, setMovementType] = useState('');
   const [movementStatus, setMovementStatus] = useState('');
   const [selectedItemId, setSelectedItemId] = useState('');
@@ -67,11 +78,67 @@ export default function InventoryMovementsPage(): React.JSX.Element {
   const [totalPages, setTotalPages] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [loadedHistoryKey, setLoadedHistoryKey] = useState<string | null>(null);
+  const refsKey = JSON.stringify([accessRevision, reload]);
+  const catalogKey = JSON.stringify([accessRevision, deferredItemSearch, itemPage, reload]);
+  const selectedKey = JSON.stringify([accessRevision, selectedItemIds, reload]);
+  const historyKey = JSON.stringify([accessRevision, movementType, movementStatus, selectedItemId, selectedObjectId, selectedOrderId, approvalBridgeOnly, dateFrom, dateTo, page, pageSize, reload]);
+  const catalog = catalogSnapshot?.key === catalogKey ? catalogSnapshot : null;
+  const selection = selectedSnapshot?.key === selectedKey ? selectedSnapshot : null;
+  const objects = objectSnapshot?.key === refsKey ? objectSnapshot : null;
+  const orders = orderSnapshot?.key === refsKey ? orderSnapshot : null;
+  // Selected IDs are authorized by their own fresh direct reads, not by a page
+  // cache or their presence/absence in a search result.
+  const items = mergeInventoryChoices((catalog?.data?.items ?? []).filter((item) => !selectedItemIds.includes(item.id)), selection?.data ?? []);
+  const objectOptions = objects?.data ?? [];
+  const oneTimeOrderOptions = orders?.data ?? [];
+  const scopeReady = canAccessInventory && selection?.data !== null && selection !== null;
+  const rememberSelection = useCallback((ids: string[]) => {
+    setSelectedItemIds((current) => JSON.stringify(current) === JSON.stringify(ids) ? current : ids);
+  }, []);
 
   useEffect(() => {
-    if (!canAccessInventory) {
-      setItems([]);
+    if (!canAccessInventory) return;
+    let active = true;
+    void listInventoryItems({ isActive: true, page: itemPage, limit: 100, search: deferredItemSearch.trim() || undefined })
+      .then((data) => { if (active) setCatalogSnapshot({ key: catalogKey, data, error: null }); })
+      .catch((caughtError) => { if (active) setCatalogSnapshot({ key: catalogKey, data: null, error: getErrorMessage(caughtError, 'Не удалось загрузить страницу номенклатуры.') }); });
+    return () => { active = false; };
+  }, [canAccessInventory, catalogKey, itemPage, deferredItemSearch]);
+
+  useEffect(() => {
+    if (!canAccessInventory) return;
+    let active = true;
+    void Promise.allSettled(selectedItemIds.map((id) => getInventoryItemById(id))).then((results) => {
+      if (!active) return;
+      const data = results.flatMap((result) => result.status === 'fulfilled' ? [result.value] : []);
+      setSelectedSnapshot({ key: selectedKey, data, error: results.some((result) => result.status === 'rejected') ? 'Не удалось подтвердить доступ ко всем выбранным позициям. Черновик сохранён.' : null });
+    });
+    return () => { active = false; };
+  }, [canAccessInventory, selectedKey, selectedItemIds]);
+
+  useEffect(() => {
+    if (!canAccessInventory) return;
+    let active = true;
+    void listInventoryObjectReferenceOptions()
+      .then((data) => { if (active) setObjectSnapshot({ key: refsKey, data, error: null }); })
+      .catch((caughtError) => { if (active) setObjectSnapshot({ key: refsKey, data: null, error: getErrorMessage(caughtError, 'Не удалось загрузить объекты.') }); });
+    return () => { active = false; };
+  }, [canAccessInventory, refsKey]);
+
+  useEffect(() => {
+    if (!canAccessInventory) return;
+    let active = true;
+    void listInventoryOneTimeOrderReferenceOptions()
+      .then((data) => { if (active) setOrderSnapshot({ key: refsKey, data, error: null }); })
+      .catch((caughtError) => { if (active) setOrderSnapshot({ key: refsKey, data: null, error: getErrorMessage(caughtError, 'Не удалось загрузить заказы.') }); });
+    return () => { active = false; };
+  }, [canAccessInventory, refsKey]);
+
+  useEffect(() => {
+    if (!canAccessInventory || !canReadMovements) {
       setMovements([]);
+      setLoadedHistoryKey(null);
       setError(null);
       setIsLoading(false);
       return;
@@ -84,10 +151,7 @@ export default function InventoryMovementsPage(): React.JSX.Element {
       setError(null);
 
       try {
-        const [loadedItems, loadedMovements, loadedObjects, loadedOrders] =
-          await Promise.all([
-            listInventoryItems({ isActive: true, limit: 100 }),
-            listInventoryMovements({
+        const loadedMovements = await listInventoryMovements({
               ...(movementType ? { movementType } : {}),
               ...(movementStatus ? { status: movementStatus } : {}),
               ...(selectedItemId ? { inventoryItemId: selectedItemId } : {}),
@@ -98,21 +162,18 @@ export default function InventoryMovementsPage(): React.JSX.Element {
               ...(dateTo ? { dateTo } : {}),
               page,
               limit: pageSize,
-            }),
-            listInventoryObjectReferenceOptions(),
-            listInventoryOneTimeOrderReferenceOptions(),
-          ]);
+            });
 
         if (!cancelled) {
-          setItems(loadedItems.items);
           setMovements(loadedMovements.items);
           setTotal(loadedMovements.total);
           setTotalPages(loadedMovements.totalPages);
-          setObjectOptions(loadedObjects);
-          setOneTimeOrderOptions(loadedOrders);
+          setLoadedHistoryKey(historyKey);
         }
       } catch (loadError) {
         if (!cancelled) {
+          setLoadedHistoryKey(null);
+          setMovements([]);
           setError(
             getErrorMessage(
               loadError,
@@ -134,6 +195,8 @@ export default function InventoryMovementsPage(): React.JSX.Element {
     };
   }, [
     canAccessInventory,
+    canReadMovements,
+    historyKey,
     movementType,
     movementStatus,
     selectedItemId,
@@ -178,7 +241,8 @@ export default function InventoryMovementsPage(): React.JSX.Element {
 
       {!canAccessInventory ? (
         <Surface padding="md">У вас нет доступа к inventory-модулю.</Surface>
-      ) : (
+      ) : null}
+      <AccessSnapshotBoundary blocked={!canAccessInventory}>
         <div className="ui-stack ui-stack--lg">
           <RegistryToolbar
             showSearch={false}
@@ -188,7 +252,7 @@ export default function InventoryMovementsPage(): React.JSX.Element {
             onSearchChange={() => undefined}
             activeFilters={activeFilters}
             availableFilters={availableFilters}
-            actions={capabilities?.canCreateInventoryMovement ? (
+            actions={(
               <Button
                 variant={createOpen ? 'default' : 'primary'}
                 icon={createOpen ? undefined : <PlusIcon />}
@@ -196,10 +260,27 @@ export default function InventoryMovementsPage(): React.JSX.Element {
               >
                 {createOpen ? 'Скрыть форму' : 'Новое движение'}
               </Button>
-            ) : null}
+            )}
           />
 
+          {createOpen ? <Surface padding="md">
+            <Field label="Поиск номенклатуры на сервере">
+              <input value={itemSearch} onChange={(event) => { setItemSearch(event.target.value); setItemPage(1); }} placeholder="Название, категория или единица" />
+            </Field>
+            {!catalog ? <LoadingState label="Загружаем страницу номенклатуры…" /> : catalog.error ? <Alert tone="warning">{catalog.error}</Alert> : catalog.data ? <TablePagination
+              page={catalog.data.page} totalPages={catalog.data.totalPages} label="Страницы номенклатуры для движения"
+              summary={`На этой странице ${catalog.data.items.length} из ${catalog.data.total} позиций. Выбранные позиции сохраняются отдельно.`}
+              onPageChange={setItemPage}
+            /> : null}
+            {selection?.error ? <Alert tone="warning">{selection.error}</Alert> : null}
+            {!objects ? <LoadingState label="Проверяем объекты…" /> : objects.error ? <Alert tone="warning">{objects.error}</Alert> : null}
+            {!orders ? <LoadingState label="Проверяем заказы…" /> : orders.error ? <Alert tone="warning">{orders.error}</Alert> : null}
+            <Button onClick={() => setReload((value) => value + 1)}>Обновить списки и права</Button>
+          </Surface> : null}
           {createOpen ? <InventoryMovementForm
+            strictScope
+            scopeReady={scopeReady}
+            onSelectedItemIdsChange={rememberSelection}
             items={items}
             objectOptions={objectOptions}
             oneTimeOrderOptions={oneTimeOrderOptions}
@@ -224,44 +305,26 @@ export default function InventoryMovementsPage(): React.JSX.Element {
               })));
             }}
             onRefresh={async () => {
-              const [updatedItems, updatedMovements] = await Promise.all([
-                listInventoryItems({ isActive: true, limit: 100 }),
-                listInventoryMovements({
-                  ...(movementType ? { movementType } : {}),
-                  ...(movementStatus ? { status: movementStatus } : {}),
-                  ...(selectedItemId ? { inventoryItemId: selectedItemId } : {}),
-                  ...(selectedObjectId ? { objectId: selectedObjectId } : {}),
-                  ...(selectedOrderId ? { oneTimeOrderId: selectedOrderId } : {}),
-                  ...(approvalBridgeOnly ? { approvalBridge: 'true' } : {}),
-                  ...(dateFrom ? { dateFrom } : {}),
-                  ...(dateTo ? { dateTo } : {}),
-                  page,
-                  limit: pageSize,
-                }),
-              ]);
-
-              setItems(updatedItems.items);
-              setMovements(updatedMovements.items);
-              setTotalPages(updatedMovements.totalPages);
+              setReload((value) => value + 1);
             }}
           /> : null}
 
-          {isLoading ? (
+          {!canReadMovements ? <Alert tone="info">Просмотр истории движений недоступен. Разрешённые операции можно выполнить в форме.</Alert> : isLoading || (loadedHistoryKey !== historyKey && !error) ? (
             <LoadingState label="Загружаем движения…" />
           ) : error ? (
             <Alert tone="danger" role="alert">
               {error}
             </Alert>
           ) : (
-            <InventoryMovementList items={movements} />
+            <InventoryMovementList items={loadedHistoryKey === historyKey ? movements : []} />
           )}
 
-          {!isLoading && !error ? <TablePagination page={page} totalPages={totalPages} pending={isLoading} label="Страницы движений расходников"
+          {canReadMovements && loadedHistoryKey === historyKey && !isLoading && !error ? <TablePagination page={page} totalPages={totalPages} pending={isLoading} label="Страницы движений расходников"
             summary={total > 0 ? `Показано ${(page - 1) * pageSize + 1}–${Math.min(page * pageSize, total)} из ${total}` : 'Движения не найдены'}
             onPageChange={setPage}
             pageSize={pageSize} pageSizeOptions={pageSizeOptions} onPageSizeChange={setPageSize} /> : null}
         </div>
-      )}
+      </AccessSnapshotBoundary>
     </div>
   );
 }

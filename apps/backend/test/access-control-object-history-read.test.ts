@@ -4,7 +4,7 @@ import test from 'node:test';
 import { ObjectsService } from '../src/modules/objects/objects.service';
 import type { AccessRule } from '../src/modules/users-access/types/access-policy.type';
 
-function fixture(actionCodes: string[] = []) {
+function fixture(actionCodes: string[] = [], foreignReader = false) {
   const payloads = [
     { actionCode: 'compensation.version.created', payload: { terms: { baseAmount: 73103 }, reason: 'Rate changed to 73103', label: 'Rate 73103' } },
     { actionCode: 'compensation.version.cancelled', payload: { cancelReason: 'Cancel rate 73104', notes: { before: 'Previous rate 73104' } } },
@@ -15,14 +15,19 @@ function fixture(actionCodes: string[] = []) {
   ];
   const logs = payloads.map((item, index) => ({ ...item, id: `log-${index}`, objectId: 'object',
     createdAt: new Date('2026-11-01T00:00:00Z'), actor: { id: 'other', login: 'other', fullName: 'Other' } }));
-  const db = { object: { findFirst: async () => ({ id: 'object', createdByUserId: 'reader', assignments: [] }) } };
+  const db = { object: { findFirst: async () => ({ id: 'object', createdByUserId: foreignReader ? 'other' : 'reader', assignments: [] }) } };
   const service = new ObjectsService(db as never, { listObjectAuditLogs: async () => structuredClone(logs) } as never,
     {} as never, {} as never, {} as never, {} as never);
-  const reader = { id: 'reader', login: 'reader', fullName: 'Reader', isActive: true, roleCode: 'founder',
-    roleCodes: ['founder'], permissionCodes: [], accessRules: actionCodes.map((actionCode): AccessRule => ({
+  const role = foreignReader ? 'manager' : 'founder';
+  const reader = { id: 'reader', login: 'reader', fullName: 'Reader', isActive: true, roleCode: role,
+    roleCodes: [role], permissionCodes: [], accessRules: actionCodes.map((actionCode): AccessRule => ({
       actionCode, effect: 'deny', scope: 'selected', selectedIds: ['object'],
     })) };
-  const read = () => service.listObjectAuditLogs(reader, 'object');
+  if (foreignReader) Object.assign(logs[3].payload, { monthlyBudget: 84203, budgets: [{ amount: 84203 }] });
+  const read = (...rules: AccessRule[]) => {
+    const subject = { ...reader, accessRules: [...reader.accessRules, ...rules] };
+    return service.listObjectAuditLogs(subject, 'object');
+  };
   return { read, logs };
 }
 
@@ -32,6 +37,22 @@ test('actual history baseline retains version/team-fund free text and ordinary d
   const result = await f.read();
   assert.deepEqual(result.map((row) => row.payload), f.logs.map((row) => row.payload));
   assert.deepEqual(f.logs, before);
+});
+
+test('a basic object grant does not reveal compensation history for a foreign object', async () => {
+  const { read } = fixture([], true);
+  const objectRead: AccessRule = { actionCode: 'objects.read', effect: 'allow', scope: 'selected', selectedIds: ['object'] };
+  const budgetRead = { ...objectRead, actionCode: 'objects.budget.read' };
+  const result = await read(objectRead, budgetRead);
+  const update = result.find((row) => row.actionCode === 'object.updated');
+  assert.equal(update?.payload?.monthlyBudget, 84203);
+  assert.deepEqual(update?.payload?.budgets, [{}]);
+  assert.equal(result.find((row) => row.actionCode === 'compensation.version.created')?.payload, null);
+  assert.ok(JSON.stringify(result).includes('Public domain note'));
+
+  const allowed = await read(objectRead, { ...objectRead, actionCode: 'objects.rates.read' });
+  const version = allowed.find((row) => row.actionCode === 'compensation.version.created');
+  assert.deepEqual(version?.payload?.terms, { baseAmount: 73103 });
 });
 
 test('rates deny hides whole version-created/cancelled payloads, including arbitrary free-text money', async () => {

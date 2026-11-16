@@ -5,8 +5,10 @@ import { usePathname } from 'next/navigation';
 import React, { useEffect, useRef, useState } from 'react';
 
 import { listChatRooms } from '@/entities/chat/api/chat-client';
-import { NotificationBell } from '@/features/notification-bell/ui/notification-bell';
+import { NotificationBell, readBrowserNotificationsPreference } from '@/features/notification-bell/ui/notification-bell';
 import { useAuth } from '@/shared/auth/use-auth';
+import { useAccessRevision } from '@/shared/auth/use-access-revision';
+import { useOpenAccessRefresh } from '@/shared/auth/use-open-access-refresh';
 import { getUserDisplayName, getUserRoleLabel } from '@/shared/lib/display-name';
 import {
   GlobalCommandPalette,
@@ -57,14 +59,25 @@ function ChatIcon(): React.JSX.Element {
 export function AppHeader(): React.JSX.Element {
   const pathname = usePathname();
   const { user, logout } = useAuth();
+  const accessRevision = useAccessRevision();
   const [accountOpen, setAccountOpen] = useState(false);
   const [commandOpen, setCommandOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
-  const [chatUnreadCount, setChatUnreadCount] = useState(0);
+  const [chatUnread, setChatUnread] = useState<{ revision: string; count: number } | null>(null);
+  const chatUnreadCount = chatUnread?.revision === accessRevision ? chatUnread.count : 0;
   const accountRef = useRef<HTMLDivElement>(null);
+  const accountTriggerRef = useRef<HTMLButtonElement>(null);
   const canAccessChats = user?.capabilities?.canAccessChats ?? false;
   const canAccessSearch = Boolean(user) && user?.capabilities?.canAccessSearch !== false;
   const canAccessNotifications = Boolean(user) && user?.capabilities?.canAccessNotifications !== false;
+  const notificationAccessSuspended = Boolean(user) && !canAccessNotifications;
+  const [recoverNativeNotifications, setRecoverNativeNotifications] = useState(false);
+  useEffect(() => {
+    setRecoverNativeNotifications(notificationAccessSuspended
+      && window.Notification?.permission === 'granted'
+      && readBrowserNotificationsPreference());
+  }, [notificationAccessSuspended]);
+  useOpenAccessRefresh(notificationAccessSuspended && recoverNativeNotifications, undefined, true);
   const displayName = getUserDisplayName(user);
   const roleLabel = getUserRoleLabel(user?.roleCode);
 
@@ -87,7 +100,7 @@ export function AppHeader(): React.JSX.Element {
 
   useEffect(() => {
     if (!canAccessChats) {
-      setChatUnreadCount(0);
+      setChatUnread(null);
       return;
     }
 
@@ -96,7 +109,7 @@ export function AppHeader(): React.JSX.Element {
       void listChatRooms({ view: 'active' })
         .then((rooms) => {
           if (!active) return;
-          setChatUnreadCount(rooms.reduce((total, room) => total + Math.max(0, room.unreadCount), 0));
+          setChatUnread({ revision: accessRevision, count: rooms.reduce((total, room) => total + Math.max(0, room.unreadCount), 0) });
         })
         .catch(() => undefined);
     };
@@ -107,7 +120,7 @@ export function AppHeader(): React.JSX.Element {
       active = false;
       window.clearInterval(timer);
     };
-  }, [canAccessChats, pathname]);
+  }, [accessRevision, canAccessChats, pathname]);
 
   useEffect(() => {
     if (!accountOpen) return;
@@ -118,7 +131,11 @@ export function AppHeader(): React.JSX.Element {
       }
     };
     const handleKeyDown = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') setAccountOpen(false);
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        setAccountOpen(false);
+        accountTriggerRef.current?.focus();
+      }
     };
 
     document.addEventListener('mousedown', handlePointerDown);
@@ -177,13 +194,14 @@ export function AppHeader(): React.JSX.Element {
             </Link>
           ) : null}
 
-          {canAccessNotifications ? <NotificationBell /> : null}
+          {canAccessNotifications ? <NotificationBell key={accessRevision} /> : null}
 
           {user ? <span className="app-header__separator" aria-hidden="true" /> : null}
 
           {user ? (
             <div className="app-header__account" ref={accountRef}>
               <button
+                ref={accountTriggerRef}
                 type="button"
                 className="app-header__account-trigger"
                 onClick={() => {
@@ -233,7 +251,7 @@ export function AppHeader(): React.JSX.Element {
         </div>
       </header>
 
-      {canAccessSearch ? <GlobalCommandPalette open={commandOpen} onOpenChange={setCommandOpen} /> : null}
+      {canAccessSearch ? <GlobalCommandPalette key={accessRevision} open={commandOpen} onOpenChange={setCommandOpen} /> : null}
     </>
   );
 }

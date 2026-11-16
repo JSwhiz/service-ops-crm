@@ -12,12 +12,13 @@ import { delegatedObjectIds, objectDelegationContext } from '../../modules/user-
 import { resolveObjectDelegationGrants } from '../../modules/user-substitutions/resolve-object-delegation-grants.util';
 import { notificationChatRoomSources } from './notification-chat-visibility';
 import { approvalReadVisibilityWhere } from '../../modules/approvals/utils/approval-read-access.util';
+import { inventoryMovementVisibilityWhere } from './inventory-movement-visibility';
 
 const sourceTypes = [
   'object', 'object_daily_report', 'object_arrival_photo', 'object_comment',
   'one_time_order', 'one_time_order_daily_report', 'one_time_order_comment',
   'one_time_order_photo', 'one_time_order_specification_item',
-  'task', 'task_assignee_completion', 'candidate', 'employee', 'manager_visit_plan',
+  'task', 'task_assignee_completion', 'candidate', 'employee', 'manager_visit_plan', 'inventory_movement',
 ] as const;
 const coveredSourceTypes = [...sourceTypes, 'chat_room', 'approval_request'];
 
@@ -38,7 +39,10 @@ export async function notificationSourceVisibilityWhere(prisma: PrismaService, s
     where: { recipientUserId: subject.id, ...(!includeDismissed ? { dismissedAt: null } : {}), entityType: { in: coveredSourceTypes }, entityId: { not: null } },
     distinct: ['entityType', 'entityId'], select: { entityType: true, entityId: true },
   });
-  const uncovered: Prisma.NotificationWhereInput[] = [{ entityType: null }, { entityType: { notIn: coveredSourceTypes } }];
+  // Only genuinely source-less notices bypass domain membership. An unknown,
+  // unsupported or incomplete non-null source cannot be authorized by absence
+  // from the registry; keep its stored record but fail closed for every channel.
+  const uncovered: Prisma.NotificationWhereInput[] = [{ entityType: null, entityId: null }];
   if (!refs.length) return { OR: uncovered };
   const grants = await resolveObjectDelegationGrants(prisma, subject.id);
   return objectDelegationContext.run({ actorUserId: subject.id, grants, used: new Map() }, async () => {
@@ -85,6 +89,12 @@ export async function notificationSourceVisibilityWhere(prisma: PrismaService, s
       candidate: [prisma.candidate, buildCandidateAccessWhere(subject)],
       employee: [prisma.employee, employeePolicyWhere(subject)],
       manager_visit_plan: [prisma.managerVisitPlan, { manager: visitPlanReadUserWhere(subject) }],
+      inventory_movement: [prisma.inventoryMovement, inventoryMovementVisibilityWhere(subject, 'inventory.movements.read', {
+        // Non-global recipients may read movements only through an actually
+        // visible work source; the shared predicate checks that source too.
+        OR: [{ relatedObject: objectWhere('objects.inventory.read') },
+          { relatedOneTimeOrder: orderWhere('one_time_orders.inventory.read') }],
+      })],
     };
     const allowedSources = await Promise.all(sourceTypes.map(async entityType => {
       const ids = [...new Set(refs.filter(ref => ref.entityType === entityType).flatMap(ref => ref.entityId ? [ref.entityId] : []))];

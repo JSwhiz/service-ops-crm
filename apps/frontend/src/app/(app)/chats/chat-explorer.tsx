@@ -30,12 +30,17 @@ function snippet(text: string, query: string): React.ReactNode {
 
 function RoomSearch({
   roomId,
+  canSearch = false,
+  query,
+  onQueryChange,
   onMessage,
 }: {
   roomId: string;
+  canSearch?: boolean;
+  query: string;
+  onQueryChange: (query: string) => void;
   onMessage: (id: string) => void;
 }): React.JSX.Element {
-  const [query, setQuery] = useState('');
   const [result, setResult] = useState<ChatSearchResponse>({
     rooms: [],
     messages: [],
@@ -43,16 +48,19 @@ function RoomSearch({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const requestVersion = useRef(0);
+  const requestActive = useRef(false);
   useEffect(() => {
     const version = ++requestVersion.current;
+    requestActive.current = canSearch === true;
     setResult({ rooms: [], messages: [] });
     setError('');
-    if (query.trim().length < 2) {
+    if (canSearch !== true || query.trim().length < 2) {
       setBusy(false);
-      return;
+      return () => { requestActive.current = false; requestVersion.current++; };
     }
     setBusy(true);
     const timer = window.setTimeout(() => {
+      if (!requestActive.current || requestVersion.current !== version) return;
       void searchChats(query, { roomId })
         .then((response) => {
           if (requestVersion.current === version) setResult(response);
@@ -66,11 +74,13 @@ function RoomSearch({
         });
     }, 250);
     return () => {
+      requestActive.current = false;
       window.clearTimeout(timer);
       requestVersion.current++;
     };
-  }, [roomId, query]);
+  }, [roomId, query, canSearch]);
   const loadMore = async (): Promise<void> => {
+    if (canSearch !== true || !requestActive.current) return;
     const version = requestVersion.current;
     setBusy(true);
     setError('');
@@ -100,12 +110,12 @@ function RoomSearch({
           aria-label="Поиск сообщений в этом чате"
           placeholder="Найти сообщение"
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => onQueryChange(e.target.value)}
         />
         {query ? (
           <Button
             aria-label="Очистить запрос"
-            onClick={() => setQuery('')}
+            onClick={() => onQueryChange('')}
           >
             <ChatIcon name="close" />
           </Button>
@@ -300,17 +310,20 @@ function RoomAttachments({
 export function ChatExplorer({
   roomId,
   roomTitle,
+  canSearch = false,
   initialTab,
   onClose,
   onMessage,
 }: {
   roomId: string;
   roomTitle: string;
+  canSearch?: boolean;
   initialTab: 'search' | 'media' | 'files';
   onClose: () => void;
   onMessage: (id: string) => void;
 }): React.JSX.Element {
   const [tab, setTab] = useState(initialTab);
+  const [searchQuery, setSearchQuery] = useState('');
   const panelRef = useRef<HTMLElement>(null);
   useEffect(() => {
     setTab(initialTab);
@@ -351,15 +364,25 @@ export function ChatExplorer({
         ).map(([value, label]) => (
           <Button
             key={value}
+            disabled={value === 'search' && canSearch !== true}
             aria-pressed={tab === value}
-            onClick={() => setTab(value)}
+            onClick={() => {
+              if (value === 'search' && canSearch !== true) return;
+              setTab(value);
+            }}
           >
             {label}
           </Button>
         ))}
       </div>
       {tab === 'search' ? (
-        <RoomSearch roomId={roomId} onMessage={onMessage} />
+        canSearch === true ? <RoomSearch
+          roomId={roomId}
+          canSearch={canSearch}
+          query={searchQuery}
+          onQueryChange={setSearchQuery}
+          onMessage={onMessage}
+        /> : <p className={styles.hint}>Поиск в этом чате недоступен.</p>
       ) : (
         <RoomAttachments
           roomId={roomId}

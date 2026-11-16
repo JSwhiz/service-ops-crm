@@ -1,6 +1,11 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import { useAuth } from '@/shared/auth/use-auth';
+import { useAccessRevision } from '@/shared/auth/use-access-revision';
+import { getAccessGeneration, isAccessGenerationCurrent } from '@/shared/auth/access-generation';
+import { AccessSnapshotBoundary } from '@/shared/auth/access-snapshot-boundary';
+
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 import {
   addOneTimeWorkforceEmployee,
@@ -21,7 +26,7 @@ import {
 import { getOneTimeOrderById } from '@/entities/one-time-order/api/one-time-order-client';
 import type { OneTimeOrderItem } from '@/entities/one-time-order/model/one-time-order.types';
 import { getOneTimeOrderStatusLabel } from '@/shared/lib/one-time-order-presentation';
-import { BackLink, Button, StatusBadge, Surface } from '@/shared/ui/foundation';
+import { Alert, BackLink, Button, StatusBadge, Surface } from '@/shared/ui/foundation';
 import { PageTitle } from '@/shared/ui/page-title/page-title';
 import { MonthPeriodPicker } from '@/shared/ui/month-period-picker/month-period-picker';
 import { SearchableSelect, type SearchableSelectOption } from '@/shared/ui/searchable-select/searchable-select';
@@ -62,6 +67,8 @@ export default function OneTimeOrderWorkforcePage({
 }: {
   params: Promise<{ id: string }>;
 }): React.JSX.Element {
+  const { user, capabilitiesRefreshError } = useAuth();
+  const accessRevision = useAccessRevision();
   const [orderId, setOrderId] = useState('');
   const [order, setOrder] = useState<OneTimeOrderItem | null>(null);
   const [workforce, setWorkforce] = useState<OneTimeWorkforceEmployee[]>([]);
@@ -80,16 +87,46 @@ export default function OneTimeOrderWorkforcePage({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [accessError, setAccessError] = useState<string | null>(null);
+  const [loadedContext, setLoadedContext] = useState<{ params: typeof params; revision: string; userId: string | undefined } | null>(null);
+  const dirtyPayments = useRef(new Set<string>());
+  const dirtyAttendance = useRef(false);
+  const attendanceDateRef = useRef(attendanceDate);
+  attendanceDateRef.current = attendanceDate;
+  const ready = !loading && !accessError && !capabilitiesRefreshError && loadedContext?.params === params &&
+    loadedContext.revision === accessRevision && loadedContext.userId === user?.id;
+  const live = useRef({ params, accessRevision, orderId, order, ready, userId: user?.id });
+  live.current = { params, accessRevision, orderId, order, ready, userId: user?.id };
+  const captureAction = (leaf: keyof OneTimeOrderItem['capabilities']): (() => boolean) => {
+    const generation = getAccessGeneration();
+    const origin = live.current;
+    return () => isAccessGenerationCurrent(generation) && live.current.ready &&
+      live.current.params === origin.params && live.current.accessRevision === origin.accessRevision &&
+      live.current.userId === origin.userId && live.current.orderId === origin.orderId &&
+      live.current.order?.capabilities[leaf] === true;
+  };
+  const acceptAttendance = (value: OneTimeAttendance | null): void => {
+    setAttendance(value);
+    if (!value) return;
+    setAttendanceDate(value.operationDate.slice(0, 10));
+    if (!dirtyAttendance.current) setSelected(new Set(value.employees.filter((item) => item.present).map((item) => item.employeeId)));
+  };
+  useEffect(() => {
+    dirtyPayments.current.clear(); dirtyAttendance.current = false;
+    setPaymentDrafts({}); setSelected(new Set()); setCorrectionReason('');
+    setEmployeeToAdd(''); setAttendanceDate(''); setExportEmployeeId('');
+  }, [params, user?.id]);
+
   const activeIds = useMemo(
     () => new Set(workforce.filter((item) => item.isActive).map((item) => item.employeeId)),
     [workforce],
   );
   useEffect(() => {
-    setPaymentDrafts(
+    setPaymentDrafts((current) =>
       Object.fromEntries(
         workforce.map((employee) => [
           employee.employeeId,
-          employee.orderPayment === null ? '' : String(employee.orderPayment),
+          dirtyPayments.current.has(employee.employeeId) ? (current[employee.employeeId] ?? '') : employee.orderPayment === null ? '' : String(employee.orderPayment),
         ]),
       ),
     );
@@ -97,58 +134,53 @@ export default function OneTimeOrderWorkforcePage({
 
   useEffect(() => {
     let cancelled = false;
-    void params.then(({ id }) => {
-      if (cancelled) return;
-      setOrderId(id);
-      setLoading(true);
-      setError(null);
-      return Promise.all([
-        getOneTimeOrderById(id),
-        listOneTimeWorkforce(id),
-        getTodayOneTimeAttendance(id),
-        getOneTimeTimesheet(id, month),
-        getOneTimeAttendanceCoverage(id),
-      ]).then(([orderValue, workforceValue, attendanceValue, timesheetValue, coverageValue]) => {
-        if (cancelled) return;
-        setOrder(orderValue);
-        setWorkforce(workforceValue);
-        setAttendance(attendanceValue);
-        setAttendanceDate(attendanceValue.operationDate.slice(0, 10));
-        setTimesheet(timesheetValue);
-        setCoverage(coverageValue);
-        setSelected(new Set(attendanceValue.employees.filter((item) => item.present).map((item) => item.employeeId)));
-      });
-    }).catch((loadError) => {
-      if (!cancelled) setError(errorText(loadError));
-    }).finally(() => {
-      if (!cancelled) setLoading(false);
-    });
+    const generation = getAccessGeneration();
+    const origin = { params, revision: accessRevision, userId: user?.id };
+    const current = (): boolean => !cancelled && isAccessGenerationCurrent(generation) &&
+      live.current.params === origin.params && live.current.accessRevision === origin.revision && live.current.userId === origin.userId;
+    setLoadedContext(null); setAccessError(null); setLoading(true);
+    if (capabilitiesRefreshError) return () => { cancelled = true; };
+    void params.then(async ({ id }) => {
+      if (!current()) return;
+      const nextOrder = await getOneTimeOrderById(id);
+      if (!current()) return;
+      const caps = nextOrder.capabilities;
+      const [nextWorkforce, nextAttendance, nextTimesheet, nextCoverage] = await Promise.all([
+        caps.canReadEmployees ? listOneTimeWorkforce(id) : Promise.resolve([]),
+        caps.canReadAttendance ? getTodayOneTimeAttendance(id, attendanceDateRef.current || undefined) : Promise.resolve(null),
+        caps.canReadTimesheet ? getOneTimeTimesheet(id, month) : Promise.resolve(null),
+        caps.canReadAttendance ? getOneTimeAttendanceCoverage(id) : Promise.resolve(null),
+      ]);
+      if (!current()) return;
+      setOrderId(id); setOrder(nextOrder); setWorkforce(nextWorkforce);
+      acceptAttendance(nextAttendance); setTimesheet(nextTimesheet); setCoverage(nextCoverage);
+      setLoadedContext({ params, revision: accessRevision, userId: user?.id });
+    }).catch((caught) => { if (current()) setAccessError(errorText(caught)); })
+      .finally(() => { if (current()) setLoading(false); });
     return () => { cancelled = true; };
-  }, [params]);
+  }, [params, accessRevision, user?.id, capabilitiesRefreshError]);
 
   useEffect(() => {
-    if (!orderId) return;
+    if (!ready || !orderId || !order?.capabilities.canReadTimesheet) return;
     let cancelled = false;
+    const current = captureAction('canReadTimesheet');
     void getOneTimeTimesheet(orderId, month)
-      .then((value) => { if (!cancelled) setTimesheet(value); })
-      .catch((loadError) => { if (!cancelled) setError(errorText(loadError)); });
+      .then((value) => { if (!cancelled && current()) setTimesheet(value); })
+      .catch((caught) => { if (!cancelled && current()) setError(errorText(caught)); });
     return () => { cancelled = true; };
-  }, [month, orderId]);
+  }, [month, orderId, accessRevision, ready]);
 
   const reloadWorkforce = async (): Promise<void> => {
-    if (!orderId) return;
-    const [workforceValue, attendanceValue, timesheetValue, coverageValue] = await Promise.all([
+    const current = captureAction('canReadEmployees');
+    if (!current() || !order) return;
+    const [value, today, sheet, days] = await Promise.all([
       listOneTimeWorkforce(orderId),
-      getTodayOneTimeAttendance(orderId, attendanceDate || undefined),
-      getOneTimeTimesheet(orderId, month),
-      getOneTimeAttendanceCoverage(orderId),
+      order.capabilities.canReadAttendance ? getTodayOneTimeAttendance(orderId, attendanceDate || undefined) : Promise.resolve(null),
+      order.capabilities.canReadTimesheet ? getOneTimeTimesheet(orderId, month) : Promise.resolve(null),
+      order.capabilities.canReadAttendance ? getOneTimeAttendanceCoverage(orderId) : Promise.resolve(null),
     ]);
-    setWorkforce(workforceValue);
-    setAttendance(attendanceValue);
-    setAttendanceDate(attendanceValue.operationDate.slice(0, 10));
-    setTimesheet(timesheetValue);
-    setCoverage(coverageValue);
-    setSelected(new Set(attendanceValue.employees.filter((item) => item.present).map((item) => item.employeeId)));
+    if (!current()) return;
+    setWorkforce(value); acceptAttendance(today); setTimesheet(sheet); setCoverage(days);
   };
 
   const dayColumns = useMemo(() => {
@@ -175,19 +207,17 @@ export default function OneTimeOrderWorkforcePage({
     [workforce],
   );
 
-  if (loading) {
-    return <div className="ui-page"><PageTitle title="Сотрудники разового заказа" /><Surface padding="md">Загрузка...</Surface></div>;
-  }
-
   return (
     <div className={`ui-page ${styles.root}`}>
       <PageTitle title="Команда заказа" />
+      {!ready ? <Surface padding="md" role="status">{capabilitiesRefreshError || accessError || 'Проверяем доступ к команде заказа…'}</Surface> : null}
+      <AccessSnapshotBoundary blocked={!ready}>
       <div className={styles.toolbar}>
         <div className={styles.orderContext}>
           <BackLink href={orderId ? `/one-time-orders/${orderId}` : '/one-time-orders'}>К карточке заказа</BackLink>
           {order ? <><strong>{order.title}</strong><StatusBadge status={order.status}>{getOneTimeOrderStatusLabel(order.status)}</StatusBadge></> : null}
         </div>
-        {attendance ? (
+        {order?.capabilities.canReadAttendance && attendance ? (
           <span className={styles.status} data-saved={attendance.submittedAt ? 'true' : 'false'}>
             <i />
             {attendance.submittedAt
@@ -200,20 +230,25 @@ export default function OneTimeOrderWorkforcePage({
       {error ? <div className={styles.error}>{error}</div> : null}
 
       <nav className={styles.sectionNav} aria-label="Разделы команды заказа">
-        <a href="#roster">Состав</a>
-        <a href="#attendance">Выходы</a>
-        <a href="#coverage">Контроль отметок</a>
-        <a href="#timesheet">Табель</a>
+        {order?.capabilities.canReadEmployees ? <a href="#roster">Состав</a> : null}
+        {order?.capabilities.canReadAttendance ? <a href="#attendance">Выходы</a> : null}
+        {order?.capabilities.canReadAttendance ? <a href="#coverage">Контроль отметок</a> : null}
+        {order?.capabilities.canReadTimesheet ? <a href="#timesheet">Табель</a> : null}
       </nav>
 
+      {!order?.capabilities.canReadEmployees ? <Alert tone="info">Нет доступа к составу команды заказа.</Alert> : null}
+      {!order?.capabilities.canReadAttendance ? <Alert tone="info">Нет доступа к отметкам выхода и контролю отметок.</Alert> : null}
+      {!order?.capabilities.canReadTimesheet ? <Alert tone="info">Нет доступа к табелю заказа.</Alert> : null}
       <div className={styles.grid}>
-        <section className={styles.card} id="roster">
+        <AccessSnapshotBoundary blocked={!order?.capabilities.canReadEmployees}><section className={styles.card} id="roster">
           <header className={styles.head}>
             <div><h2>Состав команды</h2><p>Цикл {order?.workCycle ?? '—'}</p></div>
             <span className={styles.count}>{activeWorkforce.length}</span>
           </header>
           <div className={styles.body}>
-            <div className={styles.addRow}>
+            {!order?.capabilities.canManageEmployees ? <Alert tone="info">Назначение и снятие сотрудников недоступны.</Alert> : null}
+            {!order?.capabilities.canEditEmployeePayment ? <Alert tone="info">Изменение оплаты сотрудников недоступно.</Alert> : null}
+            <AccessSnapshotBoundary blocked={!order?.capabilities.canManageEmployees}><div className={styles.addRow}>
               <SearchableSelect
                 label="Добавить сотрудника"
                 value={employeeToAdd}
@@ -221,8 +256,12 @@ export default function OneTimeOrderWorkforcePage({
                 placeholder="Найти сотрудника"
                 searchPlaceholder="ФИО или должность"
                 emptyText="Подходящие сотрудники не найдены"
-                asyncSearch={async (query) =>
-                  (await listOneTimeWorkforceDirectory(orderId, query))
+                asyncSearch={async (query) => {
+                  const current = captureAction('canManageEmployees');
+                  if (!current()) return [];
+                  const rows = await listOneTimeWorkforceDirectory(orderId, query);
+                  if (!current()) return [];
+                  return rows
                     .filter((employee) => !activeIds.has(employee.id))
                     .map((employee) => ({
                       value: employee.id,
@@ -232,19 +271,22 @@ export default function OneTimeOrderWorkforcePage({
                         .filter(Boolean)
                         .join(' '),
                     }))
-                }
+                }}
                 onChange={setEmployeeToAdd}
                 disabled={saving}
               />
               <Button variant="primary" disabled={!employeeToAdd || saving} pending={saving} pendingLabel="Добавляем…" onClick={async () => {
                 setSaving(true); setError(null);
                 try {
+                  const current = captureAction('canManageEmployees');
+                  if (!current()) return;
                   await addOneTimeWorkforceEmployee(orderId, employeeToAdd);
+                  if (!current()) return;
                   setEmployeeToAdd('');
                   await reloadWorkforce();
                 } catch (saveError) { setError(errorText(saveError)); } finally { setSaving(false); }
               }}>Добавить в состав</Button>
-            </div>
+            </div></AccessSnapshotBoundary>
 
             <div className={styles.list}>
               {activeWorkforce.length === 0 ? <div className={styles.empty}>Состав ещё не сформирован.</div> : activeWorkforce.map((employee) => (
@@ -258,7 +300,7 @@ export default function OneTimeOrderWorkforcePage({
                     </div>
                   </div>
                   <div className={styles.employeeActions}>
-                    <label className={styles.paymentField}>
+                    <AccessSnapshotBoundary blocked={!order?.capabilities.canEditEmployeePayment}><label className={styles.paymentField}>
                       <span>Сумма по заказу</span>
                       <input
                         className={styles.paymentInput}
@@ -268,17 +310,19 @@ export default function OneTimeOrderWorkforcePage({
                         value={paymentDrafts[employee.employeeId] ?? ''}
                         placeholder="Не задана"
                         aria-label={`Сумма по заказу для ${employee.fullName}`}
-                        onChange={(event) =>
+                        onChange={(event) => {
+                          dirtyPayments.current.add(employee.employeeId);
                           setPaymentDrafts((current) => ({
                             ...current,
                             [employee.employeeId]: event.target.value,
-                          }))
-                        }
+                          }));
+                        }}
                       />
                       <small>Отдельно от ставки за выход и табеля</small>
                     </label>
-                    <div className={styles.employeeButtons}>
                       <Button disabled={saving} onClick={async () => {
+                        const current = captureAction('canEditEmployeePayment');
+                        if (!current()) return;
                         const raw = (paymentDrafts[employee.employeeId] ?? '').trim();
                         const amount = raw === '' ? null : Number(raw);
                         if (amount !== null && (!Number.isFinite(amount) || amount < 0)) {
@@ -293,6 +337,8 @@ export default function OneTimeOrderWorkforcePage({
                             employee.employeeId,
                             amount,
                           );
+                          if (!current()) return;
+                          dirtyPayments.current.delete(employee.employeeId);
                           await reloadWorkforce();
                         } catch (saveError) {
                           setError(errorText(saveError));
@@ -300,22 +346,23 @@ export default function OneTimeOrderWorkforcePage({
                           setSaving(false);
                         }
                       }}
-                      >Сохранить сумму</Button>
+                      >Сохранить сумму</Button></AccessSnapshotBoundary>
+                    <AccessSnapshotBoundary blocked={!order?.capabilities.canManageEmployees}>
                       <Button variant="ghost" disabled={saving} onClick={async () => {
                       setSaving(true); setError(null);
-                      try { await removeOneTimeWorkforceEmployee(orderId, employee.employeeId); await reloadWorkforce(); }
+                      try { const current = captureAction('canManageEmployees'); if (!current()) return; await removeOneTimeWorkforceEmployee(orderId, employee.employeeId); if (current()) await reloadWorkforce(); }
                       catch (saveError) { setError(errorText(saveError)); }
                       finally { setSaving(false); }
                       }}>Убрать из состава</Button>
-                    </div>
+                    </AccessSnapshotBoundary>
                   </div>
                 </div>
               ))}
             </div>
           </div>
-        </section>
+        </section></AccessSnapshotBoundary>
 
-        <section className={styles.card} id="attendance">
+        <AccessSnapshotBoundary blocked={!order?.capabilities.canReadAttendance}><section className={styles.card} id="attendance">
           <header className={styles.head}>
             <div><h2>Отметить выход</h2><p>{attendance ? shortDate(attendance.operationDate) : 'Выберите дату'}{attendance?.workCycle ? ` · цикл ${attendance.workCycle}` : ''}</p></div>
             {attendance?.submittedAt ? <span className={styles.savedMark}>Сохранено</span> : null}
@@ -324,21 +371,28 @@ export default function OneTimeOrderWorkforcePage({
             <label className={styles.dateField}>
               <span>Дата выхода</span>
               <DatePicker value={attendanceDate} max={new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Moscow' }).format(new Date())} onChange={(nextValue) => {
+                const current = captureAction('canReadAttendance');
+                if (!current()) return;
                 const nextDate = nextValue;
+                dirtyAttendance.current = false;
                 setAttendanceDate(nextDate);
                 setCorrectionReason('');
                 if (!nextDate || !orderId) return;
                 setSaving(true); setError(null);
                 void getTodayOneTimeAttendance(orderId, nextDate).then((value) => {
+                  if (!current()) return;
                   setAttendance(value);
                   setSelected(new Set(value.employees.filter((item) => item.present).map((item) => item.employeeId)));
                 }).catch((loadError) => setError(errorText(loadError))).finally(() => setSaving(false));
               }} />
             </label>
+            {!order?.capabilities.canEditAttendance ? <Alert tone="info">Отметки выхода доступны только для просмотра.</Alert> : null}
             {attendance?.submittedAt ? <div className={styles.savedBy}>Отметил: {attendance.submittedBy?.fullName ?? 'пользователь'} · {new Date(attendance.submittedAt).toLocaleString('ru-RU')}</div> : null}
             {(attendance?.employees ?? []).length === 0 ? <div className={styles.empty}>Сначала добавьте сотрудников в состав заказа.</div> : (attendance?.employees ?? []).map((employee) => (
               <label className={styles.attendanceRow} key={employee.employeeId}>
-                <input className={styles.checkbox} type="checkbox" checked={selected.has(employee.employeeId)} onChange={(event) => {
+                <input className={styles.checkbox} type="checkbox" checked={selected.has(employee.employeeId)} disabled={!order?.capabilities.canEditAttendance} onChange={(event) => {
+                  if (!captureAction('canEditAttendance')()) return;
+                  dirtyAttendance.current = true;
                   const next = new Set(selected);
                   if (event.target.checked) next.add(employee.employeeId); else next.delete(employee.employeeId);
                   setSelected(next);
@@ -348,28 +402,34 @@ export default function OneTimeOrderWorkforcePage({
               </label>
             ))}
             {attendance?.submittedAt ? (
-              <label className={styles.dateField}>
+              <AccessSnapshotBoundary blocked={!order?.capabilities.canEditAttendance}><label className={styles.dateField}>
                 <span>Причина изменения сохранённой отметки</span>
-                <textarea className={styles.input} rows={2} maxLength={500} value={correctionReason} onChange={(event) => setCorrectionReason(event.target.value)} placeholder="Укажите, почему корректируете отметку" />
-              </label>
+                <textarea className={styles.input} rows={2} maxLength={500} value={correctionReason} onChange={(event) => { dirtyAttendance.current = true; setCorrectionReason(event.target.value); }} placeholder="Укажите, почему корректируете отметку" />
+              </label></AccessSnapshotBoundary>
             ) : null}
-            <div className={styles.formActions}>
+            <AccessSnapshotBoundary blocked={!order?.capabilities.canEditAttendance}><div className={styles.formActions}>
               <Button variant="primary" disabled={saving || (attendance?.employees.length ?? 0) === 0 || (Boolean(attendance?.submittedAt) && !correctionReason.trim())} pending={saving} pendingLabel="Сохраняем…" onClick={async () => {
                 setSaving(true); setError(null);
                 try {
+                  const current = captureAction('canEditAttendance');
+                  if (!current()) return;
                   const saved = await submitTodayOneTimeAttendance(orderId, Array.from(selected), attendanceDate || undefined, correctionReason.trim() || undefined);
-                  setAttendance(saved);
-                  setCorrectionReason('');
-                  setTimesheet(await getOneTimeTimesheet(orderId, month));
-                  setCoverage(await getOneTimeAttendanceCoverage(orderId));
+                  if (!current()) return;
+                  dirtyAttendance.current = false; acceptAttendance(saved); setCorrectionReason('');
+                  const [sheet, days] = await Promise.all([
+                    order?.capabilities.canReadTimesheet ? getOneTimeTimesheet(orderId, month) : Promise.resolve(null),
+                    getOneTimeAttendanceCoverage(orderId),
+                  ]);
+                  if (!current()) return;
+                  setTimesheet(sheet); setCoverage(days);
                 } catch (saveError) { setError(errorText(saveError)); } finally { setSaving(false); }
               }}>Сохранить отметку</Button>
-            </div>
+            </div></AccessSnapshotBoundary>
           </div>
-        </section>
+        </section></AccessSnapshotBoundary>
       </div>
 
-      <section className={styles.card} id="coverage">
+      <AccessSnapshotBoundary blocked={!order?.capabilities.canReadAttendance}><section className={styles.card} id="coverage">
         <header className={styles.head}>
           <div><h2>Контроль отметок</h2></div>
           <span className={styles.count}>{coverage?.missingDates.length ?? 0} без отметки</span>
@@ -403,9 +463,9 @@ export default function OneTimeOrderWorkforcePage({
             </details>
           ) : null}
         </div>
-      </section>
+      </section></AccessSnapshotBoundary>
 
-      <section className={styles.card} id="timesheet">
+      <AccessSnapshotBoundary blocked={!order?.capabilities.canReadTimesheet}><section className={styles.card} id="timesheet">
         <header className={styles.head}>
           <div><h2>Табель выходов</h2><p>Сохранённые выходы и суммы по дням</p></div>
           <div className={styles.exportControls}>
@@ -424,9 +484,12 @@ export default function OneTimeOrderWorkforcePage({
               clearable={false}
               onChange={setExportEmployeeId}
             />
-            <Button disabled={exporting} pending={exporting} pendingLabel="Готовим Excel…" onClick={() => {
+            <AccessSnapshotBoundary blocked={!order?.capabilities.canExportTimesheet}><Button disabled={exporting} pending={exporting} pendingLabel="Готовим Excel…" onClick={() => {
+              const current = captureAction('canExportTimesheet');
+              if (!current()) return;
               setExporting(true); setError(null);
               void downloadOneTimeWorkforceExcel({ orderId, month, employeeId: exportEmployeeId || undefined }).then((blob) => {
+                if (!current()) return;
                 const url = URL.createObjectURL(blob);
                 const anchor = document.createElement('a');
                 anchor.href = url;
@@ -434,10 +497,11 @@ export default function OneTimeOrderWorkforcePage({
                 anchor.click();
                 window.setTimeout(() => URL.revokeObjectURL(url), 0);
               }).catch((exportError) => setError(errorText(exportError))).finally(() => setExporting(false));
-            }}>Скачать Excel</Button>
+            }}>Скачать Excel</Button></AccessSnapshotBoundary>
           </div>
         </header>
         <div className={styles.body}>
+          {!order?.capabilities.canExportTimesheet ? <Alert tone="info">Выгрузка табеля недоступна.</Alert> : null}
           {(timesheet?.rows ?? []).length === 0 ? <div className={styles.empty}>За выбранный месяц сохранённых выходов пока нет.</div> : (
             <div className={styles.timesheetWrap}>
               <table className={styles.table}>
@@ -455,7 +519,8 @@ export default function OneTimeOrderWorkforcePage({
             </div>
           )}
         </div>
-      </section>
+      </section></AccessSnapshotBoundary>
+      </AccessSnapshotBoundary>
     </div>
   );
 }

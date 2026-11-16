@@ -3,6 +3,7 @@
 import React, { useId, useRef, useState } from 'react';
 
 import type { InventoryItem } from '@/entities/inventory/model/inventory.types';
+import { getOneTimeOrderInventory } from '@/entities/inventory/api/inventory-client';
 import { ApiError } from '@/shared/api/fetcher';
 import { getErrorMessage } from '@/shared/lib/error-message';
 import { usePageExitGuard } from '@/shared/lib/use-page-exit-guard';
@@ -25,13 +26,15 @@ export interface OrderInventoryIssueInput {
 
 /** A successful stock movement is never repeated when only its photos failed. */
 export function OneTimeOrderInventoryIssueForm({
+  orderId,
   availableItems,
   onIssue,
   onAttachEvidence,
   onRefresh,
 }: {
+  orderId: string;
   availableItems: InventoryItem[];
-  onIssue: (input: OrderInventoryIssueInput) => Promise<string>;
+  onIssue: (input: OrderInventoryIssueInput, hasPendingPhotos: boolean) => Promise<string | null>;
   onAttachEvidence: (movementId: string, files: File[]) => Promise<void>;
   onRefresh: () => Promise<void>;
 }): React.JSX.Element {
@@ -45,18 +48,21 @@ export function OneTimeOrderInventoryIssueForm({
   const [movementId, setMovementId] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [uncertain, setUncertain] = useState(false);
+  const [accessDenied, setAccessDenied] = useState(false);
+  const [isCheckingAccess, setIsCheckingAccess] = useState(false);
+  const [accessRestored, setAccessRestored] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const requestId = useRef<string | null>(null);
   const submitting = useRef(false);
   const [confirm, confirmDialog] = useConfirm();
   const selected = availableItems.find((item) => item.id === itemId);
-  const locked = pending || movementId !== null || uncertain;
+  const locked = pending || isCheckingAccess || movementId !== null || uncertain;
   const dirty = Boolean(itemId || comment.trim() || files.length || quantity !== '1');
   usePageExitGuard(open && dirty, confirm);
 
   const close = async (): Promise<void> => {
-    if (submitting.current) return;
+    if (submitting.current || isCheckingAccess) return;
     if (dirty && !(await confirm({
       title: movementId ? 'Закрыть отгрузку?' : 'Закрыть форму отгрузки?',
       consequence: movementId
@@ -69,9 +75,30 @@ export function OneTimeOrderInventoryIssueForm({
     setOpen(false);
   };
 
+  const checkIssueAccess = async (): Promise<void> => {
+    if (isCheckingAccess || !accessDenied || !itemId) return;
+    setIsCheckingAccess(true);
+    try {
+      const inventory = await getOneTimeOrderInventory(orderId);
+      if (inventory.capabilities.canIssueInventoryToOrder && inventory.availableItems.some((item) => item.id === itemId)) {
+        setAccessDenied(false);
+        setAccessRestored(true);
+        setError(null);
+      } else {
+        setError('Отгрузка в этот заказ пока недоступна для выбранного расходника. Черновик остался в форме.');
+      }
+    } catch (cause) {
+      setError(cause instanceof ApiError && [403, 404].includes(cause.statusCode)
+        ? 'Доступ к отгрузке пока закрыт. Черновик остался в форме.'
+        : 'Не удалось проверить доступ. Черновик остался в форме. Повторите проверку.');
+    } finally {
+      setIsCheckingAccess(false);
+    }
+  };
+
   const submit = async (event: React.FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault();
-    if (submitting.current) return;
+    if (submitting.current || isCheckingAccess || accessDenied) return;
     const amount = Number(quantity);
     if (!movementId && (!selected || !Number.isFinite(amount) || amount < 0.001)) {
       setError('Выберите расходник и укажите количество не меньше 0,001.');
@@ -81,6 +108,7 @@ export function OneTimeOrderInventoryIssueForm({
     submitting.current = true;
     setPending(true);
     setError(null);
+    setAccessRestored(false);
     let savedId = movementId;
     try {
       if (!savedId) {
@@ -90,7 +118,8 @@ export function OneTimeOrderInventoryIssueForm({
           quantity: amount,
           ...(comment.trim() ? { comment: comment.trim() } : {}),
           requestId: requestId.current,
-        });
+        }, files.length > 0);
+        if (!savedId) return;
         setMovementId(savedId);
         setUncertain(false);
       }
@@ -102,9 +131,14 @@ export function OneTimeOrderInventoryIssueForm({
       setOpen(false);
       setSuccess(true);
     } catch (cause) {
+      if (!savedId && cause instanceof ApiError && cause.statusCode === 403) {
+        setAccessDenied(true);
+        setError('Недостаточно прав, чтобы отгрузить расходники в этот заказ. Введённые данные остались в форме. Уточните доступ у учредителя.');
+        return;
+      }
       // Keep the identical request ID and payload after a lost response. The
       // server checks idempotency; a retry must not create another movement.
-      if (!savedId && (!(cause instanceof ApiError) || cause.statusCode >= 500)) {
+      if (!savedId && (!(cause instanceof ApiError) || cause.statusCode === 0 || cause.statusCode >= 500 || cause.code === 'ACCESS_VERSION_CHANGED')) {
         setUncertain(true);
       }
       setError(getErrorMessage(cause, 'Не удалось завершить отгрузку. Проверьте журнал движений и повторите попытку.'));
@@ -119,7 +153,7 @@ export function OneTimeOrderInventoryIssueForm({
       {confirmDialog}
       <Button className={styles.trigger} icon={<PlusIcon />} onClick={() => {
         setItemId(''); setQuantity('1'); setComment(''); setFiles([]);
-        setMovementId(null); setUncertain(false); setError(null); setSuccess(false);
+        setMovementId(null); setUncertain(false); setAccessDenied(false); setAccessRestored(false); setError(null); setSuccess(false);
         requestId.current = null;
         setOpen(true);
       }}>Отгрузить расходники</Button>
@@ -130,16 +164,20 @@ export function OneTimeOrderInventoryIssueForm({
         title="Отгрузить расходники на заказ"
         description="Расходники будут выданы с центрального склада только на этот заказ."
         size="regular"
-        busy={pending}
+        busy={pending || isCheckingAccess}
         footer={<div className={styles.actions}>
-          <Button disabled={pending} onClick={() => void close()}>Отмена</Button>
-          <Button variant="primary" type="submit" form={formId} pending={pending}>
+          <Button disabled={pending || isCheckingAccess} onClick={() => void close()}>Отмена</Button>
+          {accessDenied ? (
+            <Button type="button" pending={isCheckingAccess} pendingLabel="Проверяем доступ…" onClick={() => void checkIssueAccess()}>Проверить доступ</Button>
+          ) : null}
+          <Button variant="primary" type="submit" form={formId} pending={pending} disabled={accessDenied || isCheckingAccess}>
             {movementId ? 'Завершить сохранение' : uncertain ? 'Проверить и повторить' : 'Записать отгрузку'}
           </Button>
         </div>}
       >
         <form ref={formRef} id={formId} className={styles.form} onSubmit={(event) => void submit(event)}>
           {error ? <Alert tone="danger" role="alert">{error}</Alert> : null}
+          {accessRestored ? <Alert tone="success" role="status">Доступ к отгрузке восстановлен. Чтобы записать её, нажмите «Записать отгрузку».</Alert> : null}
           {movementId ? <Alert tone="info">Отгрузка уже записана. Повторное нажатие сохранит только оставшиеся фото и обновит журнал.</Alert> : null}
           {uncertain && !movementId ? <Alert tone="warning">Ответ сервера не получен. Данные зафиксированы для безопасной повторной проверки этой же операции.</Alert> : null}
           <SearchableSelect

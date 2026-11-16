@@ -6,6 +6,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import {
   CreateBucketCommand,
+  DeleteObjectCommand,
   GetObjectCommand,
   HeadBucketCommand,
   PutObjectCommand,
@@ -72,6 +73,10 @@ export class StorageService implements OnModuleInit {
       bucket: this.bucket,
       objectKey: params.objectKey,
     };
+  }
+
+  async deleteObject(objectKey: string): Promise<void> {
+    await this.client.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: objectKey }));
   }
 
   getBucketName(): string {

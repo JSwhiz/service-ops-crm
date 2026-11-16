@@ -16,6 +16,7 @@ import { Select } from '@/shared/ui/searchable-select/select';
 import { WorkspaceTabs } from '@/shared/ui/workspace-tabs/workspace-tabs';
 import { AccessEntityPicker } from './access-entity-picker';
 import { AccessRuleEditor } from './access-rule-editor';
+import { changeAccessMode, initialAccessDraft, isValidManagementChange, managementScopes, updateAccessChanges } from '../model/access-management-scopes';
 import { accessError, accessLabel, effectiveLabel, ruleLabel, scopeLabels } from './access-presentation';
 import { AccessAssignmentsTab, AccessHistoryTab } from './user-access-context';
 import styles from './user-access.module.css';
@@ -152,15 +153,7 @@ export function UserAccessDialog({ userId, catalog, onClose, onSaved }: {
 
   const changeRule = (action: AccessAction, next: AccessChange): void => {
     setReview(null); setInvalidAction(''); setError(''); setNotice('');
-    setChanges((current) => {
-      const updated = { ...current };
-      const original = rulesByCode.get(action.code);
-      const same = original
-        ? next.effect === original.effect && next.scope === original.scope && [...next.selectedIds].sort().join(',') === [...original.selectedIds].sort().join(',')
-        : next.effect === 'default';
-      if (same) delete updated[action.code]; else updated[action.code] = next;
-      return updated;
-    });
+    setChanges((current) => updateAccessChanges(current, next, rulesByCode.get(action.code)));
   };
   const showError = (cause: unknown): void => { setError(accessError(cause)); setConflict(true); };
   const reloadDetail = (): void => {
@@ -176,7 +169,7 @@ export function UserAccessDialog({ userId, catalog, onClose, onSaved }: {
     if (edits.length > 300) { setError('За один раз можно изменить не больше 300 правил.'); return; }
     const invalid = edits.find((change) => {
       const action = catalog.actions.find((item) => item.code === change.actionCode);
-      return !action || !action.allowedScopes.includes(change.scope) || (change.scope === 'selected' && !change.selectedIds.length);
+      return !action || !isValidManagementChange(action, change);
     });
     if (invalid) {
       setInvalidAction(invalid.actionCode); setQuery(''); setFilter('all'); setError(`Проверьте область и выбранные записи для действия «${actionName(invalid.actionCode)}».`); return;
@@ -247,9 +240,11 @@ export function UserAccessDialog({ userId, catalog, onClose, onSaved }: {
               {actions.map((action) => {
                 const row = effectiveByCode.get(action.code);
                 const original = rulesByCode.get(action.code);
-                const initialScope = original?.scope ?? action.allowedScopes[0];
-                if (!initialScope) return <Alert key={action.code} tone="warning" title={action.name}>Каталог не передал поддерживаемые области. Изменение этого права недоступно.</Alert>;
-                const draft: AccessChange = changes[action.code] ?? { actionCode: action.code, effect: original?.effect ?? 'default', scope: initialScope, selectedIds: original?.selectedIds ?? [] };
+                const supportedScopes = managementScopes(action);
+                const initialDraft = initialAccessDraft(action, original);
+                if (!initialDraft) return <Alert key={action.code} tone="warning" title={action.name}>Каталог не передал поддерживаемые области. Изменение этого права недоступно.</Alert>;
+                const draft = changes[action.code] ?? initialDraft;
+                const legacyScope = original && !supportedScopes.includes(original.scope) ? original.scope : null;
                 return <div key={action.code} data-access-action={action.code}>
                   <AccessRuleEditor title={action.name} description={action.description === action.name ? undefined : action.description}
                     effectiveResult={effectiveLabel(row)} source={row ? accessLabel(row.source) : 'Источник не получен'} effectiveScope={row?.scope ? scopeLabels[row.scope] : 'Определяется действующими правилами и записью'}
@@ -267,8 +262,10 @@ export function UserAccessDialog({ userId, catalog, onClose, onSaved }: {
                       {action.delegation === 'object_only' ? <p className={styles.reason}>Замещение действует только в выбранных объектах и в пределах срока.</p> : null}
                     </div>}
                     editable={action.manageable} unavailableReason={action.constraint ? accessLabel(action.constraint) : undefined}
-                    mode={draft.effect} hasPersonalRule={Boolean(original)} scope={draft.scope} supportedScopes={action.allowedScopes.map((value) => ({ value, label: scopeLabels[value] }))} pending={busy || loading}
-                    onModeChange={(effect) => changeRule(action, { ...draft, effect, ...(effect === 'default' && action.allowedScopes.includes('all') ? { scope: 'all', selectedIds: [] } : {}) })}
+                    mode={draft.effect} hasPersonalRule={Boolean(original)} scope={draft.scope} supportedScopes={supportedScopes.map((value) => ({ value, label: scopeLabels[value] }))} pending={busy || loading}
+                    legacyScopeLabel={legacyScope ? scopeLabels[legacyScope] : undefined}
+                    legacyScopeUnchanged={Boolean(legacyScope && !changes[action.code])}
+                    onModeChange={(effect) => changeRule(action, changeAccessMode(action, draft, effect, original))}
                     onScopeChange={(scope) => changeRule(action, { ...draft, scope, selectedIds: scope === 'selected' ? draft.selectedIds : [] })}
                     selectedEntitiesControl={<AccessEntityPicker resourceType={action.resourceType} ids={draft.selectedIds} onChange={(selectedIds) => changeRule(action, { ...draft, selectedIds })} disabled={busy || loading} />}
                     error={invalidAction === action.code ? 'Проверьте поддержку области и выберите хотя бы одну запись для режима «Выбранные».' : undefined}

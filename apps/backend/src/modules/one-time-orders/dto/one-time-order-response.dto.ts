@@ -53,6 +53,12 @@ export class OneTimeOrderResponseDto {
     canReadPhotos: boolean;
     canReadSpecification: boolean;
     canReadEmployees: boolean;
+    canManageEmployees: boolean;
+    canEditEmployeePayment: boolean;
+    canReadAttendance: boolean;
+    canEditAttendance: boolean;
+    canReadTimesheet: boolean;
+    canExportTimesheet: boolean;
     canReadInventory: boolean;
     canReadEquipment: boolean;
     canReadHistory: boolean;
@@ -79,6 +85,8 @@ export class OneTimeOrderResponseDto {
     canManageManagers: boolean;
     canManageSpecification: boolean;
     canEditSpecification: boolean;
+    canCommentSpecification: boolean;
+    canDetachSpecificationFiles: boolean;
     canUploadPhotos: boolean;
     canDeletePhotos: boolean;
     canRestorePhotos: boolean;

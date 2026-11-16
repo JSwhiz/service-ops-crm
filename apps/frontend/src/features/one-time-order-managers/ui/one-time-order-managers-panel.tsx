@@ -1,6 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useContext, useState } from 'react';
+import { AccessSnapshotBoundary, AccessSnapshotBlockedContext } from '@/shared/auth/access-snapshot-boundary';
+import { getAccessGeneration, isAccessGenerationCurrent } from '@/shared/auth/access-generation';
 
 import type { OneTimeOrderItem } from '@/entities/one-time-order/model/one-time-order.types';
 import type { SystemUserOption } from '@/entities/user/model/user.types';
@@ -26,6 +28,7 @@ export function OneTimeOrderManagersPanel({
   onRemove: (userId: string) => Promise<void>;
 }): React.JSX.Element {
   const [pickerValue, setPickerValue] = useState('');
+  const snapshotBlocked = useContext(AccessSnapshotBlockedContext);
   const [isAssigning, setIsAssigning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const assignedUserIds = new Set(item.managers.map((manager) => manager.userId));
@@ -71,7 +74,7 @@ export function OneTimeOrderManagersPanel({
         )}
       </div>
 
-      {item.capabilities.canManageManagers ? (
+      <AccessSnapshotBoundary blocked={!item.capabilities.canManageManagers}>
         <Stack gap="sm" className={styles.picker}>
           <SearchableSelect
             label="Назначить менеджера"
@@ -79,12 +82,16 @@ export function OneTimeOrderManagersPanel({
             value={pickerValue}
             options={[]}
             clearable={false}
-            disabled={isAssigning}
+            disabled={isAssigning || snapshotBlocked || !item.capabilities.canManageManagers}
             placeholder="Найти менеджера"
             searchPlaceholder="ФИО или логин"
             emptyText="Подходящие менеджеры не найдены"
-            asyncSearch={async (query) =>
-              (await searchCandidates(query))
+            asyncSearch={async (query) => {
+              if (snapshotBlocked || !item.capabilities.canManageManagers) return [];
+              const generation = getAccessGeneration();
+              const candidates = await searchCandidates(query);
+              if (!isAccessGenerationCurrent(generation)) return [];
+              return candidates
                 .filter((candidate) => !assignedUserIds.has(candidate.id))
                 .map((candidate) => ({
                   value: candidate.id,
@@ -92,9 +99,9 @@ export function OneTimeOrderManagersPanel({
                   description: getUserSecondaryLabel(candidate) ?? (candidate.login ? `@${candidate.login}` : undefined),
                   searchText: `${candidate.fullName} ${candidate.login}`,
                 }))
-            }
+            }}
             onChange={(value) => {
-              if (!value) return;
+              if (!value || snapshotBlocked || !item.capabilities.canManageManagers) return;
               setPickerValue(value);
               setIsAssigning(true);
               setError(null);
@@ -113,7 +120,7 @@ export function OneTimeOrderManagersPanel({
           />
           {error ? <div className="form-error">{error}</div> : null}
         </Stack>
-      ) : null}
+      </AccessSnapshotBoundary>
     </Surface>
   );
 }

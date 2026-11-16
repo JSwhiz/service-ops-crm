@@ -1,7 +1,11 @@
 'use client';
 
-import React, { useId, useMemo, useState } from 'react';
+import React, { useContext, useEffect, useId, useMemo, useRef, useState } from 'react';
 
+import { captureObjectWriteFence } from '@/features/object-shared-ui/object-write-fence';
+import { AccessSnapshotBlockedContext } from '@/shared/auth/access-snapshot-boundary';
+import { isSavedWithoutAccess, type SavedWithoutAccess } from '@/shared/api/saved-without-access';
+import { ApiError } from '@/shared/api/fetcher';
 import type { ObjectAssignedUser } from '@/entities/object/model/object.types';
 import type { SystemUserOption } from '@/entities/user/model/user.types';
 import {
@@ -16,6 +20,7 @@ import styles from './object-team-panel.module.css';
 import { Alert, Button, Surface } from '@/shared/ui/foundation';
 
 interface ObjectTeamPanelProps {
+  objectId: string;
   title: string;
   currentItems: ObjectAssignedUser[];
   availableUsers: SystemUserOption[];
@@ -25,11 +30,12 @@ interface ObjectTeamPanelProps {
   removeButtonText: string;
   minimumItemsToKeep?: number;
   replaceOnly?: boolean;
-  onAdd: (userId: string) => Promise<void>;
-  onRemove: (userId: string) => Promise<void>;
+  onAdd: (userId: string) => Promise<void | SavedWithoutAccess>;
+  onRemove: (userId: string) => Promise<void | SavedWithoutAccess>;
 }
 
 export function ObjectTeamPanel({
+  objectId,
   title,
   currentItems,
   availableUsers,
@@ -42,6 +48,11 @@ export function ObjectTeamPanel({
   onAdd,
   onRemove,
 }: ObjectTeamPanelProps): React.JSX.Element {
+  const mounted = useRef(true), currentObjectId = useRef(objectId), busy = useRef(false);
+  currentObjectId.current = objectId;
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  const blocked = useContext(AccessSnapshotBlockedContext), currentBlocked = useRef(blocked); currentBlocked.current = blocked;
+  const [acknowledged, setAcknowledged] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -58,48 +69,42 @@ export function ObjectTeamPanel({
       searchText: `${user.fullName} ${user.login}`,
     }));
 
+  const runChange = async (write: () => Promise<void | SavedWithoutAccess>, closeReplacement: boolean): Promise<void> => {
+    if (busy.current || currentBlocked.current || acknowledged) return;
+    const targetId = objectId;
+    const fence = captureObjectWriteFence(() => mounted.current && currentObjectId.current === targetId);
+    busy.current = true; setIsSubmitting(true); setError(null);
+    try {
+      const result = await write();
+      if (!fence.sameTarget()) return;
+      if ((result && isSavedWithoutAccess(result)) || !fence.current() || currentBlocked.current) {
+        setAcknowledged(true); setIsReplacementOpen(false); return;
+      }
+      if (closeReplacement) { setSelectedUserId(''); setIsReplacementOpen(false); }
+    } catch (caught) {
+      if (!fence.sameTarget()) return;
+      setError(caught instanceof ApiError && [403, 404].includes(caught.statusCode)
+        ? 'Изменение команды недоступно. Выбранные данные сохранены.'
+        : 'Результат изменения не подтверждён. Проверьте данные перед повтором; выбранный пользователь сохранён.');
+    } finally { busy.current = false; if (fence.sameTarget()) setIsSubmitting(false); }
+  };
   const handleAdd = (userId: string): void => {
-    if (!userId || isSubmitting) return;
-    setSelectedUserId(userId);
-    setError(null);
-    setIsSubmitting(true);
-    void onAdd(userId)
-      .then(() => {
-        setSelectedUserId('');
-        setIsReplacementOpen(false);
-      })
-      .catch((caughtError) => {
-        setError(
-          caughtError instanceof Error && caughtError.message.trim()
-            ? caughtError.message
-            : 'Не удалось изменить состав команды.',
-        );
-      })
-      .finally(() => setIsSubmitting(false));
+    if (!userId || !options.some(option => option.value === userId)) return;
+    setSelectedUserId(userId); void runChange(() => onAdd(userId), true);
   };
-
-  const handleRemove = (userId: string): void => {
-    setError(null);
-    setIsSubmitting(true);
-    void onRemove(userId)
-      .catch((caughtError) => {
-        setError(
-          caughtError instanceof Error && caughtError.message.trim()
-            ? caughtError.message
-            : 'Не удалось изменить состав команды.',
-        );
-      })
-      .finally(() => setIsSubmitting(false));
-  };
+  const handleRemove = (userId: string): void => { void runChange(() => onRemove(userId), false); };
 
   return (
     <Surface padding="md" className={`${styles.panel}`}>
+      {acknowledged ? <Alert tone="success" role="status">Изменение сохранено без доступных подробностей. Повтор не отправлялся.
+        <Button onClick={() => { setAcknowledged(false); setSelectedUserId(''); }}>Я проверил запись — новое действие</Button>
+      </Alert> : null}
       <div className={styles.header}>
         <h3 className="ui-section-title">{title}</h3>
         {replaceOnly ? (
           <>
             <Button
-              disabled={isSubmitting || options.length === 0}
+              disabled={blocked || acknowledged || isSubmitting || options.length === 0}
               aria-haspopup="dialog"
               icon={<MediaActionIcon name="replace" />}
               onClick={() => { setError(null); setSelectedUserId(''); setIsReplacementOpen(true); }}
@@ -112,10 +117,10 @@ export function ObjectTeamPanel({
               title="Сменить ответственного"
               description="Выберите пользователя, который будет отвечать за объект."
               busy={isSubmitting}
-              footer={<div className="ui-inline"><Button disabled={isSubmitting} onClick={() => setIsReplacementOpen(false)}>Отмена</Button><Button form={replacementFormId} type="submit" variant="primary" pending={isSubmitting} pendingLabel="Сохранение…" disabled={!selectedUserId}>Сохранить</Button></div>}
+              footer={<div className="ui-inline"><Button disabled={blocked || acknowledged || isSubmitting} onClick={() => setIsReplacementOpen(false)}>Отмена</Button><Button form={replacementFormId} type="submit" variant="primary" pending={isSubmitting} pendingLabel="Сохранение…" disabled={blocked || acknowledged || !selectedUserId}>Сохранить</Button></div>}
             >
               <form id={replacementFormId} className="ui-stack ui-stack--lg" onSubmit={(event) => { event.preventDefault(); handleAdd(selectedUserId); }}>
-                <SearchableSelect label="Новый ответственный" value={selectedUserId} options={options} placeholder="Выберите пользователя" searchPlaceholder="ФИО или логин" emptyText={emptyAvailableText} clearable={false} viewportAware onChange={setSelectedUserId} disabled={isSubmitting} />
+                <SearchableSelect label="Новый ответственный" value={selectedUserId} options={options} placeholder="Выберите пользователя" searchPlaceholder="ФИО или логин" emptyText={emptyAvailableText} clearable={false} viewportAware onChange={setSelectedUserId} disabled={blocked || acknowledged || isSubmitting} />
                 {error ? <Alert tone="danger">{error}</Alert> : null}
               </form>
             </Dialog>
@@ -137,7 +142,7 @@ export function ObjectTeamPanel({
                   ) : null}
                 </span>
                 {!replaceOnly ? <Button
-                  disabled={isSubmitting || currentItems.length <= minimumItemsToKeep}
+                  disabled={blocked || acknowledged || isSubmitting || currentItems.length <= minimumItemsToKeep}
                   title={currentItems.length <= minimumItemsToKeep ? 'Нельзя снять последнего ответственного' : undefined}
                   onClick={() => handleRemove(item.userId)}
                 >
@@ -164,7 +169,7 @@ export function ObjectTeamPanel({
             clearable={false}
             viewportAware
             onChange={handleAdd}
-            disabled={isSubmitting}
+            disabled={blocked || acknowledged || isSubmitting}
           />
         ) : (
           <div className={styles.empty}>{emptyAvailableText}</div>
