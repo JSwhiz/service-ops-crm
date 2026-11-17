@@ -36,9 +36,11 @@ const ROUTE_TITLES: ReadonlyArray<readonly [string, string]> = [
   ['/visit-plans', 'План на день'],
   ['/candidates', 'Кандидаты'],
   ['/employees', 'Сотрудники'],
+  ['/workforce-substitutions', 'Кадровые подмены'],
   ['/user-absences', 'Календарь'],
   ['/user-substitutions', 'Замещения'],
   ['/chats', 'Чаты'],
+  ['/settings/notifications', 'Уведомления на устройстве'],
   ['/settings', 'Пользователи и доступы'],
 ];
 
@@ -227,6 +229,9 @@ export function AppHeader(): React.JSX.Element {
                     <strong>{displayName}</strong>
                     <span>{roleLabel}</span>
                   </div>
+                  <Link className="app-header__menu-link ui-inline" href="/settings/notifications" role="menuitem" onClick={() => setAccountOpen(false)}>
+                    Уведомления на устройстве
+                  </Link>
                   {(user.roleCode === 'founder' || user.roleCodes.includes('founder')) && user.capabilities?.canManageUserAccess ? (
                     <Link className="app-header__menu-link ui-inline" href="/settings" role="menuitem">
                       <CheckIcon size={18} />

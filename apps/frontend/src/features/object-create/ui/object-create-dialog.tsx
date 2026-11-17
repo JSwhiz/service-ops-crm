@@ -5,6 +5,8 @@ import React, { useEffect, useRef, useState } from 'react';
 
 import { listCounterpartyReferences } from '@/entities/counterparty/api/counterparty-client';
 import { createObject } from '@/entities/object/api/object-client';
+import { WindowCleaningFields } from '@/entities/object/ui/window-cleaning-fields';
+import { windowCleaningDraft, windowCleaningPayload, windowCleaningValidation, type WindowCleaningDraft } from '@/entities/object/lib/window-cleaning';
 import { listEmployees } from '@/entities/employee/api/employee-client';
 import { PositionsEditor } from '@/features/object-scheduling/ui/positions-editor';
 import { previewNewObjectSchedule } from '@/entities/object/api/object-scheduling-client';
@@ -201,7 +203,7 @@ const STATUS_OPTIONS: { value: string; label: string }[] = [
   { value: 'archived', label: 'Архив' },
 ];
 
-type ObjectCreateForm = ObjectCompensationProfilesValue & {
+type ObjectCreateForm = ObjectCompensationProfilesValue & WindowCleaningDraft & {
   name: string;
   internalName: string;
   address: string;
@@ -239,12 +241,14 @@ export function ObjectCreateDialog(): React.JSX.Element {
   const fallbackSearch = navigation.getTargetSearchParams().toString();
   const closeContext = navigation.closeContext(`/objects${fallbackSearch ? `?${fallbackSearch}` : ''}`);
 
-  const [form, setForm] = useState<ObjectCreateForm>(draft.value.form ?? {
+  const [form, setForm] = useState<ObjectCreateForm>(draft.value.form ? { ...draft.value.form, ...windowCleaningDraft(draft.value.form) } : {
     name: '',
     internalName: '',
     address: '',
     status: 'active',
     summerWindowCleaning: false,
+    windowCleaningMode: 'notprovided',
+    windowCleaningSeasons: [],
     engineeringRequired: false,
     winterTractorMode: 'none' as 'none' | 'with_removal' | 'without_removal',
     paymentType: 'monthly' as 'monthly' | 'daily',
@@ -385,6 +389,9 @@ export function ObjectCreateDialog(): React.JSX.Element {
     if (isSubmitting || submitLock.current) return;
     setError(null);
 
+    const windowError = windowCleaningValidation(form);
+    if (windowError) { setError(windowError); setActiveSection('payment'); return; }
+
     setNativeValidationIssue(null);
 
     if (!allowCreateObject || !createCaps?.base) {
@@ -436,6 +443,7 @@ export function ObjectCreateDialog(): React.JSX.Element {
         address: form.address.trim(),
         status: form.status,
         summerWindowCleaning: form.summerWindowCleaning,
+        ...windowCleaningPayload(form),
         engineeringRequired: form.engineeringRequired,
         winterTractorMode: form.winterTractorMode,
         notes: form.notes.trim() || undefined,
@@ -692,10 +700,9 @@ export function ObjectCreateDialog(): React.JSX.Element {
           </div>
 
           <div className={styles.fieldGrid}>
-            <label className={styles.checkboxField}>
-              <input type="checkbox" checked={form.summerWindowCleaning} onChange={(event) => setForm((prev) => ({ ...prev, summerWindowCleaning: event.target.checked }))} disabled={isSubmitting} />
-              <span>Лето: мыть окна</span>
-            </label>
+            <div className={styles.fullWidth}>
+              <WindowCleaningFields value={form} onChange={next => setForm(previous => ({ ...previous, ...next }))} disabled={isSubmitting} legacySummer={form.summerWindowCleaning} />
+            </div>
             <div className={`${styles.field} ${styles.fullWidth}`}>
               <SelectField
                 label="Зима: трактор"

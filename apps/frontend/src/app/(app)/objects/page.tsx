@@ -12,8 +12,11 @@ import {
   type ObjectSortField,
 } from '@/entities/object/api/object-client';
 import type { ServiceObject } from '@/entities/object/model/object.types';
+import { objectArchiveCounts, parseObjectArchiveState } from '@/entities/object/lib/object-registry-archive';
+import { WorkspaceTabs } from '@/shared/ui/workspace-tabs/workspace-tabs';
 import { ObjectListTable } from '@/features/object-list/ui/object-list-table';
 import { useAuth } from '@/shared/auth/use-auth';
+import { useAccessRevision } from '@/shared/auth/use-access-revision';
 import { RegistryToolbar, type ActiveRegistryFilter, type AvailableRegistryFilter } from '@/shared/ui/registry-filters/registry-toolbar';
 import { usePageSizeParam } from '@/shared/lib/use-page-size-param';
 import { TablePagination } from '@/shared/ui/table-pagination/table-pagination';
@@ -40,7 +43,6 @@ const ISSUE_LABELS: Record<Exclude<ObjectIssueFilter, ''>, string> = {
 const STATUS_OPTIONS = [
   { value: 'active', label: 'Активный' },
   { value: 'frozen', label: 'Заморожен' },
-  { value: 'archived', label: 'Архив' },
 ] as const;
 
 const ISSUE_OPTIONS = Object.entries(ISSUE_LABELS).map(([value, label]) => ({
@@ -136,12 +138,15 @@ async function filterByOperationalIssue(items: ServiceObject[], issue: ObjectIss
 
 export default function ObjectsPage(): React.JSX.Element {
   const { user } = useAuth();
+  const accessRevision = useAccessRevision();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
   const query = searchParams.get('q') ?? '';
-  const status = searchParams.get('status') ?? '';
+  const archiveState = parseObjectArchiveState(searchParams.get('archiveState'), searchParams.get('status'));
+  const rawStatus = searchParams.get('status');
+  const status = archiveState === 'active' && (rawStatus === 'active' || rawStatus === 'frozen') ? rawStatus : '';
   const issue = parseIssue(searchParams.get('issue'));
   const page = parsePage(searchParams.get('page'));
   const { pageSize, pageSizeOptions, setPageSize } = usePageSizeParam(PAGE_LIMIT);
@@ -151,6 +156,8 @@ export default function ObjectsPage(): React.JSX.Element {
   const [searchInput, setSearchInput] = useState(query);
   const [result, setResult] = useState<ObjectListPage>({ items: [], page: 1, limit: pageSize, total: 0, totalPages: 0 });
   const [signals, setSignals] = useState<Map<string, ObjectRegistrySignal>>(new Map());
+  const [resultScope, setResultScope] = useState('');
+  const searchScope = JSON.stringify([user?.id, accessRevision, query, status, issue]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const allowCreateObject = user?.capabilities?.canCreateObject ?? false;
@@ -186,18 +193,21 @@ export default function ObjectsPage(): React.JSX.Element {
           const response = await listObjectsPage({
             q: query || undefined,
             status: status || undefined,
+            archiveState,
             page,
             limit: pageSize,
             sortBy,
             sortDirection,
           });
-          if (!cancelled) setResult(response);
+          if (!cancelled) { setResult(response); setResultScope(searchScope); }
           return;
         }
 
-        const allVisible = await listObjects({ search: query || undefined, status: status || undefined });
+        const allVisible = await listObjects({ search: query || undefined, archiveState: 'all' });
         const filtered = await filterByOperationalIssue(allVisible, issue);
-        const sorted = [...filtered].sort((a, b) => compareObjects(a, b, sortBy, sortDirection));
+        const archiveCounts = objectArchiveCounts(filtered);
+        const selected = filtered.filter(item => (archiveState === 'archived' ? item.status === 'archived' : item.status !== 'archived') && (!status || item.status === status));
+        const sorted = [...selected].sort((a, b) => compareObjects(a, b, sortBy, sortDirection));
         const totalPages = Math.ceil(sorted.length / pageSize);
         const safePage = Math.min(page, Math.max(1, totalPages || 1));
         const start = (safePage - 1) * pageSize;
@@ -208,7 +218,9 @@ export default function ObjectsPage(): React.JSX.Element {
             limit: pageSize,
             total: sorted.length,
             totalPages,
+            archiveCounts,
           });
+          setResultScope(searchScope);
         }
       } catch {
         if (!cancelled) setError('Не удалось загрузить список объектов.');
@@ -217,7 +229,7 @@ export default function ObjectsPage(): React.JSX.Element {
       }
     })();
     return () => { cancelled = true; };
-  }, [issue, page, pageSize, query, sortBy, sortDirection, status]);
+  }, [archiveState, issue, page, pageSize, query, sortBy, sortDirection, status, searchScope]);
 
   useEffect(() => {
     let cancelled = false;
@@ -259,7 +271,7 @@ export default function ObjectsPage(): React.JSX.Element {
     }] : []),
   ];
   const availableFilters: AvailableRegistryFilter[] = [
-    ...(!status ? [{
+    ...(!status && archiveState === 'active' ? [{
       id: 'status',
       label: 'Статус',
       options: STATUS_OPTIONS,
@@ -290,7 +302,19 @@ export default function ObjectsPage(): React.JSX.Element {
           ) : null
         }
       />
-
+      <div className={styles.tabs}>
+        <WorkspaceTabs
+          idPrefix="object-registry"
+          label="Состояние объектов"
+          value={archiveState}
+          items={[
+            { value: 'active', label: `Действующие (${resultScope === searchScope && result.archiveCounts ? result.archiveCounts.active : '…'})` },
+            { value: 'archived', label: `Архив (${resultScope === searchScope && result.archiveCounts ? result.archiveCounts.archived : '…'})` },
+          ]}
+          onChange={value => replaceQuery({ archiveState: value === 'archived' ? value : null, status: null, page: null })}
+        />
+      </div>
+      <section role="tabpanel" id={`object-registry-panel-${archiveState}`} aria-labelledby={`object-registry-tab-${archiveState}`} className={styles.panel}>
       {isLoading ? (
         <div className="ui-empty-state" aria-live="polite">Загрузка списка объектов...</div>
       ) : error ? (
@@ -310,6 +334,7 @@ export default function ObjectsPage(): React.JSX.Element {
           />
         </>
       )}
+      </section>
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { projectCommittedWrite, type SavedWithoutAccess } from '../../common/access/project-committed-write';
 import { isChatMessageSourceAllowed } from '../../common/access/chat-message-source-access';
+import { resolveRoomMembership } from '../chats/utils/chat-membership.util';
 import {
   BadRequestException,
   ConflictException,
@@ -51,9 +52,6 @@ import { buildTaskAccessWhere } from '../tasks/utils/task-access.util';
 import { taskVisibilityWhere } from '../tasks/utils/task-policy.util';
 import {
   canManageChats,
-  hasOperationalChatRole,
-  isChatLeadership,
-  isObjectsChatDenied,
 } from '../chats/utils/chat-access.util';
 
 import { SafeFileResponseDto } from './dto/safe-file-response.dto';
@@ -1909,8 +1907,13 @@ export class FilesService {
       resourceType: 'user', resourceId: expense.accountabilityAccount.userId,
       ownerUserId: expense.accountabilityAccount.userId,
     };
+    // The own-expense creation flow may attach evidence to its author's draft.
+    // It does not grant access to funding files or another person's expenses.
+    const ownCreatedDraft = isOwner && expense.createdByUserId === currentUser.id &&
+      expense.status === 'draft' && currentUser.isActive === true &&
+      decideAccess(currentUser, 'accountability.expenses.create', true, context);
     const ownerCanAccess = isOwner && decideAccess(
-      currentUser, 'accountability.read', legacyOwnerAccess, context,
+      currentUser, 'accountability.read', legacyOwnerAccess || ownCreatedDraft, context,
     );
 
     if (mode === 'write') {
@@ -1923,7 +1926,7 @@ export class FilesService {
         // A newly created own draft accepts its creator's personal create
         // grant; editing an existing own draft may instead use update. A read
         // grant alone never manufactures write authority or account ownership.
-        (decideAccess(currentUser, 'accountability.expenses.create', legacyOwnerAccess, context) ||
+        (decideAccess(currentUser, 'accountability.expenses.create', legacyOwnerAccess || ownCreatedDraft, context) ||
           decideAccess(currentUser, 'accountability.expenses.update', legacyOwnerAccess, context))
       );
     }
@@ -2074,85 +2077,14 @@ export class FilesService {
       visibilityType: string;
     },
   ): Promise<boolean> {
-    const legacy = await this.canAccessChatRoomLegacy(currentUser, room);
+    const legacy = (await resolveRoomMembership(this.prisma, currentUser, room)).allowed;
     const target = await resourceAccessTarget(this.prisma, 'chat_room', room.id);
     return decideAccess(currentUser, 'chat.read', legacy, {
       ...target?.context,
-      invariantAllowed: room.visibilityType === 'explicit_members' || room.visibilityType === 'leadership_only' ? legacy : true,
+      invariantAllowed: legacy,
       parents: room.visibilityType === 'objects_scope' ? [{ actionCode: 'objects.access', context: {} }]
         : room.visibilityType === 'one_time_orders_scope' ? [{ actionCode: 'one_time_orders.access', context: {} }] : [],
     });
-  }
-
-  private async canAccessChatRoomLegacy(
-    currentUser: CurrentAuthUser,
-    room: { id: string; visibilityType: string },
-  ): Promise<boolean> {
-    const roleCodes = this.getRoleCodes(currentUser);
-
-    if (room.visibilityType === 'leadership_only') {
-      return isChatLeadership(roleCodes);
-    }
-
-    if (room.visibilityType === 'objects_scope') {
-      return (
-        !isObjectsChatDenied(roleCodes) && (
-        hasOperationalChatRole(roleCodes) ||
-        (await this.hasActiveObjectAssignment(currentUser.id))
-        )
-      );
-    }
-
-    if (room.visibilityType === 'one_time_orders_scope') {
-      return (
-        hasOperationalChatRole(roleCodes) ||
-        (await this.hasActiveOneTimeOrderManagerAssignment(currentUser.id))
-      );
-    }
-
-    if (room.visibilityType === 'explicit_members') {
-      const participant = await this.prisma.chatRoomParticipant.findUnique({
-        where: {
-          chatRoomId_userId: {
-            chatRoomId: room.id,
-            userId: currentUser.id,
-          },
-        },
-        select: {
-          id: true,
-          leftAt: true,
-        },
-      });
-
-      return !!participant && participant.leftAt === null;
-    }
-
-    return false;
-  }
-
-  private async hasActiveObjectAssignment(userId: string): Promise<boolean> {
-    const count = await this.prisma.objectAssignment.count({
-      where: {
-        userId,
-        isActive: true,
-      },
-    });
-
-    return count > 0;
-  }
-
-  private async hasActiveOneTimeOrderManagerAssignment(
-    userId: string,
-  ): Promise<boolean> {
-    const count = await this.prisma.oneTimeOrderAssignment.count({
-      where: {
-        userId,
-        isActive: true,
-        assignmentRoleCode: 'one_time_manager',
-      },
-    });
-
-    return count > 0;
   }
 
   private getRoleCodes(currentUser: CurrentAuthUser): string[] {

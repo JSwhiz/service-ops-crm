@@ -56,6 +56,7 @@ export interface AuthUser {
     canManageAnyOneTimeOrderAvailability?: boolean;
     canApproveOneTimeOrderAvailability?: boolean;
     canAccessEmployeesHr?: boolean;
+    canReadWorkforceSubstitutions?: boolean;
     canManageEmployeesHr?: boolean;
     canCreateEmployee?: boolean;
     canEditEmployee?: boolean;

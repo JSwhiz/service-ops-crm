@@ -13,8 +13,12 @@ import {
 import { ACCOUNTABILITY_EXPENSE_CATEGORIES } from '../utils/accountability-access.util';
 
 export class SaveAccountabilityExpenseDto {
+  @IsOptional()
+  @IsUUID()
+  clientRequestId?: string;
+
   @Type(() => Number)
-  @IsNumber()
+  @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0.01)
   amount!: number;
 

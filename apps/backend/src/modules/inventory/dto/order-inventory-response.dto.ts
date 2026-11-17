@@ -3,5 +3,6 @@ import { InventoryMovementListResponseDto } from './inventory-movement-list-resp
 
 export class OrderInventoryResponseDto extends InventoryMovementListResponseDto {
   availableItems!: InventoryItemResponseDto[];
-  capabilities!: { canIssueInventoryToOrder: boolean };
+  availableReturnItems!: InventoryItemResponseDto[];
+  capabilities!: { canIssueInventoryToOrder: boolean; canReturnInventoryFromOrder: boolean };
 }

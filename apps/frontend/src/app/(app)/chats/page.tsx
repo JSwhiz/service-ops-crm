@@ -29,6 +29,7 @@ import {
   markChatRoomRead,
   renameChatRoom,
   removeChatParticipant,
+  restoreAutomaticChatParticipant,
   searchChats,
   sendChatMessage,
   toggleChatMessageHeart,
@@ -44,6 +45,7 @@ import { listChatParticipantCandidates } from '@/entities/user/api/user-client';
 import type { SystemUserOption } from '@/entities/user/model/user.types';
 import { useAuth } from '@/shared/auth/use-auth';
 import { useAccessRevision } from '@/shared/auth/use-access-revision';
+import { getAccessGeneration, getAccessSessionGeneration, isAccessGenerationCurrent } from '@/shared/auth/access-generation';
 import { useOpenAccessRefresh } from '@/shared/auth/use-open-access-refresh';
 import { AccessSnapshotBoundary } from '@/shared/auth/access-snapshot-boundary';
 import {
@@ -56,11 +58,13 @@ import { getChatSystemTarget } from '@/shared/lib/safe-local-target';
 import { PendingMediaList } from '@/shared/ui/media-entry/pending-media-list';
 import { ChatIcon } from './chat-icon';
 import { ChatExplorer } from './chat-explorer';
+import { ChatMembershipManagement } from './chat-membership-management';
 import { Dialog, useConfirm, useReasonPrompt } from '@/shared/ui/overlays';
 import { UserAvatar } from '@/shared/ui/user-avatar/user-avatar';
 import { ChatMessageMenu } from './chat-message-menu';
 import styles from './chat-ui.module.css';
-import { Alert, Button, ButtonLink, Surface } from '@/shared/ui/foundation';
+import { Alert, Button, ButtonLink, IconButton, Surface } from '@/shared/ui/foundation';
+import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-select';
 
 type RealtimePayload = {
   type?: string;
@@ -229,9 +233,6 @@ function getInitialScrollRunId(
   ].join(':');
 }
 
-function getParticipantRoleLabel(roleInRoom: string): string {
-  return roleInRoom === 'admin' ? 'Администратор' : 'Участник';
-}
 
 function ParticipantPicker({
   candidates,
@@ -352,6 +353,8 @@ export default function ChatsPage(): React.JSX.Element {
   const handledRoomLink = useRef<string | null>(null);
   const { user } = useAuth();
   const accessRevision = useAccessRevision();
+  const memberRenderSession = getAccessSessionGeneration();
+  const memberRenderGeneration = getAccessGeneration();
   useOpenAccessRefresh(Boolean(user));
   const [roomsRevision, setRoomsRevision] = useState<string | null>(null);
   const [confirm, confirmDialog] = useConfirm();
@@ -426,6 +429,8 @@ export default function ChatsPage(): React.JSX.Element {
   const createPendingRef = useRef(false);
   const [isRoomSettingsOpen, setIsRoomSettingsOpen] = useState(false);
   const [isParticipantsPanelOpen, setIsParticipantsPanelOpen] = useState(false);
+  const [isMembershipManagementOpen, setIsMembershipManagementOpen] = useState(false);
+  const canManageAllRoomMembers = (user?.roleCodes ?? (user?.roleCode ? [user.roleCode] : [])).some(role => ['founder', 'deputy_founder', 'director', 'corporate_director'].includes(role));
   const [isRoomListOpen, setIsRoomListOpen] = useState(true);
   const [isArchiveOpen, setIsArchiveOpen] = useState(false);
   const [hasNewMessagesBelow, setHasNewMessagesBelow] = useState(false);
@@ -436,6 +441,9 @@ export default function ChatsPage(): React.JSX.Element {
     ChatRoomParticipant[]
   >([]);
   const [isLoadingParticipants, setIsLoadingParticipants] = useState(false);
+  const [participantsError, setParticipantsError] = useState<string | null>(null);
+  const memberActionLock = useRef(false);
+  const participantRequestSequence = useRef(0);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [storedSearchResults, setSearchResults] = useState<ChatSearchResponse>({
@@ -1121,20 +1129,37 @@ export default function ChatsPage(): React.JSX.Element {
     setIsParticipantsPanelOpen(false);
   };
 
-  const loadRoomParticipants = async (roomId: string): Promise<void> => {
-    const operation = captureChatOperation();
-    if (operation.roomId !== roomId) return;
-    setIsLoadingParticipants(true);
+  const membershipSnapshotCurrent = (): boolean => memberRenderSession === getAccessSessionGeneration() && isAccessGenerationCurrent(memberRenderGeneration);
 
+  const loadRoomParticipants = useCallback(async (roomId: string): Promise<void> => {
+    const operation = chatOperationRef.current;
+    if (operation.roomId !== roomId) return;
+    const request = ++participantRequestSequence.current;
+    const ownsOperation = (): boolean => chatOperationRef.current === operation && participantRequestSequence.current === request;
+    const ownsPayload = (): boolean => ownsOperation() && memberRenderSession === getAccessSessionGeneration() && isAccessGenerationCurrent(memberRenderGeneration);
+    if (!ownsPayload()) {
+      setRoomParticipants([]); setIsLoadingParticipants(false);
+      setParticipantsError('Доступ обновляется. Обновите список участников.');
+      return;
+    }
+    setIsLoadingParticipants(true); setParticipantsError(null); setRoomParticipants([]);
     try {
       const nextParticipants = await listChatRoomParticipants(roomId);
-      if (isCurrentChatOperation(operation)) setRoomParticipants(nextParticipants);
-    } catch {
-      if (isCurrentChatOperation(operation)) setRoomParticipants([]);
+      if (ownsPayload()) setRoomParticipants(nextParticipants);
+      else if (ownsOperation()) setParticipantsError('Доступ обновился. Обновите список участников.');
+    } catch (caught) {
+      if (ownsPayload()) setParticipantsError(getErrorMessage(caught, 'Не удалось загрузить участников.'));
+      else if (ownsOperation()) setParticipantsError('Доступ обновился. Обновите список участников.');
     } finally {
-      if (isCurrentChatOperation(operation)) setIsLoadingParticipants(false);
+      // Loading ownership is not permission to accept the payload. Invalidation
+      // must stop this request's spinner without ending a newer request's load.
+      if (ownsOperation()) setIsLoadingParticipants(false);
     }
-  };
+  }, [memberRenderSession, memberRenderGeneration]);
+
+  useEffect(() => {
+    if (isParticipantsPanelOpen && activeRoomId) void loadRoomParticipants(activeRoomId);
+  }, [isParticipantsPanelOpen, activeRoomId, accessRevision, loadRoomParticipants]);
 
   useEffect(() => {
     let active = true;
@@ -1573,43 +1598,69 @@ export default function ChatsPage(): React.JSX.Element {
   ): Promise<void> => {
     event.preventDefault();
 
-    if (!activeRoom || !canUseRoom(activeRoom.id, 'canManageMembers') || memberActionPending || addParticipantIds.length === 0) {
+    if (!membershipSnapshotCurrent() || !activeRoom || !canUseRoom(activeRoom.id, 'canManageMembers') || memberActionPending || memberActionLock.current || addParticipantIds.length === 0) {
       return;
     }
 
     const operation = captureChatOperation();
     const intent = membersIntentRef.current;
+    memberActionLock.current = true;
+    setParticipantsError(null);
     setError(null);
     setMemberActionPending(true);
     try {
       await addChatParticipants(activeRoom.id, { userIds: addParticipantIds });
       await refreshRoomLists();
-      if (!isCurrentChatOperation(operation) || membersIntentRef.current !== intent) return;
+      if (!membershipSnapshotCurrent() || !isCurrentChatOperation(operation) || membersIntentRef.current !== intent) return;
       setAddParticipantIds([]);
       if (isParticipantsPanelOpen) {
         await loadRoomParticipants(activeRoom.id);
       }
     } catch (addError) {
-      if (isCurrentChatOperation(operation) && membersIntentRef.current === intent) setError(getErrorMessage(addError, 'Не удалось добавить участников.'));
+      if (membershipSnapshotCurrent() && isCurrentChatOperation(operation) && membersIntentRef.current === intent) setParticipantsError(getErrorMessage(addError, 'Не удалось добавить участников.'));
     } finally {
+      memberActionLock.current = false;
       setMemberActionPending(false);
     }
   };
 
   const handleRemoveParticipant = async (participant: ChatRoomParticipant): Promise<void> => {
-    if (!activeRoom || !canUseRoom(activeRoom.id, 'canManageMembers') || memberActionPending) return;
+    if (!membershipSnapshotCurrent() || !activeRoom || !canUseRoom(activeRoom.id, 'canManageMembers') || memberActionPending || memberActionLock.current) return;
     const operation = captureChatOperation();
+    memberActionLock.current = true;
+    setParticipantsError(null);
     setMemberActionPending(true);
     setError(null);
     try {
       const confirmed = await confirm({ title: 'Удалить участника?', consequence: `${getUserDisplayName(participant.user)} потеряет доступ к чату.`, confirmLabel: 'Удалить', tone: 'danger' });
-      if (!confirmed || !isCurrentChatOperation(operation) || !canUseRoom(activeRoom.id, 'canManageMembers')) return;
+      if (!membershipSnapshotCurrent() || !confirmed || !isCurrentChatOperation(operation) || !canUseRoom(activeRoom.id, 'canManageMembers')) return;
       await removeChatParticipant(activeRoom.id, participant.user.id);
       await refreshRoomLists();
-      if (isCurrentChatOperation(operation)) await loadRoomParticipants(activeRoom.id);
+      if (membershipSnapshotCurrent() && isCurrentChatOperation(operation)) await loadRoomParticipants(activeRoom.id);
     } catch (removeError) {
-      if (isCurrentChatOperation(operation)) setError(getErrorMessage(removeError, 'Не удалось удалить участника.'));
+      if (membershipSnapshotCurrent() && isCurrentChatOperation(operation)) setParticipantsError(getErrorMessage(removeError, 'Не удалось удалить участника.'));
     } finally {
+      memberActionLock.current = false;
+      setMemberActionPending(false);
+    }
+  };
+
+  const handleRestoreAutomaticParticipant = async (participant: ChatRoomParticipant): Promise<void> => {
+    if (!membershipSnapshotCurrent() || !activeRoom || !canUseRoom(activeRoom.id, 'canManageMembers') || memberActionLock.current) return;
+    const operation = captureChatOperation();
+    memberActionLock.current = true;
+    setMemberActionPending(true);
+    setParticipantsError(null);
+    try {
+      const confirmed = await confirm({ title: 'Вернуть автоматическое участие?', consequence: `${getUserDisplayName(participant.user)} будет участвовать по текущим правилам комнаты. Ручное добавление или исключение отменится.`, confirmLabel: 'Вернуть автоматическое' });
+      if (!membershipSnapshotCurrent() || !confirmed || !isCurrentChatOperation(operation) || !canUseRoom(activeRoom.id, 'canManageMembers')) return;
+      await restoreAutomaticChatParticipant(activeRoom.id, participant.user.id);
+      await refreshRoomLists();
+      if (membershipSnapshotCurrent() && isCurrentChatOperation(operation)) await loadRoomParticipants(activeRoom.id);
+    } catch (caught) {
+      if (membershipSnapshotCurrent() && isCurrentChatOperation(operation)) setParticipantsError(getErrorMessage(caught, 'Не удалось вернуть автоматическое участие.'));
+    } finally {
+      memberActionLock.current = false;
       setMemberActionPending(false);
     }
   };
@@ -1853,7 +1904,7 @@ export default function ChatsPage(): React.JSX.Element {
     (participant) => participant.id !== user?.id,
   );
   const roomParticipantUserIds = new Set(
-    roomParticipants.map((participant) => participant.user.id),
+    roomParticipants.filter((participant) => participant.membershipSource !== 'excluded').map((participant) => participant.user.id),
   );
   const addableParticipants = selectableParticipants.filter(
     (participant) => !roomParticipantUserIds.has(participant.id),
@@ -1918,7 +1969,6 @@ export default function ChatsPage(): React.JSX.Element {
 
     setParticipantsQuery('');
     setIsParticipantsPanelOpen(true);
-    void loadRoomParticipants(activeRoom.id);
   };
 
   const removePendingFile = (indexToRemove: number): void => {
@@ -1963,6 +2013,8 @@ export default function ChatsPage(): React.JSX.Element {
   return (
     <>
       <h1 className={styles.chatPageTitle}>Чаты</h1>
+      {canManageAllRoomMembers ? <div><Button onClick={() => setIsMembershipManagementOpen(true)}>Состав чатов</Button></div> : null}
+      {isMembershipManagementOpen && canManageAllRoomMembers ? <ChatMembershipManagement onClose={() => setIsMembershipManagementOpen(false)} /> : null}
       {roomsRevision !== accessRevision ? (
         error ? <Alert tone="danger" role="alert">{error}</Alert> : <p role="status">Загрузка чатов…</p>
       ) : null}
@@ -3089,6 +3141,7 @@ export default function ChatsPage(): React.JSX.Element {
           <Dialog
             open
             onOpenChange={setIsParticipantsPanelOpen}
+            busy={memberActionPending}
             title="Информация о чате"
             className={styles.dialog}
           >
@@ -3131,6 +3184,8 @@ export default function ChatsPage(): React.JSX.Element {
               </Button>
             </div>
             <div className={styles.listHeading}>Участники</div>
+            {activeRoom.roomType === 'system_default' ? <p className={styles.hint}>Автоматический состав дополняется вручную. Исключённый участник не вернётся при смене роли или назначения, пока не отменено исключение.</p> : null}
+            {participantsError ? <Alert tone="danger">{participantsError}<Button disabled={isLoadingParticipants || memberActionPending} onClick={() => void loadRoomParticipants(activeRoom.id)}>Обновить участников</Button></Alert> : null}
             <div className={styles.searchField}>
               <ChatIcon name="search" />
               <input
@@ -3160,28 +3215,31 @@ export default function ChatsPage(): React.JSX.Element {
                         <small>{getUserSecondaryLabel(participant.user)}</small>
                       </span>
                       <small className={styles.personRole}>
-                        {getParticipantRoleLabel(participant.roleInRoom)}
+                        {participant.membershipSource === 'excluded' ? 'Исключён вручную' : participant.membershipSource === 'automatic' ? 'По правилу комнаты' : 'Добавлен вручную'}
+                        {participant.roleInRoom === 'admin' ? ' · Администратор' : ''}
                       </small>
-                      {activeRoom.capabilities.canManageMembers && participant.user.id !== user?.id ? (
+                      {participant.canRestoreAutomatic ? <Button size="sm" variant="ghost" disabled={memberActionPending} onClick={() => void handleRestoreAutomaticParticipant(participant)}>Вернуть автоматическое</Button> : null}
+                      {activeRoom.capabilities.canManageMembers && participant.canRemove && participant.user.id !== user?.id ? (
                         <Button size="sm" variant="ghost" disabled={memberActionPending} onClick={() => void handleRemoveParticipant(participant)}>Удалить</Button>
                       ) : null}
                     </div>
                   ))}
               </div>
             )}
-            {activeRoom.capabilities.canManageMembers &&
-            activeRoom.roomType === 'group' ? (
+            {activeRoom.capabilities.canManageMembers ? (
               <form
                 className={styles.dialogForm}
                 onSubmit={handleAddParticipants}
               >
                 <div className={styles.listHeading}>Добавить участников</div>
-                <ParticipantPicker
-                  candidates={addableParticipants}
-                  selectedIds={addParticipantIds}
-                  onChange={setAddParticipantIds}
-                  placeholder="Найти пользователя"
-                />
+                <SearchableSelect label="Добавить пользователя" value="" disabled={memberActionPending}
+                  options={addableParticipants.filter(person => !addParticipantIds.includes(person.id)).map(person => ({ value: person.id, label: getUserDisplayName(person), description: person.login }))}
+                  onChange={id => { if (id) setAddParticipantIds(previous => [...new Set([...previous, id])]); }}
+                  placeholder="Найти пользователя" searchPlaceholder="Имя или логин" emptyText="Пользователи не найдены" />
+                {addParticipantIds.map(id => { const person = participants.find(candidate => candidate.id === id); return <span className={styles.identityChip} key={id}>
+                  <span>{person ? getUserDisplayName(person) : 'Выбранный пользователь'}</span>
+                  <IconButton aria-label={`Убрать ${person ? getUserDisplayName(person) : 'пользователя'}`} disabled={memberActionPending} onClick={() => setAddParticipantIds(previous => previous.filter(value => value !== id))}><ChatIcon name="close" /></IconButton>
+                </span>; })}
                 <Button variant="primary"
                   type="submit"
                   disabled={memberActionPending || !addParticipantIds.length}

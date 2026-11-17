@@ -9,11 +9,13 @@ import { EmployeeAssignmentHistoryService } from './employee-assignment-history.
 import { EmployeeScheduleService } from './employee-schedule.service';
 import { EmployeesController } from './employees.controller';
 import { EmployeesService } from './employees.service';
+import { EmployeeSubstitutionReadController } from './employee-substitution-read.controller';
+import { EmployeeSubstitutionReadService } from './employee-substitution-read.service';
 
 @Module({
   imports: [PrismaModule, AuditModule, NotificationsModule],
-  controllers: [EmployeesController],
-  providers: [EmployeesService, EmployeeScheduleService, EmployeeAssignmentHistoryService, EmployeeBirthdayNotificationService],
+  controllers: [EmployeesController, EmployeeSubstitutionReadController],
+  providers: [EmployeeSubstitutionReadService, EmployeesService, EmployeeScheduleService, EmployeeAssignmentHistoryService, EmployeeBirthdayNotificationService],
   exports: [EmployeesService, EmployeeAssignmentHistoryService],
 })
 export class EmployeesModule {}

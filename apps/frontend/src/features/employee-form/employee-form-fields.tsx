@@ -12,6 +12,7 @@ import type {
   EmployeeWorkScheduleCode,
 } from '@/entities/employee/model/employee.types';
 import { DatePicker } from '@/shared/ui/date-picker/date-picker';
+import { moscowDateKey } from '@/shared/ui/date-picker/date-input';
 import { Field } from '@/shared/ui/foundation';
 import {
   PhoneListField,
@@ -116,7 +117,7 @@ export function EmployeeFormFields({
         <PhoneListField phones={value.phones} disabled={disabled}
           onChange={(phones) => update('phones', phones)} />
         <Field label="Дата рождения">
-          <DatePicker value={value.birthDate} max={new Date().toISOString().slice(0, 10)} onChange={(nextValue) => update('birthDate', nextValue)} />
+          <DatePicker value={value.birthDate} max={moscowDateKey()} maxError="Дата рождения не может быть в будущем." onChange={(nextValue) => update('birthDate', nextValue)} />
         </Field>
         <Field className={styles.full} label="Адрес проживания">
           <input value={value.residenceAddress} maxLength={1000}

@@ -356,7 +356,7 @@ export class AccountabilityService {
       (account) => account.userId === currentUser.id,
     );
     const ownContext = { resourceType: 'user', resourceId: currentUser.id, ownerUserId: currentUser.id };
-    const canCreateOwnExpense = canViewOwn && decideAccess(currentUser, 'accountability.expenses.create', canViewOwn, ownContext);
+    const canCreateOwnExpense = currentUser.isActive && decideAccess(currentUser, 'accountability.expenses.create', true, ownContext);
     const canSubmitOwnExpense = canViewOwn && decideAccess(currentUser, 'accountability.expenses.submit', canViewOwn, ownContext);
 
     return {
@@ -718,8 +718,31 @@ export class AccountabilityService {
       });
       this.assertAccountAllowsOwnExpenseWrite(lockedAccount.status);
 
+      if (payload.clientRequestId) {
+        const previous = await tx.accountabilityExpense.findUnique({
+          where: { createdByUserId_clientRequestId: {
+            createdByUserId: currentUser.id, clientRequestId: payload.clientRequestId,
+          } },
+          include: this.accountabilityExpenseInclude(),
+        });
+        if (previous) {
+          const same = previous.accountabilityAccountId === account.id &&
+            previous.amount.equals(new Prisma.Decimal(payload.amount)) &&
+            previous.description === description &&
+            previous.oneTimeOrderId === orderExpense.oneTimeOrderId &&
+            previous.oneTimeOrderCompletionId === orderExpense.oneTimeOrderCompletionId &&
+            previous.oneTimeOrderWorkCycle === orderExpense.oneTimeOrderWorkCycle &&
+            previous.employeeId === orderExpense.employeeId &&
+            previous.expenseCategory === orderExpense.expenseCategory &&
+            previous.expenseDate?.toISOString() === orderExpense.expenseDate?.toISOString();
+          if (!same) throw new ConflictException('Этот расход уже сохранён с другими данными. Проверьте список расходов перед созданием нового.');
+          return previous;
+        }
+      }
+
       const expense = await tx.accountabilityExpense.create({
         data: {
+          clientRequestId: payload.clientRequestId ?? null,
           accountabilityAccountId: account.id,
           oneTimeOrderId: orderExpense.oneTimeOrderId,
           oneTimeOrderCompletionId: orderExpense.oneTimeOrderCompletionId,
@@ -1723,7 +1746,7 @@ export class AccountabilityService {
       summary,
       capabilities: {
         canCreateExpense:
-          isOwnView && decideAccess(params.currentUser, 'accountability.expenses.create', canUseOwnExpenseFlows, { resourceType: 'user', resourceId: params.subjectUserId, ownerUserId: params.subjectUserId }) &&
+          isOwnView && decideAccess(params.currentUser, 'accountability.expenses.create', params.currentUser.isActive, { resourceType: 'user', resourceId: params.subjectUserId, ownerUserId: params.subjectUserId }) &&
           account?.status === 'active' &&
           account.userId === params.currentUser.id,
         canSubmitExpense:
@@ -2011,7 +2034,17 @@ export class AccountabilityService {
       const target = targets.get(attachment.entityId);
       if (target && !readableSources.has(attachment.entityId)) {
         const isOwner = target.context.ownerUserId === currentUser.id;
-        const legacyOwnerRead = isOwner && (entityType === FUNDING_ATTACHMENTS_ENTITY_TYPE || await this.canCurrentUserViewOwnAccountability(currentUser));
+        const ownCreatedDraft = isOwner && currentUser.isActive && entityType === EXPENSE_ATTACHMENTS_ENTITY_TYPE
+          ? await this.prisma.accountabilityExpense.findFirst({
+              where: { id: attachment.entityId, createdByUserId: currentUser.id,
+                status: 'draft', accountabilityAccount: { userId: currentUser.id } },
+              select: { id: true },
+            })
+          : null;
+        const canAttachOwnDraft = !!ownCreatedDraft && decideAccess(currentUser,
+          'accountability.expenses.create', true, target.context);
+        const legacyOwnerRead = isOwner && (entityType === FUNDING_ATTACHMENTS_ENTITY_TYPE ||
+          canAttachOwnDraft || await this.canCurrentUserViewOwnAccountability(currentUser));
         const legacySourceRead = legacyOwnerRead || canReviewAccountability({
           roleCodes: this.getRoleCodes(currentUser),
           permissionCodes: this.getPermissionCodes(currentUser),
@@ -2559,7 +2592,9 @@ export class AccountabilityService {
     currentUser: CurrentAuthUser,
     actionCode = 'accountability.read',
   ): Promise<void> {
-    const legacy = await this.canCurrentUserViewOwnAccountability(currentUser);
+    const legacy = actionCode === 'accountability.expenses.create'
+      ? currentUser.isActive
+      : await this.canCurrentUserViewOwnAccountability(currentUser);
     if (!decideAccess(currentUser, 'accountability.read', true, { resourceType: 'user', resourceId: currentUser.id, ownerUserId: currentUser.id }) ||
         !decideAccess(currentUser, actionCode, legacy, { resourceType: 'user', resourceId: currentUser.id, ownerUserId: currentUser.id })) {
       throw new ForbiddenException('Access to own accountability is denied');

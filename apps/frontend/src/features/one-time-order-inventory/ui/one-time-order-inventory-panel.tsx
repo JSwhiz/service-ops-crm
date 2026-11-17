@@ -18,6 +18,9 @@ export function OneTimeOrderInventoryPanel({
   items,
   availableItems,
   canIssue,
+  canReturn = false,
+  availableReturnItems = [],
+  onReturn,
   onIssue,
   onAttachEvidence,
   onRefresh,
@@ -26,6 +29,9 @@ export function OneTimeOrderInventoryPanel({
   items: InventoryMovement[];
   availableItems: InventoryItem[];
   canIssue: boolean;
+  canReturn?: boolean;
+  availableReturnItems?: InventoryItem[];
+  onReturn?: (input: OrderInventoryIssueInput, hasPendingPhotos: boolean) => Promise<string | null>;
   onIssue: (input: OrderInventoryIssueInput, hasPendingPhotos: boolean) => Promise<string | null>;
   onAttachEvidence: (movementId: string, files: File[]) => Promise<void>;
   onRefresh: () => Promise<void>;
@@ -43,6 +49,8 @@ export function OneTimeOrderInventoryPanel({
       </div>
 
       <AccessSnapshotBoundary blocked={!canIssue}><OneTimeOrderInventoryIssueForm orderId={orderId} availableItems={availableItems} onIssue={onIssue} onAttachEvidence={onAttachEvidence} onRefresh={onRefresh} /></AccessSnapshotBoundary>
+
+      {onReturn ? <AccessSnapshotBoundary blocked={!canReturn}><OneTimeOrderInventoryIssueForm operation="return" orderId={orderId} availableItems={availableReturnItems} onIssue={onReturn} onAttachEvidence={onAttachEvidence} onRefresh={onRefresh} /></AccessSnapshotBoundary> : null}
 
       {items.length === 0 ? (
         <div className="ui-text-muted">Движений расходников по заказу пока нет.</div>

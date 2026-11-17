@@ -19,7 +19,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { decideAccess } from '../users-access/utils/access-policy.util';
 import { resourceAccessTarget } from '../../common/access/resource-access-context';
 import { notificationAccessWhere } from '../../common/access/notification-access';
-import { hasOperationalChatRole, isChatLeadership, isObjectsChatDenied } from './utils/chat-access.util';
+import { resolveRoomMembership } from './utils/chat-membership.util';
 
 import { CHAT_REDIS_CHANNEL } from './constants/chat.constants';
 
@@ -258,6 +258,13 @@ export class ChatRealtimeService implements OnModuleInit, OnModuleDestroy {
         parents: target ? [target] : [],
       });
     }
+    // This control event contains no room title/message. A removed member must
+    // receive it so an already-open UI can discard its old room snapshot.
+    if (event.type === 'chat.room_left') {
+      if (event.payload.roomId !== event.roomId || Object.keys(event.payload).some(key => key !== 'roomId')) return false;
+      const membership = await this.prisma.chatRoomParticipant.findUnique({ where: { chatRoomId_userId: { chatRoomId: event.roomId, userId } }, select: { leftAt: true, membershipOverride: true } });
+      return !!membership && (membership.leftAt !== null || membership.membershipOverride === 'exclude');
+    }
     let messageCreatedAt: Date | null = null;
     if(event.type==='chat.message_created'||event.type==='chat.message_updated'){
       const id=event.payload.messageId;
@@ -276,13 +283,7 @@ export class ChatRealtimeService implements OnModuleInit, OnModuleDestroy {
     // the same joinedAt boundary used by direct/history/file reads.
     if (messageCreatedAt && participant && messageCreatedAt < participant.joinedAt) return false;
     const assignedUserIds = room.participants.map(participant => participant.userId);
-    let eligible = false;
-    switch (room.visibilityType) {
-      case 'explicit_members': eligible = assignedUserIds.includes(userId); break;
-      case 'leadership_only': eligible = isChatLeadership(subject.roleCodes); break;
-      case 'objects_scope': eligible = !isObjectsChatDenied(subject.roleCodes) && (hasOperationalChatRole(subject.roleCodes) || !!await this.prisma.objectAssignment.findFirst({ where: { userId, isActive: true }, select: { id: true } })); break;
-      case 'one_time_orders_scope': eligible = hasOperationalChatRole(subject.roleCodes) || !!await this.prisma.oneTimeOrderAssignment.findFirst({ where: { userId, isActive: true, assignmentRoleCode: 'one_time_manager' }, select: { id: true } }); break;
-    }
+    const eligible = (await resolveRoomMembership(this.prisma, subject, room)).allowed;
     // A grant does not fabricate explicit membership or reopen a closed room.
     const context = { resourceType: 'chat_room', resourceId: room.id,
       ownerUserId: room.createdByUserId ?? undefined, assignedUserIds,

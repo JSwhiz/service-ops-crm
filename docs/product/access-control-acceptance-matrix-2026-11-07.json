@@ -7,10 +7,10 @@
     "checkpoint": "6c02501",
     "workingTree": "С незакоммиченными изменениями предыдущей реализации. Это локальный снимок, не состояние сервера.",
     "catalogFile": "apps/backend/src/modules/users-access/access-action-catalog.ts",
-    "catalogSha256": "623a57fdb2661925661afe330e240c9ded76e206b2433b442327bb1d43b9514f",
-    "total": 292,
-    "previousCatalogSha256": "071d13c11b186cad1c464254c417a1ae1a282c4136ba663af3987e5bbf71987d",
-    "catalogChangeNote": "2026-11-14: accountability:user managementScopes own/selected/all; runtime allowedScopes и291код не изменены. Исторические assigned не конвертируются. 2026-11-14: описание и invariant correct_past уточняют независимый руководящий круг для решений и отмену автором; executable policy/scopes/constraint/manageable без изменений. 2026-11-17: явно утверждены OQ155–158 и персональная выдача решений расходов. Добавлено новое право фото (292 действия); Selected/All для новых restore grants; снят policy-lock только expense approve/reject. Старые принятия не повторяются; адресная проверка новых дельт обязательна и отдельно открыта. 2026-11-17: явно утверждены OQ155–158 и персональная выдача решений расходов. Добавлено новое право фото (292 действия); Selected/All для новых restore grants; снят policy-lock expense approve/reject и catalog access/read без расширения записи каталога. Старые принятия не повторяются; адресная проверка новых дельт обязательна и отдельно открыта.",
+    "catalogSha256": "e51cba648716cb627c60298bbb6e1b39899f9be33903c93957f88f61826ebeed",
+    "total": 293,
+    "previousCatalogSha256": "623a57fdb2661925661afe330e240c9ded76e206b2433b442327bb1d43b9514f",
+    "catalogChangeNote": "2026-11-14: accountability:user managementScopes own/selected/all; runtime allowedScopes и291код не изменены. Исторические assigned не конвертируются. 2026-11-14: описание и invariant correct_past уточняют независимый руководящий круг для решений и отмену автором; executable policy/scopes/constraint/manageable без изменений. 2026-11-17: явно утверждены OQ155–158 и персональная выдача решений расходов. Добавлено новое право фото (292 действия); Selected/All для новых restore grants; снят policy-lock только expense approve/reject. Старые принятия не повторяются; адресная проверка новых дельт обязательна и отдельно открыта. 2026-11-17: явно утверждены OQ155–158 и персональная выдача решений расходов. Добавлено новое право фото (292 действия); Selected/All для новых restore grants; снят policy-lock expense approve/reject и catalog access/read без расширения записи каталога. Старые принятия не повторяются; адресная проверка новых дельт обязательна и отдельно открыта. 17.11: новое objects.substitutions.read assigned/selected без делегирования зарегистрировано с7непроверенными критериями; предыдущие доказательства сохранены без переноса на новый код.",
     "metadataOnlyPreviousSha256": "5bde38352a9c85a387dbf0529cdc4cab4b05fe47906e92071b25ecf1aca08553"
   },
   "statusDefinitions": {
@@ -22,7 +22,7 @@
   "counts": {
     "подтверждено": 52,
     "проверено частично": 232,
-    "не проверено": 0,
+    "не проверено": 1,
     "не реализовано": 8
   },
   "verificationThisTurn": "Первоначальная сборка матрицы 7 ноября: только чтение и документирование. Последующая реальная локальная приёмка описана отдельно в followUpVerification; production не проверялся и не менялся.",
@@ -18459,6 +18459,97 @@
         ],
         "recipientBrowser": {
           "result": "not_run_for_code"
+        }
+      }
+    },
+    {
+      "code": "objects.substitutions.read",
+      "name": "Просмотр кадровых подмен объекта",
+      "module": "objects",
+      "moduleName": "Объекты",
+      "status": "не проверено",
+      "resourceType": "object",
+      "scopes": [
+        "assigned",
+        "selected"
+      ],
+      "manageable": true,
+      "constraint": null,
+      "grantMode": "Персональное правило; назначенные или выбранные объекты",
+      "legacyAliases": [],
+      "replacements": [],
+      "catalogNote": "Новый отдельный read-only контур утверждён 17.11.2026; не замещение User и не HR-редактирование.",
+      "evidenceIds": [],
+      "acceptanceBasis": "Новая реализация; исторические доказательства других прав не переносятся.",
+      "sourceRefs": {
+        "backend": [
+          {
+            "file": "apps/backend/src/modules/users-access/access-action-catalog.ts",
+            "line": 82
+          }
+        ],
+        "frontend": [],
+        "tests": []
+      },
+      "remainingChecks": "Адресные К1–К7 нового чтения и экран получателя.",
+      "browserAsGranteeVerified": false,
+      "productionVerified": false,
+      "acceptanceCriteria": {
+        "K1": {
+          "status": "not_verified",
+          "evidenceIds": [],
+          "observed": "Новый контур, прежние принятия не переносятся.",
+          "gaps": [
+            "Нужно адресное подтверждение применимого критерия."
+          ]
+        },
+        "K2": {
+          "status": "not_verified",
+          "evidenceIds": [],
+          "observed": "Новый контур, прежние принятия не переносятся.",
+          "gaps": [
+            "Нужно адресное подтверждение применимого критерия."
+          ]
+        },
+        "K3": {
+          "status": "not_verified",
+          "evidenceIds": [],
+          "observed": "Новый контур, прежние принятия не переносятся.",
+          "gaps": [
+            "Нужно адресное подтверждение применимого критерия."
+          ]
+        },
+        "K4": {
+          "status": "not_verified",
+          "evidenceIds": [],
+          "observed": "Новый контур, прежние принятия не переносятся.",
+          "gaps": [
+            "Нужно адресное подтверждение применимого критерия."
+          ]
+        },
+        "K5": {
+          "status": "not_verified",
+          "evidenceIds": [],
+          "observed": "Новый контур, прежние принятия не переносятся.",
+          "gaps": [
+            "Нужно адресное подтверждение применимого критерия."
+          ]
+        },
+        "K6": {
+          "status": "not_verified",
+          "evidenceIds": [],
+          "observed": "Новый контур, прежние принятия не переносятся.",
+          "gaps": [
+            "Нужно адресное подтверждение применимого критерия."
+          ]
+        },
+        "K7": {
+          "status": "not_verified",
+          "evidenceIds": [],
+          "observed": "Новый контур, прежние принятия не переносятся.",
+          "gaps": [
+            "Нужно адресное подтверждение применимого критерия."
+          ]
         }
       }
     },

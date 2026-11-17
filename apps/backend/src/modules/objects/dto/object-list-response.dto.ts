@@ -6,4 +6,5 @@ export class ObjectListResponseDto {
   limit!: number;
   total!: number;
   totalPages!: number;
+  archiveCounts!: { active: number; archived: number };
 }

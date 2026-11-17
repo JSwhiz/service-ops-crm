@@ -74,7 +74,8 @@ export interface InventoryMovementListResponse {
 
 export interface OneTimeOrderInventory extends InventoryMovementListResponse {
   availableItems: InventoryItem[];
-  capabilities: { canIssueInventoryToOrder: boolean };
+  availableReturnItems: InventoryItem[];
+  capabilities: { canIssueInventoryToOrder: boolean; canReturnInventoryFromOrder: boolean };
 }
 
 export interface InventoryReportSummary {

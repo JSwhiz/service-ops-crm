@@ -27,17 +27,20 @@ export interface OrderInventoryIssueInput {
 /** A successful stock movement is never repeated when only its photos failed. */
 export function OneTimeOrderInventoryIssueForm({
   orderId,
+  operation = 'issue',
   availableItems,
   onIssue,
   onAttachEvidence,
   onRefresh,
 }: {
   orderId: string;
+  operation?: 'issue' | 'return';
   availableItems: InventoryItem[];
   onIssue: (input: OrderInventoryIssueInput, hasPendingPhotos: boolean) => Promise<string | null>;
   onAttachEvidence: (movementId: string, files: File[]) => Promise<void>;
   onRefresh: () => Promise<void>;
 }): React.JSX.Element {
+  const isReturn = operation === 'return';
   const formId = useId();
   const formRef = useRef<HTMLFormElement>(null);
   const [open, setOpen] = useState(false);
@@ -64,11 +67,11 @@ export function OneTimeOrderInventoryIssueForm({
   const close = async (): Promise<void> => {
     if (submitting.current || isCheckingAccess) return;
     if (dirty && !(await confirm({
-      title: movementId ? 'Закрыть отгрузку?' : 'Закрыть форму отгрузки?',
+      title: isReturn ? 'Закрыть форму возврата?' : movementId ? 'Закрыть отгрузку?' : 'Закрыть форму отгрузки?',
       consequence: movementId
-        ? 'Отгрузка уже записана. Если фото не загрузились, их можно добавить в журнале движений.'
+        ? 'Движение уже записано. Если фото не загрузились, их можно добавить в журнале движений.'
         : uncertain
-          ? 'Сервер мог записать отгрузку. Перед новой операцией проверьте журнал движений заказа.'
+          ? 'Сервер мог записать движение. Перед новой операцией проверьте журнал движений заказа.'
           : 'Введённые данные и выбранные фото не сохранятся.',
       confirmLabel: 'Закрыть форму',
     }))) return;
@@ -80,16 +83,18 @@ export function OneTimeOrderInventoryIssueForm({
     setIsCheckingAccess(true);
     try {
       const inventory = await getOneTimeOrderInventory(orderId);
-      if (inventory.capabilities.canIssueInventoryToOrder && inventory.availableItems.some((item) => item.id === itemId)) {
+      const scope = inventory as typeof inventory & { availableReturnItems?: InventoryItem[]; capabilities: { canReturnInventoryFromOrder?: boolean } };
+      if ((isReturn ? scope.capabilities.canReturnInventoryFromOrder : inventory.capabilities.canIssueInventoryToOrder) &&
+          (isReturn ? scope.availableReturnItems ?? [] : inventory.availableItems).some((item) => item.id === itemId)) {
         setAccessDenied(false);
         setAccessRestored(true);
         setError(null);
       } else {
-        setError('Отгрузка в этот заказ пока недоступна для выбранного расходника. Черновик остался в форме.');
+        setError('Операция пока недоступна для выбранного расходника. Черновик остался в форме.');
       }
     } catch (cause) {
       setError(cause instanceof ApiError && [403, 404].includes(cause.statusCode)
-        ? 'Доступ к отгрузке пока закрыт. Черновик остался в форме.'
+        ? 'Доступ к операции пока закрыт. Черновик остался в форме.'
         : 'Не удалось проверить доступ. Черновик остался в форме. Повторите проверку.');
     } finally {
       setIsCheckingAccess(false);
@@ -133,7 +138,7 @@ export function OneTimeOrderInventoryIssueForm({
     } catch (cause) {
       if (!savedId && cause instanceof ApiError && cause.statusCode === 403) {
         setAccessDenied(true);
-        setError('Недостаточно прав, чтобы отгрузить расходники в этот заказ. Введённые данные остались в форме. Уточните доступ у учредителя.');
+        setError('Недостаточно прав для этой операции с расходниками заказа. Введённые данные остались в форме. Уточните доступ у учредителя.');
         return;
       }
       // Keep the identical request ID and payload after a lost response. The
@@ -141,7 +146,7 @@ export function OneTimeOrderInventoryIssueForm({
       if (!savedId && (!(cause instanceof ApiError) || cause.statusCode === 0 || cause.statusCode >= 500 || cause.code === 'ACCESS_VERSION_CHANGED')) {
         setUncertain(true);
       }
-      setError(getErrorMessage(cause, 'Не удалось завершить отгрузку. Проверьте журнал движений и повторите попытку.'));
+      setError(getErrorMessage(cause, 'Не удалось записать движение. Проверьте журнал движений и повторите попытку.'));
     } finally {
       submitting.current = false;
       setPending(false);
@@ -156,13 +161,13 @@ export function OneTimeOrderInventoryIssueForm({
         setMovementId(null); setUncertain(false); setAccessDenied(false); setAccessRestored(false); setError(null); setSuccess(false);
         requestId.current = null;
         setOpen(true);
-      }}>Отгрузить расходники</Button>
-      {success ? <Alert tone="success" role="status">Отгрузка записана. Журнал движений обновлён.</Alert> : null}
+      }}>{isReturn ? 'Вернуть расходники' : 'Отгрузить расходники'}</Button>
+      {success ? <Alert tone="success" role="status">{isReturn ? 'Возврат записан.' : 'Отгрузка записана.'} Журнал движений обновлён.</Alert> : null}
       <Dialog
         open={open}
         onOpenChange={(next) => { if (!next) void close(); }}
-        title="Отгрузить расходники на заказ"
-        description="Расходники будут выданы с центрального склада только на этот заказ."
+        title={isReturn ? "Вернуть расходники с заказа" : "Отгрузить расходники на заказ"}
+        description={isReturn ? "Возврат на центральный склад будет записан по этому заказу." : "Расходники будут выданы с центрального склада только на этот заказ."}
         size="regular"
         busy={pending || isCheckingAccess}
         footer={<div className={styles.actions}>
@@ -171,21 +176,21 @@ export function OneTimeOrderInventoryIssueForm({
             <Button type="button" pending={isCheckingAccess} pendingLabel="Проверяем доступ…" onClick={() => void checkIssueAccess()}>Проверить доступ</Button>
           ) : null}
           <Button variant="primary" type="submit" form={formId} pending={pending} disabled={accessDenied || isCheckingAccess}>
-            {movementId ? 'Завершить сохранение' : uncertain ? 'Проверить и повторить' : 'Записать отгрузку'}
+            {movementId ? 'Завершить сохранение' : uncertain ? 'Проверить и повторить' : isReturn ? 'Записать возврат' : 'Записать отгрузку'}
           </Button>
         </div>}
       >
         <form ref={formRef} id={formId} className={styles.form} onSubmit={(event) => void submit(event)}>
           {error ? <Alert tone="danger" role="alert">{error}</Alert> : null}
-          {accessRestored ? <Alert tone="success" role="status">Доступ к отгрузке восстановлен. Чтобы записать её, нажмите «Записать отгрузку».</Alert> : null}
-          {movementId ? <Alert tone="info">Отгрузка уже записана. Повторное нажатие сохранит только оставшиеся фото и обновит журнал.</Alert> : null}
+          {accessRestored ? <Alert tone="success" role="status">Доступ восстановлен. Для сохранения отправьте форму ещё раз.</Alert> : null}
+          {movementId ? <Alert tone="info">Движение уже записано. Повторное нажатие сохранит только оставшиеся фото и обновит журнал.</Alert> : null}
           {uncertain && !movementId ? <Alert tone="warning">Ответ сервера не получен. Данные зафиксированы для безопасной повторной проверки этой же операции.</Alert> : null}
           <SearchableSelect
             label="Расходник"
             value={itemId}
             options={availableItems.map((item) => ({
               value: item.id,
-              label: `${item.name} · остаток ${formatInventoryQuantity(item.currentStock, item.unit)}`,
+              label: isReturn ? `${item.name} · ${item.unit}` : `${item.name} · остаток ${formatInventoryQuantity(item.currentStock, item.unit)}`,
               searchText: `${item.name} ${item.category}`,
             }))}
             onChange={setItemId}
@@ -198,11 +203,11 @@ export function OneTimeOrderInventoryIssueForm({
               <input name="quantity" type="number" inputMode="decimal" min="0.001" step="0.001" value={quantity} disabled={locked} onChange={(event) => setQuantity(event.target.value)} />
             </Field>
             <div className="ui-text-muted">
-              {selected ? `На складе: ${formatInventoryQuantity(selected.currentStock, selected.unit)}. Остаток проверяется при сохранении.` : 'Сначала выберите расходник.'}
+              {isReturn ? 'Укажите фактически возвращаемое количество.' : selected ? `На складе: ${formatInventoryQuantity(selected.currentStock, selected.unit)}. Остаток проверяется при сохранении.` : 'Сначала выберите расходник.'}
             </div>
           </div>
           <Field label="Комментарий">
-            <textarea name="comment" rows={2} value={comment} disabled={locked} onChange={(event) => setComment(event.target.value)} placeholder="Куда и для каких работ выдаются расходники…" />
+            <textarea name="comment" rows={2} value={comment} disabled={locked} onChange={(event) => setComment(event.target.value)} placeholder={isReturn ? "Комментарий к возврату…" : "Куда и для каких работ выдаются расходники…"} />
           </Field>
           <div className={styles.evidence}>
             <strong>Фото подтверждения</strong>

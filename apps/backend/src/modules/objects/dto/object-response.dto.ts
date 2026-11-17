@@ -7,6 +7,8 @@ export class ObjectResponseDto {
   seasonMode!: string | null;
   baseCompensationProfile?: unknown;
   summerWindowCleaning!: boolean;
+  windowCleaningMode!: 'scheduled' | 'on_request' | 'notprovided' | null;
+  windowCleaningSeasons!: string[];
   engineeringRequired!: boolean;
   winterTractorMode!: 'none' | 'with_removal' | 'without_removal';
   instructionSteps!: string[];

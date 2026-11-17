@@ -343,6 +343,7 @@ export class AuthService {
         canApproveOneTimeOrderAvailability:
           oneTimeOrderCapabilities.canApproveOneTimeOrderAvailability,
         canAccessEmployeesHr: employeeCapabilities.canAccessEmployeesHr,
+        canReadWorkforceSubstitutions: false,
         canManageEmployeesHr: canManageEmployeesHr(user.permissionCodes),
         canCreateEmployee: employeeCapabilities.canCreateEmployee,
         canEditEmployee: employeeCapabilities.canEditEmployee,

@@ -1,5 +1,6 @@
 import { Transform } from 'class-transformer';
-import { ArrayMaxSize, ArrayUnique, IsArray, IsBoolean, IsDateString, IsIn, IsInt, IsOptional, IsString, IsUUID, MaxLength, Min } from 'class-validator';
+import { ArrayMaxSize, ArrayUnique, IsArray, IsBoolean, IsDateString, IsIn, IsInt, IsOptional, IsString, IsUUID, MaxLength, Min, ValidateIf } from 'class-validator';
+import { WINDOW_CLEANING_MODES, WINDOW_CLEANING_SEASONS, type WindowCleaningMode } from '../utils/object-window-cleaning.util';
 
 export class UpdateObjectDto {
   @IsOptional()
@@ -26,6 +27,15 @@ export class UpdateObjectDto {
   @IsOptional()
   @IsBoolean()
   summerWindowCleaning?: boolean;
+
+  @IsOptional()
+  @IsIn(WINDOW_CLEANING_MODES)
+  windowCleaningMode?: WindowCleaningMode | null;
+
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsArray()
+  @IsIn(WINDOW_CLEANING_SEASONS, { each: true })
+  windowCleaningSeasons?: string[];
 
   @IsOptional()
   @IsBoolean()

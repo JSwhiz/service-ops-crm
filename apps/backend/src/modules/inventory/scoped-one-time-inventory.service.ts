@@ -26,6 +26,10 @@ export class ScopedOneTimeInventoryService {
     return this.inventoryService.listOneTimeOrderInventory(user, orderId);
   }
 
+  returnFromOrder(user: CurrentAuthUser, orderId: string, payload: CreateOrderInventoryIssueDto): Promise<OrderInventoryIssueResult> {
+    return this.inventoryService.createOneTimeOrderReturnMovement(user, orderId, payload);
+  }
+
   issueToOrder(user: CurrentAuthUser, orderId: string, payload: CreateOrderInventoryIssueDto): Promise<OrderInventoryIssueResult> {
     return this.inventoryService.createOneTimeOrderIssueMovement(user, orderId, payload);
   }

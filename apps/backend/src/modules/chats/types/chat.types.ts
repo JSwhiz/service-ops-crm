@@ -23,3 +23,5 @@ export interface CurrentAuthUser extends AccessSubject {
   permissionCodes?: string[];
   isActive: boolean;
 }
+
+export type ChatMembershipMutationResponse = import('../dto/chat-response.dto').ChatRoomResponseDto | import('../../../common/access/project-committed-write').SavedWithoutAccess;

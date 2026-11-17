@@ -1,3 +1,6 @@
+export type WindowCleaningMode = 'scheduled' | 'on_request' | 'notprovided';
+export type WindowCleaningSeason = 'spring' | 'summer' | 'autumn';
+
 export interface ObjectAssignedUser {
   userId: string;
   login: string;
@@ -63,6 +66,8 @@ export interface ServiceObject {
     paymentScheduleCycleStartDate: string | null;
   } | null;
   summerWindowCleaning: boolean;
+  windowCleaningMode?: WindowCleaningMode | null;
+  windowCleaningSeasons?: WindowCleaningSeason[];
   engineeringRequired: boolean;
   winterTractorMode: 'none' | 'with_removal' | 'without_removal';
   instructionSteps: string[];

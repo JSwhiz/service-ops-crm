@@ -144,6 +144,7 @@ export function applyAccessCapabilities<T extends Record<string, boolean>>(
     canAccessCounterparties: ["counterparties.access", "counterparties.read"],
     canAccessCandidates: ["candidates.access", "candidates.view"],
     canAccessEmployeesHr: ["employees.access", "employees.view"],
+    canReadWorkforceSubstitutions: ["objects.access", "objects.substitutions.read"],
     canAccessApprovals: ["approvals.access", "approvals.read"],
     canAccessOneTimeOrders: ["one_time_orders.access", "one_time_orders.read"],
     canViewOneTimeOrderCalendar: [

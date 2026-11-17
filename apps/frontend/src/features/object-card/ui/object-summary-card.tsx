@@ -4,6 +4,7 @@ import Link from 'next/link';
 import React from 'react';
 
 import type { ServiceObject } from '@/entities/object/model/object.types';
+import { windowCleaningSummary } from '@/entities/object/lib/window-cleaning';
 import {
   getUserDisplayName,
   getUserSecondaryLabel,
@@ -123,10 +124,8 @@ export function ObjectSummaryCard({ item }: ObjectSummaryCardProps): React.JSX.E
         <summary>Инструкции и особенности объекта</summary>
       <div className="object-summary__season-profile">
         <div>
-          <span>Лето</span>
-          <strong>{[
-            item.summerWindowCleaning ? 'Мыть окна' : null,
-          ].filter(Boolean).join(' · ') || 'Мытьё окон не предусмотрено'}</strong>
+          <span>Мытьё окон</span>
+          <strong>{windowCleaningSummary(item)}</strong>
         </div>
         <div>
           <span>Зима</span>

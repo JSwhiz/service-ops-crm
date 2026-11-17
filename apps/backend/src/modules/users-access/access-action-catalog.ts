@@ -77,6 +77,7 @@ group("objects", "Объекты", "object", [
   ["comments.read", "Чтение комментариев"],
   ["comments.create", "Комментарий объекта"],
   ["staffing.read", "Просмотр состава"],
+  ["substitutions.read", "Просмотр кадровых подмен объекта"],
   ["staffing.manage", "Изменение состава"],
   ["attendance.read", "Просмотр посещаемости"],
   ["attendance.edit", "Отметки посещаемости"],
@@ -518,7 +519,7 @@ for (const action of actions) {
   ];
   action.delegation =
     action.module === "objects" &&
-    !/(rates|budget|coefficient|contract_amount|compensation|staffing|attendance)/.test(
+    !/(rates|budget|coefficient|contract_amount|compensation|staffing|attendance|substitutions)/.test(
       action.code,
     )
       ? "object_only"
@@ -602,6 +603,12 @@ for (const action of actions) {
   if (action.code === "inventory.issue_to_object") {
     action.resourceType = "object";
     action.allowedScopes = scoped;
+  }
+  if (action.code === "objects.substitutions.read") {
+    action.allowedScopes = ["assigned", "selected"];
+    action.managementScopes = ["assigned", "selected"];
+    action.delegation = "none";
+    action.description = "Только кадровые подмены в назначенных или выбранных объектах; без ставок, начислений и права изменения.";
   }
   if (action.code === "inventory.issue_to_one_time_order") {
     action.resourceType = "one_time_order";

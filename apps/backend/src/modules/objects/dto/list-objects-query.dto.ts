@@ -31,6 +31,10 @@ export class ListObjectsQueryDto {
   @IsIn(['active', 'frozen', 'archived'])
   status?: string;
 
+  @IsOptional()
+  @IsIn(['active', 'archived', 'all'])
+  archiveState?: 'active' | 'archived' | 'all';
+
   @Transform(({ value }) => toInteger(value))
   @IsOptional()
   @IsInt()

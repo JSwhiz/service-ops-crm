@@ -75,6 +75,7 @@ COPY --from=frontend-build --chown=node:node /workspace/node_modules node_module
 COPY --from=frontend-build --chown=node:node /workspace/apps/frontend/node_modules apps/frontend/node_modules
 COPY --from=frontend-build --chown=node:node /workspace/apps/frontend/package.json apps/frontend/package.json
 COPY --from=frontend-build --chown=node:node /workspace/apps/frontend/.next apps/frontend/.next
+COPY --from=frontend-build --chown=node:node /workspace/apps/frontend/public apps/frontend/public
 COPY --from=frontend-build --chown=node:node /workspace/scripts scripts
 
 WORKDIR /workspace/apps/frontend

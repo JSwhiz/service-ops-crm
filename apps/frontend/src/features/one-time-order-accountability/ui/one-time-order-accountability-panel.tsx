@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useId, useRef, useState } from 'react';
 
 import type {
   AccountabilityExpenseCategory,
@@ -17,12 +17,25 @@ import {
 import { getUserDisplayName } from '@/shared/lib/display-name';
 import { AttachmentPreviewList } from '@/shared/ui/media-entry/attachment-preview-list';
 import { MediaActionPicker } from '@/shared/ui/media-entry/media-action-picker';
+import { useAuth } from '@/shared/auth/use-auth';
 import { AccessSnapshotBoundary } from '@/shared/auth/access-snapshot-boundary';
 import { PendingMediaList } from '@/shared/ui/media-entry/pending-media-list';
 import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-select';
 import { DatePicker } from '@/shared/ui/date-picker/date-picker';
-import { Alert, Badge, Button, StatusBadge, Surface } from '@/shared/ui/foundation';
+import {
+  Alert,
+  Badge,
+  Button,
+  Field,
+  StatusBadge,
+  Surface,
+} from '@/shared/ui/foundation';
 import { getExpenseCycleLabel } from '../model/expense-cycle-label';
+
+import { Dialog } from '@/shared/ui/overlays/overlays';
+import { getExpenseMoneyBreakdown } from '@/features/accountability/model/expense-money-breakdown';
+import { createExpenseDraftRequest } from '@/features/accountability/model/expense-draft-request';
+import styles from '@/features/accountability/ui/accountability-ui.module.css';
 
 const CATEGORY_OPTIONS: Array<{
   value: AccountabilityExpenseCategory;
@@ -57,6 +70,7 @@ export function OneTimeOrderAccountabilityPanel({
   workforce: OneTimeWorkforceEmployee[];
   workCycle: number;
   onCreateExpense: (payload: {
+    clientRequestId: string;
     amount: number;
     description: string;
     oneTimeOrderCompletionId: string | null;
@@ -68,19 +82,33 @@ export function OneTimeOrderAccountabilityPanel({
     submitAfterSave: boolean;
   }) => Promise<void>;
 }): React.JSX.Element {
+  const { user } = useAuth();
+  const formId = useId();
+  const ownAccount = view.accounts.find(
+    (account) => account.user.id === user?.id,
+  );
+  const [open, setOpen] = useState(false);
+  const request = useRef(createExpenseDraftRequest());
+  const saveLock = useRef(false);
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
   const [expenseCategory, setExpenseCategory] =
     useState<AccountabilityExpenseCategory>('consumables');
-  const [expenseDate, setExpenseDate] = useState(
-    () => new Date().toISOString().slice(0, 10),
+  const [expenseDate, setExpenseDate] = useState(() =>
+    new Date().toISOString().slice(0, 10),
   );
   const [files, setFiles] = useState<File[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [completionSelection, setCompletionSelection] = useState('');
   const [employeeId, setEmployeeId] = useState('');
+  const enteredAmount = Number(amount);
+  const previewAmount =
+    Number.isFinite(enteredAmount) && enteredAmount > 0 ? enteredAmount : null;
   const isEmployeePayout = expenseCategory === 'employee_payout';
+  const canSaveDraft =
+    view.capabilities.canCreateExpense &&
+    (!isEmployeePayout || view.capabilities.canCreateEmployeePayout);
   const completionOptionsKey = completions
     .map((completion) => `${completion.id}:${completion.workCycle}`)
     .join('|');
@@ -100,7 +128,12 @@ export function OneTimeOrderAccountabilityPanel({
   }, [completionOptionsKey, completions, orderStatus]);
 
   const save = async (submitAfterSave: boolean): Promise<void> => {
-    if (!view.capabilities.canCreateExpense || isSaving || (submitAfterSave && !view.capabilities.canSubmitExpense)) return;
+    if (
+      !canSaveDraft ||
+      saveLock.current ||
+      (submitAfterSave && !view.capabilities.canSubmitExpense)
+    )
+      return;
     const normalizedAmount = Number(amount);
     const normalizedDescription = description.trim();
 
@@ -116,10 +149,12 @@ export function OneTimeOrderAccountabilityPanel({
       return;
     }
 
+    saveLock.current = true;
     setIsSaving(true);
     setSaveError(null);
     try {
       await onCreateExpense({
+        clientRequestId: request.current.getId(),
         amount: normalizedAmount,
         description: normalizedDescription,
         oneTimeOrderCompletionId:
@@ -133,13 +168,18 @@ export function OneTimeOrderAccountabilityPanel({
         files,
         submitAfterSave,
       });
+      request.current.complete();
+      setOpen(false);
       setAmount('');
       setDescription('');
       setFiles([]);
       setEmployeeId('');
     } catch {
-      setSaveError('Не удалось сохранить расход. Проверьте список расходов перед повторной отправкой.');
+      setSaveError(
+        'Не удалось подтвердить сохранение. Проверьте список расходов перед повторной попыткой. Если данные уже сохранены, восстановите исходные значения: изменённый черновик не создаст второй расход.',
+      );
     } finally {
+      saveLock.current = false;
       setIsSaving(false);
     }
   };
@@ -150,7 +190,8 @@ export function OneTimeOrderAccountabilityPanel({
         <div>
           <div className="ui-section-title">Подотчёт по заказу</div>
           <div className="ui-section-subtitle">
-            Здесь учитываются деньги менеджера и расходы, оформленные по этому заказу.
+            Здесь учитываются деньги менеджера и расходы, оформленные по этому
+            заказу.
           </div>
         </div>
         <Badge>
@@ -160,65 +201,204 @@ export function OneTimeOrderAccountabilityPanel({
         </Badge>
       </div>
 
-      <AccessSnapshotBoundary blocked={!view.capabilities.canCreateExpense}>
-        <Surface padding="sm" style={{ display: 'grid', gap: 14 }}>
-          <div>
-            <strong>Добавить расход по заказу</strong>
-            <div className="ui-text-muted">
-            {isEmployeePayout
-              ? 'Фото и чек необязательны. Выплата учитывается отдельно от начисления табеля после подтверждения расхода.'
-              : 'Для отправки на проверку приложите чек или документ.'}
+      {!canSaveDraft ? (
+        <Alert tone="info">
+          Создание расхода сейчас недоступно. Нужны право на создание, активный
+          собственный подотчёт и доступ к этому заказу. Если счёт ещё не открыт,
+          обратитесь к пользователю с правом выдачи средств. Введённый черновик
+          сохранён; после восстановления доступа отправьте его вручную.
+        </Alert>
+      ) : null}
+      <AccessSnapshotBoundary blocked={!canSaveDraft}>
+        <div className="ui-inline">
+          <Button variant="primary" onClick={() => setOpen(true)}>
+            {amount || description || files.length
+              ? 'Продолжить расход'
+              : 'Добавить расход'}
+          </Button>
+          {view.capabilities.canCreateEmployeePayout &&
+          !amount &&
+          !description &&
+          files.length === 0 ? (
+            <Button
+              onClick={() => {
+                setExpenseCategory('employee_payout');
+                setOpen(true);
+              }}
+            >
+              Выплата сотруднику
+            </Button>
+          ) : null}
+        </div>
+        <Dialog
+          open={open}
+          onOpenChange={setOpen}
+          title={isEmployeePayout ? 'Выплата сотруднику' : 'Расход по заказу'}
+          size="regular"
+          busy={isSaving}
+          footer={
+            <div className="ui-inline">
+              <Button
+                form={formId}
+                type="submit"
+                name="intent"
+                value="draft"
+                disabled={
+                  isSaving ||
+                  !canSaveDraft ||
+                  (!isEmployeePayout && !completionSelection)
+                }
+              >
+                Сохранить черновик
+              </Button>
+              <Button
+                form={formId}
+                type="submit"
+                name="intent"
+                value="submit"
+                variant="primary"
+                disabled={
+                  isSaving ||
+                  !canSaveDraft ||
+                  !view.capabilities.canSubmitExpense ||
+                  (!isEmployeePayout && !completionSelection) ||
+                  (!isEmployeePayout && files.length === 0)
+                }
+              >
+                Отправить на проверку
+              </Button>
             </div>
-          </div>
-          <div className="field-grid">
-            <label style={{ display: 'grid', gap: 6 }}>
-              <span>Сумма</span>
-              <input
-                type="number"
-                min="0.01"
-                step="0.01"
-                value={amount}
-                onChange={(event) => setAmount(event.target.value)}
-              />
-            </label>
-            <label style={{ display: 'grid', gap: 6 }}>
-              <span>Дата расхода</span>
-              <DatePicker value={expenseDate} onChange={(nextValue) => setExpenseDate(nextValue)} />
-            </label>
-            <SearchableSelect
+          }
+        >
+          <form
+            id={formId}
+            noValidate
+            className="ui-stack"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const submitAfterSave =
+                (event.nativeEvent as SubmitEvent).submitter?.getAttribute(
+                  'value',
+                ) === 'submit';
+              void save(submitAfterSave);
+            }}
+          >
+            <Surface padding="sm" tone="subtle">
+              <div className="ui-detail-grid">
+                <div className="ui-detail-field">
+                  <div className="ui-detail-label">Плательщик</div>
+                  <div className="ui-detail-value">
+                    {getUserDisplayName(ownAccount?.user ?? user)}
+                  </div>
+                </div>
+                <div className="ui-detail-field">
+                  <div className="ui-detail-label">Источник</div>
+                  <div className="ui-detail-value">Мой подотчёт</div>
+                </div>
+                <div className="ui-detail-field">
+                  <div className="ui-detail-label">
+                    Подтверждённый остаток
+                  </div>
+                  <div className="ui-detail-value">
+                    {ownAccount
+                      ? formatMoney(ownAccount.summary.currentBalance)
+                      : 'Нет доступных данных об остатке'}
+                  </div>
+                </div>
+                <div className="ui-detail-field">
+                  <div className="ui-detail-label">
+                    Прогноз после отправки
+                  </div>
+                  <div className="ui-detail-value">
+                    {!ownAccount
+                      ? 'Нет доступных данных об остатке'
+                      : previewAmount === null
+                        ? 'Укажите сумму'
+                        : formatMoney(
+                            ownAccount.summary.forecastBalance - previewAmount,
+                          )}
+                  </div>
+                </div>
+              </div>
+              <p className="ui-text-muted">
+                Черновик не меняет остаток. После отправки сумма попадёт на
+                проверку, а после подтверждения уменьшит проведённый остаток.
+              </p>
+            </Surface>
+            <div>
+              <strong>
+                {isEmployeePayout ? 'Фактическая выплата' : 'Новый расход'}
+              </strong>
+              <div className="ui-text-muted">
+                {isEmployeePayout
+                  ? 'Фото и чек необязательны. Выплата учитывается отдельно от начисления табеля после подтверждения расхода.'
+                  : 'Для отправки на проверку приложите чек или документ.'}
+              </div>
+            </div>
+            <div className={styles.expenseFormGrid}>
+              <Field label="Сумма, ₽" required>
+                <input
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  value={amount}
+                  onChange={(event) => setAmount(event.target.value)}
+                />
+              </Field>
+              <Field label="Дата расхода" required>
+                <DatePicker
+                  value={expenseDate}
+                  onChange={(nextValue) => setExpenseDate(nextValue)}
+                />
+              </Field>
+              <SearchableSelect
                 label="Категория"
                 value={expenseCategory}
                 options={CATEGORY_OPTIONS.filter(
                   (option) =>
                     option.value !== 'employee_payout' ||
                     view.capabilities.canCreateEmployeePayout,
-                ).map((option) => ({ value: option.value, label: option.label }))}
+                ).map((option) => ({
+                  value: option.value,
+                  label: option.label,
+                }))}
                 searchable={false}
                 clearable={false}
-                onChange={(value) => setExpenseCategory(value as AccountabilityExpenseCategory)}
-            />
-            {isEmployeePayout ? (
-              <SearchableSelect
-                label="Сотрудник"
-                value={employeeId}
-                options={workforce.map((employee) => ({
-                  value: employee.employeeId,
-                  label: employee.fullName,
-                  description: employee.isActive ? employee.position ?? undefined : 'Состав прошлого периода',
-                }))}
-                placeholder="Выберите сотрудника заказа"
-                searchPlaceholder="Найти сотрудника"
-                emptyText="В этом цикле сотрудников нет"
-                clearable={false}
-                onChange={setEmployeeId}
+                onChange={(value) =>
+                  setExpenseCategory(value as AccountabilityExpenseCategory)
+                }
               />
-            ) : null}
-            {!isEmployeePayout && completions.length > 0 ? (
-              <SearchableSelect
+              {isEmployeePayout ? (
+                <SearchableSelect
+                  label="Сотрудник"
+                  value={employeeId}
+                  options={workforce.map((employee) => ({
+                    value: employee.employeeId,
+                    label: employee.fullName,
+                    description: employee.isActive
+                      ? (employee.position ?? undefined)
+                      : 'Состав прошлого периода',
+                  }))}
+                  placeholder="Выберите сотрудника заказа"
+                  searchPlaceholder="Найти сотрудника"
+                  emptyText="В этом цикле сотрудников нет"
+                  clearable={false}
+                  onChange={setEmployeeId}
+                />
+              ) : null}
+              {!isEmployeePayout && completions.length > 0 ? (
+                <SearchableSelect
                   label="Цикл заказа"
                   value={completionSelection}
                   options={[
-                    ...(orderStatus !== 'completed' ? [{ value: 'order_only', label: 'Текущий цикл, до завершения' }] : []),
+                    ...(orderStatus !== 'completed'
+                      ? [
+                          {
+                            value: 'order_only',
+                            label: 'Текущий цикл, до завершения',
+                          },
+                        ]
+                      : []),
                     ...completions.map((completion) => ({
                       value: completion.id,
                       label: `Цикл ${completion.workCycle}${completion.completionSource === 'legacy_unknown' ? ' · исторический' : ''}`,
@@ -228,58 +408,51 @@ export function OneTimeOrderAccountabilityPanel({
                   searchable={false}
                   clearable={false}
                   onChange={setCompletionSelection}
-              />
-            ) : null}
-            <label style={{ display: 'grid', gap: 6, gridColumn: '1 / -1' }}>
-              <span>Описание</span>
-              <textarea
-                rows={3}
-                value={description}
-                onChange={(event) => setDescription(event.target.value)}
-                placeholder="Кратко опишите расход"
-              />
-            </label>
-          </div>
-          <MediaActionPicker
-            disabled={isSaving || !view.capabilities.canCreateExpense}
-            onPick={async (file) => setFiles((current) => [...current, file])}
-          />
-          <PendingMediaList
-            files={files}
-            onRemove={(index) =>
-              setFiles((current) =>
-                current.filter((_, currentIndex) => currentIndex !== index),
-              )
-            }
-            emptyText={isEmployeePayout ? 'Фото или чек можно добавить по желанию.' : 'Чек или документ еще не приложен.'}
-          />
-          {saveError ? <Alert tone="danger" role="alert">{saveError}</Alert> : null}
-          <div className="ui-inline">
-            <Button
-              disabled={isSaving || (!isEmployeePayout && !completionSelection)}
-              onClick={() => void save(false)}
-            >
-              Сохранить черновик
-            </Button>
-            <Button
-              disabled={
-                isSaving ||
-                !view.capabilities.canCreateExpense ||
-                !view.capabilities.canSubmitExpense ||
-                (!isEmployeePayout && !completionSelection) ||
-                (!isEmployeePayout && files.length === 0)
+                />
+              ) : null}
+              <Field
+                label="Описание"
+                required
+                className={styles.expenseFormWide}
+              >
+                <textarea
+                  rows={3}
+                  value={description}
+                  onChange={(event) => setDescription(event.target.value)}
+                  placeholder="Кратко опишите расход"
+                />
+              </Field>
+            </div>
+            <MediaActionPicker
+              disabled={isSaving || !view.capabilities.canCreateExpense}
+              onPick={async (file) => setFiles((current) => [...current, file])}
+            />
+            <PendingMediaList
+              files={files}
+              onRemove={(index) =>
+                setFiles((current) =>
+                  current.filter((_, currentIndex) => currentIndex !== index),
+                )
               }
-              onClick={() => void save(true)}
-            >
-              Отправить на проверку
-            </Button>
-          </div>
-        </Surface>
+              emptyText={
+                isEmployeePayout
+                  ? 'Фото или чек можно добавить по желанию.'
+                  : 'Чек или документ еще не приложен.'
+              }
+            />
+            {saveError ? (
+              <Alert tone="danger" role="alert">
+                {saveError}
+              </Alert>
+            ) : null}
+          </form>
+        </Dialog>
       </AccessSnapshotBoundary>
 
       {view.accounts.length === 0 ? (
         <div className="ui-text-muted">
-          Поступлений и расходов по этому заказу пока нет.
+          По этому заказу пока нет доступных поступлений и расходов. Отсутствие
+          записей не означает нулевой остаток подотчёта.
         </div>
       ) : (
         <div className="ui-stack ui-stack--lg">
@@ -287,45 +460,67 @@ export function OneTimeOrderAccountabilityPanel({
             const confirmedExpenses =
               account.summary.totalApprovedExpenses +
               account.summary.totalReconciledExpenses;
-            const submittedAmount = account.expenses
-              .filter((expense) => expense.status === 'submitted')
-              .reduce((sum, expense) => sum + expense.amount, 0);
+            const { confirmedPayouts, submittedAmount, draftAmount } =
+              getExpenseMoneyBreakdown(account.expenses);
 
             return (
               <Surface padding="sm" key={account.accountId}>
                 <div className="ui-section-header">
                   <strong>{getUserDisplayName(account.user)}</strong>
-                  <StatusBadge
-                    status={account.accountStatus}
-                  >
+                  <StatusBadge status={account.accountStatus}>
                     {getAccountabilityAccountStatusLabel(account.accountStatus)}
                   </StatusBadge>
                 </div>
-                <div className="stat-grid">
-                  <SummaryItem
-                    label="Получено"
-                    value={formatMoney(account.summary.totalCredits)}
-                  />
-                  <SummaryItem
-                    label="Подтвержденные траты"
-                    value={formatMoney(confirmedExpenses)}
-                  />
-                  <SummaryItem
-                    label="Текущий остаток"
-                    value={formatMoney(account.summary.currentBalance)}
-                  />
-                  <SummaryItem
-                    label="На проверке"
-                    value={formatMoney(submittedAmount)}
-                  />
-                  <SummaryItem
-                    label="Прогнозный остаток"
-                    value={formatMoney(account.summary.forecastBalance)}
-                  />
+                <div className={styles.moneySummary}>
+                  <dl className={styles.moneyPrimary}>
+                    <div>
+                      <dt>Поступило</dt>
+                      <dd>{formatMoney(account.summary.totalCredits)}</dd>
+                    </div>
+                    <div>
+                      <dt>Остаток</dt>
+                      <dd>{formatMoney(account.summary.currentBalance)}</dd>
+                    </div>
+                    <div>
+                      <dt>Прогноз</dt>
+                      <dd>{formatMoney(account.summary.forecastBalance)}</dd>
+                    </div>
+                  </dl>
+                  <dl className={styles.moneySecondary}>
+                    <div>
+                      <dt>Выплачено сотрудникам</dt>
+                      <dd>{formatMoney(confirmedPayouts)}</dd>
+                    </div>
+                    <div>
+                      <dt>Прочие подтверждённые расходы</dt>
+                      <dd>
+                        {formatMoney(confirmedExpenses - confirmedPayouts)}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>На проверке</dt>
+                      <dd>{formatMoney(submittedAmount)}</dd>
+                    </div>
+                    <div>
+                      <dt>Черновики</dt>
+                      <dd>{formatMoney(draftAmount)}</dd>
+                    </div>
+                  </dl>
                 </div>
                 <div className="ui-text-muted">
-                  Текущий остаток учитывает проведённые поступления и подтверждённые расходы. Прогноз дополнительно вычитает расходы, отправленные на проверку.
+                  Остаток — подтверждённые операции. Прогноз — с расходами на
+                  проверке.
                 </div>
+                <details className={styles.moneyPolicy}>
+                  <summary>Как считаются суммы</summary>
+                  <p>
+                    Остаток учитывает проведённые поступления и списания,
+                    подтверждённые и сверенные расходы. Прогноз дополнительно
+                    вычитает только расходы на проверке. Черновики не уменьшают
+                    прогноз. Выплаты учитываются после подтверждения или сверки;
+                    начисления табеля не являются выплатой.
+                  </p>
+                </details>
 
                 {account.fundings.length > 0 ? (
                   <div className="record-list local-scroll local-scroll--sm">
@@ -336,8 +531,10 @@ export function OneTimeOrderAccountabilityPanel({
                           {formatMoney(funding.amount)}
                         </div>
                         <div className="ui-detail-label">
-                          {getAccountabilityFundingTypeLabel(funding.fundingType)} ·{' '}
-                          {new Date(funding.issuedAt).toLocaleString('ru-RU')}
+                          {getAccountabilityFundingTypeLabel(
+                            funding.fundingType,
+                          )}{' '}
+                          · {new Date(funding.issuedAt).toLocaleString('ru-RU')}
                           {funding.comment ? ` · ${funding.comment}` : ''}
                         </div>
                       </div>
@@ -370,10 +567,10 @@ export function OneTimeOrderAccountabilityPanel({
                                 : ''}
                             </div>
                           </div>
-                          <StatusBadge
-                            status={expense.status}
-                          >
-                            {getAccountabilityExpenseStatusLabel(expense.status)}
+                          <StatusBadge status={expense.status}>
+                            {getAccountabilityExpenseStatusLabel(
+                              expense.status,
+                            )}
                           </StatusBadge>
                         </div>
                         <div>{expense.description}</div>
@@ -391,20 +588,5 @@ export function OneTimeOrderAccountabilityPanel({
         </div>
       )}
     </Surface>
-  );
-}
-
-function SummaryItem({
-  label,
-  value,
-}: {
-  label: string;
-  value: string;
-}): React.JSX.Element {
-  return (
-    <div className="stat-card">
-      <div className="ui-detail-label">{label}</div>
-      <div className="stat-card__value">{value}</div>
-    </div>
   );
 }

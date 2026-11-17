@@ -2,6 +2,7 @@
 .github
 .next
 **/.next
+**/.next-acl-preview-*
 **/dist
 node_modules
 **/node_modules

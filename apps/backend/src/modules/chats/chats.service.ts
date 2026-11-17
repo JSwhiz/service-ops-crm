@@ -1,4 +1,7 @@
 import { randomUUID } from 'node:crypto';
+import { projectCommittedWrite } from '../../common/access/project-committed-write';
+import { loadAccessSubject } from '../../common/access/notification-access';
+import { applyMembershipOverrides, automaticRoomMembership, effectiveRoomMembership, resolveRoomMembership } from './utils/chat-membership.util';
 import { lockActorAccessRevision } from '../../common/access/lock-actor-access-revision';
 import {chatMessageSourceWhere,hasChatSourceDeny} from '../../common/access/chat-message-source-access';
 import {
@@ -19,7 +22,7 @@ import { FilesService } from '../files/files.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { resourceAccessTarget } from '../../common/access/resource-access-context';
-import { decideAccess, type AccessContext } from '../users-access/utils/access-policy.util';
+import { buildAccessWhere, decideAccess, type AccessContext } from '../users-access/utils/access-policy.util';
 
 import { AddChatParticipantsDto } from './dto/add-chat-participants.dto';
 import { CloseChatRoomDto } from './dto/close-chat-room.dto';
@@ -44,6 +47,7 @@ import {
 } from './constants/chat.constants';
 import type {
   ChatParticipantRole,
+  ChatMembershipMutationResponse,
   ChatRoomType,
   ChatRoomCode,
   ChatVisibilityType,
@@ -57,7 +61,6 @@ import {
   canCreateDirectChat,
   canCreateGroupChat,
   canManageChats,
-  hasOperationalChatRole,
   isChatLeadership,
   isObjectsChatDenied,
 } from './utils/chat-access.util';
@@ -95,6 +98,7 @@ type ChatParticipantRecord = {
   lastReadAt: Date | null;
   hiddenAt: Date | null;
   leftAt: Date | null;
+  membershipOverride: string | null;
 };
 
 type ChatMessageRecord = {
@@ -568,58 +572,33 @@ export class ChatsService implements OnModuleInit {
     return this.mapRoom(currentUser, updated, participant);
   }
 
-  async addParticipants(
-    currentUser: CurrentAuthUser,
-    roomId: string,
-    dto: AddChatParticipantsDto,
-  ): Promise<ChatRoomResponseDto> {
+  async addParticipants(currentUser: CurrentAuthUser, roomId: string, dto: AddChatParticipantsDto): Promise<ChatMembershipMutationResponse> {
     const room = await this.getRoomRecord(roomId);
     await this.assertCanManageMembers(currentUser, room);
-    this.assertRoomOpen(room);
-
-    if (
-      room.roomType !== 'group' ||
-      room.visibilityType !== 'explicit_members'
-    ) {
-      throw new BadRequestException(
-        'Participants can be manually managed only for group chats',
-      );
-    }
-
     const userIds = this.dedupeUserIds(dto.userIds);
-    await this.assertActiveUsersExist(userIds);
-
+    if (!userIds.length) throw new BadRequestException('Выберите участников');
     await this.prisma.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT "id" FROM "chat_rooms" WHERE "id" = ${room.id} FOR UPDATE`;
-      const addedUserIds: string[] = [];
+      const actor = await this.currentMembershipAdministrator(currentUser, room.id, tx);
+      await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "users" WHERE "id" IN (${Prisma.join([...userIds].sort())}) ORDER BY "id" FOR SHARE`);
+      await this.assertActiveUsersExist(userIds, tx);
+      const changed: Array<{ userId: string; previousOverride: string | null }> = [];
       for (const userId of userIds) {
-        const existing = await tx.chatRoomParticipant.findUnique({
-          where: { chatRoomId_userId: { chatRoomId: room.id, userId } },
-        });
-        // Repeating Add must not reset a current member's history or admin role.
-        if (existing && !existing.leftAt) continue;
+        const existing = await tx.chatRoomParticipant.findUnique({ where: { chatRoomId_userId: { chatRoomId: room.id, userId } } });
+        if (existing?.membershipOverride === 'include' && !existing.leftAt) continue;
+        const rejoining = !existing || existing.leftAt !== null || existing.membershipOverride === 'exclude';
         await tx.chatRoomParticipant.upsert({
           where: { chatRoomId_userId: { chatRoomId: room.id, userId } },
-          create: { chatRoomId: room.id, userId, roleInRoom: 'member', joinedAt: new Date() },
-          update: { roleInRoom: 'member', joinedAt: new Date(), lastReadAt: null, hiddenAt: null, leftAt: null },
+          create: { chatRoomId: room.id, userId, membershipOverride: 'include', roleInRoom: 'member', joinedAt: new Date() },
+          update: { membershipOverride: 'include', leftAt: null, ...(rejoining ? { joinedAt: new Date(), lastReadAt: null, hiddenAt: null } : {}) },
         });
-        addedUserIds.push(userId);
+        changed.push({ userId, previousOverride: existing?.membershipOverride ?? null });
       }
-      if (addedUserIds.length) await this.auditService.writeAuditEvent({
-        entityType: 'chat_room', entityId: room.id, actorUserId: currentUser.id,
-        action: 'chat.room.participants_added', newValues: { userIds: addedUserIds },
-      }, tx);
+      if (changed.length) await this.auditService.writeAuditEvent({ entityType: 'chat_room', entityId: room.id, actorUserId: actor.id,
+        action: 'chat.room.participants_added', newValues: { userIds: changed.map(row => row.userId), membershipOverride: 'include' }, oldValues: { participants: changed } }, tx);
     });
-
-    const updated = await this.getRoomRecord(room.id);
-    await this.publishRoomUpdate(updated);
-
-    const participant = await this.ensureParticipantForAccessibleRoom(
-      currentUser,
-      updated,
-    );
-
-    return this.mapRoom(currentUser, updated, participant);
+    await this.publishRoomUpdate(room);
+    return this.membershipMutationResponse(currentUser, room);
   }
 
   async hideRoom(
@@ -798,49 +777,30 @@ export class ChatsService implements OnModuleInit {
     return { success: true };
   }
 
-  async listParticipants(
-    currentUser: CurrentAuthUser,
-    roomId: string,
-  ): Promise<ChatRoomParticipantResponseDto[]> {
+  async listParticipants(currentUser: CurrentAuthUser, roomId: string): Promise<ChatRoomParticipantResponseDto[]> {
     const room = await this.getRoomRecord(roomId);
-    await this.assertCanReadRoom(currentUser, room);
-
-    const participants = await this.prisma.chatRoomParticipant.findMany({
-      where: {
-        chatRoomId: room.id,
-        leftAt: null,
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            login: true,
-            fullName: true,
-          },
-        },
-      },
-      orderBy: [
-        {
-          roleInRoom: 'asc',
-        },
-        {
-          joinedAt: 'asc',
-        },
-      ],
+    const canManage = await this.canManageMembers(currentUser, room);
+    const canReadMessages = await this.canAccessRoom(currentUser, room);
+    if (!canManage) await this.assertCanReadRoom(currentUser, room);
+    const stored = await this.prisma.chatRoomParticipant.findMany({ where: { chatRoomId: room.id } });
+    const automaticIds = new Set(await this.loadAutomaticRecipientUserIds(room));
+    const candidateIds = [...new Set([...automaticIds, ...stored.map(row => row.userId)])];
+    const users = await this.prisma.user.findMany({ where: { id: { in: candidateIds }, isActive: true, deletedAt: null },
+      select: { id: true, login: true, fullName: true }, orderBy: [{ fullName: 'asc' }, { id: 'asc' }] });
+    const byUser = new Map(stored.map(row => [row.userId, row]));
+    return users.flatMap(user => {
+      const row = byUser.get(user.id) ?? null;
+      const automatic = room.visibilityType !== 'explicit_members' && automaticIds.has(user.id);
+      const included = effectiveRoomMembership(automatic, room.visibilityType === 'explicit_members', row);
+      if (!included && !(canManage && row?.membershipOverride === 'exclude')) return [];
+      const membershipSource: ChatRoomParticipantResponseDto['membershipSource'] = row?.membershipOverride === 'exclude' ? 'excluded' : row?.membershipOverride === 'include' || room.visibilityType === 'explicit_members' ? 'manual' : 'automatic';
+      return [{ id: row?.id ?? `automatic:${room.id}:${user.id}`, roleInRoom: row?.roleInRoom ?? 'member',
+        joinedAt: (row?.joinedAt ?? new Date(0)).toISOString(), lastReadAt: canReadMessages ? row?.lastReadAt?.toISOString() ?? null : null,
+        leftAt: row?.leftAt?.toISOString() ?? null, user, membershipSource, automaticEligible: automatic,
+        canRemove: canManage && included && user.id !== currentUser.id,
+        canRestoreAutomatic: canManage && room.roomType === 'system_default' && !!row?.membershipOverride,
+      }];
     });
-
-    return participants.map((participant) => ({
-      id: participant.id,
-      roleInRoom: participant.roleInRoom,
-      joinedAt: participant.joinedAt.toISOString(),
-      lastReadAt: participant.lastReadAt?.toISOString() ?? null,
-      leftAt: participant.leftAt?.toISOString() ?? null,
-      user: {
-        id: participant.user.id,
-        login: participant.user.login,
-        fullName: participant.user.fullName,
-      },
-    }));
   }
 
   async listMessages(
@@ -1849,10 +1809,9 @@ export class ChatsService implements OnModuleInit {
     database: Prisma.TransactionClient = this.prisma,
   ): Promise<boolean> {
     const context = await this.roomAccessContext(room, database);
-    const invariantAllowed = currentUser.isActive && !room.deletedAt &&
-      (room.visibilityType !== 'leadership_only' || isChatLeadership(this.getRoleCodes(currentUser))) &&
-      (room.visibilityType !== 'explicit_members' || context.assignedUserIds?.includes(currentUser.id) === true);
-    return decideAccess(currentUser, 'chat.read', await this.canAccessRoomLegacy(currentUser, room, database), { ...context, invariantAllowed });
+    const membership = await resolveRoomMembership(database, currentUser, room);
+    const invariantAllowed = currentUser.isActive && !room.deletedAt && membership.allowed;
+    return decideAccess(currentUser, 'chat.read', membership.allowed, { ...context, invariantAllowed });
   }
 
   private async roomAccessContext(room: ChatRoomRecord, database: Prisma.TransactionClient = this.prisma): Promise<AccessContext> {
@@ -1865,36 +1824,6 @@ export class ChatsService implements OnModuleInit {
 
   private async assertRoomAction(currentUser: CurrentAuthUser, room: ChatRoomRecord, actionCode: string): Promise<void> {
     if (!decideAccess(currentUser, actionCode, true, await this.roomAccessContext(room))) throw new ForbiddenException('Действие в чате недоступно');
-  }
-
-  private async canAccessRoomLegacy(
-    currentUser: CurrentAuthUser,
-    room: ChatRoomRecord,
-    database: Prisma.TransactionClient = this.prisma,
-  ): Promise<boolean> {
-    if (!currentUser.isActive || room.deletedAt) {
-      return false;
-    }
-
-    const roleCodes = this.getRoleCodes(currentUser);
-
-    switch (room.visibilityType as ChatVisibilityType) {
-      case 'leadership_only':
-        return isChatLeadership(roleCodes);
-      case 'objects_scope':
-        return (
-          !isObjectsChatDenied(roleCodes) &&
-          (hasOperationalChatRole(roleCodes) ||
-            (await this.hasActiveObjectAssignment(currentUser.id, database)))
-        );
-      case 'one_time_orders_scope':
-        return (
-          hasOperationalChatRole(roleCodes) ||
-          (await this.hasActiveOneTimeOrderManagerAssignment(currentUser.id, database))
-        );
-      case 'explicit_members':
-        return this.hasActiveParticipant(room.id, currentUser.id, database);
-    }
   }
 
   private async canWriteRoom(
@@ -1958,36 +1887,103 @@ export class ChatsService implements OnModuleInit {
     return participant?.roleInRoom === 'admin' && participant.leftAt === null;
   }
 
-  private async canManageMembers(currentUser: CurrentAuthUser, room: ChatRoomRecord): Promise<boolean> {
-    if (!currentUser.isActive || room.deletedAt || room.roomType !== 'group' || room.visibilityType !== 'explicit_members') return false;
-    if (!(await this.canAccessRoom(currentUser, room))) return false;
-    return decideAccess(currentUser, 'chat.room.manage_members',
-      (currentUser.permissionCodes ?? []).includes(CHAT_MANAGE_MEMBERS_PERMISSION_CODE) || await this.canManageRoomLegacy(currentUser, room),
-      await this.roomAccessContext(room));
+  private async canManageMembers(currentUser: CurrentAuthUser, room: ChatRoomRecord, database: Prisma.TransactionClient = this.prisma): Promise<boolean> {
+    if (!currentUser.isActive || room.deletedAt || room.roomType === 'direct') return false;
+    const leadership = isChatLeadership(this.getRoleCodes(currentUser));
+    // Roster administration is separate from message membership. This context
+    // removes only that membership invariant, never the read/root/source denies.
+    const context = { ...await this.roomAccessContext(room, database), invariantAllowed: true };
+    if (!decideAccess(currentUser, 'chat.read', true, context)) return false;
+    if (!leadership && (room.roomType !== 'group' || room.visibilityType !== 'explicit_members' || !await this.canAccessRoom(currentUser, room, database))) return false;
+    return decideAccess(currentUser, 'chat.room.manage_members', leadership ||
+      (currentUser.permissionCodes ?? []).includes(CHAT_MANAGE_MEMBERS_PERMISSION_CODE) || await this.canManageRoomLegacy(currentUser, room, database), context);
   }
 
-  private async assertCanManageMembers(currentUser: CurrentAuthUser, room: ChatRoomRecord): Promise<void> {
-    if (!(await this.canManageMembers(currentUser, room))) {
-      throw new ForbiddenException('Недостаточно прав для изменения состава чата');
-    }
+  async listRoomsForManagement(currentUser: CurrentAuthUser, query: { after?: string; q?: string; roomId?: string } = {}): Promise<{ items: Array<{ id: string; title: string; roomType: string; visibilityType: string }>; nextCursor: string | null }> {
+    if (!currentUser.isActive || !isChatLeadership(this.getRoleCodes(currentUser))) throw new ForbiddenException('Управление составом доступно руководящему кругу');
+    const policy = (actionCode: string) => buildAccessWhere<Prisma.ChatRoomWhereInput>({ subject: currentUser, actionCode, invariantWhere: {}, legacyWhere: {},
+      scopeWhere: rule => rule.scope === 'all' ? {} : rule.scope === 'selected' ? { id: { in: [...rule.selectedIds] } }
+        : rule.scope === 'own' ? { createdByUserId: currentUser.id } : rule.scope === 'assigned' ? { participants: { some: { userId: currentUser.id, leftAt: null } } } : null,
+    }) as Prisma.ChatRoomWhereInput;
+    // Apply root/read/manage room scopes before the bounded page. A selected
+    // grant is never evaluated once without the real room identity.
+    const rooms = await this.prisma.chatRoom.findMany({ where: { AND: [
+      { deletedAt: null, roomType: { in: ['group', 'system_default'] }, ...(query.roomId ? { id: query.roomId } : {}), ...(query.q?.trim() ? { title: { contains: query.q.trim().slice(0, 200), mode: 'insensitive' } } : {}) },
+      policy('chat.read'), policy('chat.room.manage_members'),
+    ] }, orderBy: { id: 'asc' }, take: 101, ...(query.after ? { cursor: { id: query.after }, skip: 1 } : {}) });
+    const items: Array<{ id: string; title: string; roomType: string; visibilityType: string }> = [];
+    for (const room of rooms.slice(0, 100)) if (await this.canManageMembers(currentUser, room)) items.push({ id: room.id, title: room.title, roomType: room.roomType, visibilityType: room.visibilityType });
+    return { items, nextCursor: rooms.length > 100 ? rooms[99].id : null };
   }
 
-  async removeParticipant(currentUser: CurrentAuthUser, roomId: string, userId: string): Promise<ChatRoomResponseDto> {
+  private async membershipMutationResponse(original: CurrentAuthUser, room: ChatRoomRecord): Promise<ChatMembershipMutationResponse> {
+    // Called only after the real transaction resolves. A refused transaction
+    // cannot become ACK; a nonmember administrator never gets a private DTO.
+    return projectCommittedWrite(this.prisma, original, async () => {
+      const subject = await loadAccessSubject(this.prisma, original.id);
+      if (!subject?.isActive) throw new ForbiddenException('Доступ изменился');
+      const actor: CurrentAuthUser = { ...original, ...subject, isActive: true, roleCodes: [...(subject.roleCodes ?? [])], permissionCodes: [...(subject.permissionCodes ?? [])] };
+      if (!await this.canAccessRoom(actor, room)) throw new ForbiddenException('Чтение сообщений недоступно');
+      return this.mapRoom(actor, room, await this.ensureParticipantForAccessibleRoom(actor, room));
+    });
+  }
+
+  private async assertCanManageMembers(currentUser: CurrentAuthUser, room: ChatRoomRecord, database: Prisma.TransactionClient = this.prisma): Promise<void> {
+    if (!(await this.canManageMembers(currentUser, room, database))) throw new ForbiddenException('Недостаточно прав для изменения состава чата');
+  }
+
+  private async currentMembershipAdministrator(original: CurrentAuthUser, roomId: string, tx: Prisma.TransactionClient): Promise<CurrentAuthUser> {
+    await lockActorAccessRevision(tx, original);
+    const subject = await loadAccessSubject(tx, original.id);
+    if (!subject?.isActive) throw new ForbiddenException('Доступ к управлению участниками изменился');
+    const actor: CurrentAuthUser = { ...original, ...subject, isActive: true, roleCodes: [...(subject.roleCodes ?? [])], permissionCodes: [...(subject.permissionCodes ?? [])] };
+    const room = await tx.chatRoom.findUniqueOrThrow({ where: { id: roomId } });
+    await this.assertCanManageMembers(actor, room, tx);
+    return actor;
+  }
+
+  async removeParticipant(currentUser: CurrentAuthUser, roomId: string, userId: string): Promise<ChatMembershipMutationResponse> {
     const room = await this.getRoomRecord(roomId);
     await this.assertCanManageMembers(currentUser, room);
-    this.assertRoomOpen(room);
     if (userId === currentUser.id) throw new BadRequestException('Для выхода из чата используйте «Покинуть чат»');
     await this.prisma.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT "id" FROM "chat_rooms" WHERE "id" = ${room.id} FOR UPDATE`;
+      const actor = await this.currentMembershipAdministrator(currentUser, room.id, tx);
+      await this.assertActiveUsersExist([userId], tx);
       const target = await tx.chatRoomParticipant.findUnique({ where: { chatRoomId_userId: { chatRoomId: room.id, userId } } });
-      if (!target || target.leftAt) throw new NotFoundException('Участник не найден');
-      await tx.chatRoomParticipant.update({ where: { id: target.id }, data: { leftAt: new Date(), hiddenAt: null } });
-      await this.auditService.writeAuditEvent({ entityType: 'chat_room', entityId: room.id, actorUserId: currentUser.id,
-        action: 'chat.room.participant_removed', oldValues: { userId, roleInRoom: target.roleInRoom }, newValues: { userId, left: true } }, tx);
+      if (!target) {
+        const subject = await loadAccessSubject(tx, userId);
+        if (!subject?.isActive || !await automaticRoomMembership(tx, subject, room)) throw new NotFoundException('Участник не найден');
+      }
+      if (target?.membershipOverride === 'exclude') return;
+      await tx.chatRoomParticipant.upsert({
+        where: { chatRoomId_userId: { chatRoomId: room.id, userId } },
+        create: { chatRoomId: room.id, userId, membershipOverride: 'exclude', leftAt: new Date() },
+        update: { membershipOverride: 'exclude', leftAt: new Date(), hiddenAt: null },
+      });
+      await this.auditService.writeAuditEvent({ entityType: 'chat_room', entityId: room.id, actorUserId: actor.id,
+        action: 'chat.room.participant_removed', oldValues: { userId, membershipOverride: target?.membershipOverride ?? null }, newValues: { userId, membershipOverride: 'exclude' } }, tx);
     });
     await this.publishRoomLifecycleEvent(room, 'chat.room_left', [userId]);
     await this.publishRoomUpdate(room);
-    return this.mapRoom(currentUser, room, await this.ensureParticipantForAccessibleRoom(currentUser, room));
+    return this.membershipMutationResponse(currentUser, room);
+  }
+
+  async restoreAutomaticParticipant(currentUser: CurrentAuthUser, roomId: string, userId: string): Promise<ChatMembershipMutationResponse> {
+    const room = await this.getRoomRecord(roomId);
+    await this.assertCanManageMembers(currentUser, room);
+    if (room.roomType !== 'system_default') throw new BadRequestException('В этом чате нет автоматического состава');
+    await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "chat_rooms" WHERE "id" = ${room.id} FOR UPDATE`;
+      const actor = await this.currentMembershipAdministrator(currentUser, room.id, tx);
+      const target = await tx.chatRoomParticipant.findUnique({ where: { chatRoomId_userId: { chatRoomId: room.id, userId } } });
+      if (!target?.membershipOverride) return;
+      await tx.chatRoomParticipant.update({ where: { id: target.id }, data: { membershipOverride: null, leftAt: null, hiddenAt: null, joinedAt: new Date(), lastReadAt: null } });
+      await this.auditService.writeAuditEvent({ entityType: 'chat_room', entityId: room.id, actorUserId: actor.id,
+        action: 'chat.room.participant_automatic_restored', oldValues: { userId, membershipOverride: target.membershipOverride }, newValues: { userId, membershipOverride: null } }, tx);
+    });
+    await this.publishRoomUpdate(room);
+    return this.membershipMutationResponse(currentUser, room);
   }
 
   private async ensureParticipantForAccessibleRoom(
@@ -2004,6 +2000,7 @@ export class ChatsService implements OnModuleInit {
     });
 
     if (existing) {
+      if (existing.membershipOverride === 'exclude') throw new ForbiddenException('Участие в чате исключено администратором');
       if (
         room.visibilityType === 'explicit_members' &&
         existing.leftAt !== null
@@ -2045,14 +2042,13 @@ export class ChatsService implements OnModuleInit {
 
       // Another accessible-room read initialized this exact membership first.
       // Preserve its role and lifecycle/read state; never rejoin or reset it.
-      return this.prisma.chatRoomParticipant.findUniqueOrThrow({
-        where: {
-          chatRoomId_userId: {
-            chatRoomId: room.id,
-            userId: currentUser.id,
-          },
-        },
+      const winner = await this.prisma.chatRoomParticipant.findUniqueOrThrow({
+        where: { chatRoomId_userId: { chatRoomId: room.id, userId: currentUser.id } },
       });
+      if (winner.membershipOverride === 'exclude' || (room.visibilityType === 'explicit_members' && winner.leftAt)) {
+        throw new ForbiddenException('Участие в чате исключено администратором');
+      }
+      return winner;
     }
   }
 
@@ -2102,12 +2098,7 @@ export class ChatsService implements OnModuleInit {
     const canSeeMessages = decideAccess(currentUser, 'chat.messages.read', true, accessContext);
     const canAccess = await this.canAccessRoom(currentUser, room);
     const canWrite = await this.canWriteRoom(currentUser, room);
-    const participantCount = await this.prisma.chatRoomParticipant.count({
-      where: {
-        chatRoomId: room.id,
-        leftAt: null,
-      },
-    });
+    const participantCount = (await this.loadRecipientUserIds(room)).length;
     const unreadThreshold = participant.lastReadAt ?? participant.joinedAt;
     const unreadCount = await this.prisma.chatMessage.count({
       where: await chatMessageSourceWhere(this.prisma, currentUser, {
@@ -2711,6 +2702,14 @@ export class ChatsService implements OnModuleInit {
   }
 
   private async loadRecipientUserIds(room: ChatRoomRecord): Promise<string[]> {
+    const automatic = await this.loadAutomaticRecipientUserIds(room);
+    const overrides = await this.prisma.chatRoomParticipant.findMany({ where: { chatRoomId: room.id,
+      membershipOverride: { not: null }, user: { isActive: true, deletedAt: null } }, select: { userId: true, membershipOverride: true, leftAt: true } });
+    const userIds = applyMembershipOverrides(automatic, overrides);
+    return (await this.prisma.user.findMany({ where: { id: { in: userIds }, isActive: true, deletedAt: null }, select: { id: true } })).map(user => user.id);
+  }
+
+  private async loadAutomaticRecipientUserIds(room: ChatRoomRecord): Promise<string[]> {
     switch (room.visibilityType as ChatVisibilityType) {
       case 'leadership_only':
         return this.loadUserIdsByRoles(CHAT_LEADERSHIP_ROLE_CODES);

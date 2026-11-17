@@ -550,6 +550,7 @@ export default function AccountabilityPage(): React.JSX.Element {
                       description: payload.description,
                     })
                   : await createAccountabilityExpense({
+                      clientRequestId: payload.clientRequestId,
                       amount: payload.amount,
                       description: payload.description,
                     });

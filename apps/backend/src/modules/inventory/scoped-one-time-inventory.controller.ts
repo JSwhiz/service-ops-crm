@@ -33,6 +33,15 @@ export class ScopedOneTimeInventoryController {
     return this.scopedOneTimeInventoryService.listOrderMovements(user, orderId);
   }
 
+  @Post('return')
+  returnFromOrder(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('orderId') orderId: string,
+    @Body() payload: CreateOrderInventoryIssueDto,
+  ): Promise<OrderInventoryIssueResult> {
+    return this.scopedOneTimeInventoryService.returnFromOrder(user, orderId, payload);
+  }
+
   @Post('issue')
   issueToOrder(
     @CurrentUser() user: CurrentAuthUser,

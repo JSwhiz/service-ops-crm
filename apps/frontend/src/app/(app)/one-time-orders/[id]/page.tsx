@@ -84,6 +84,7 @@ import { OneTimeOrderForm } from '@/features/one-time-order-form/ui/one-time-ord
 import { OneTimeOrderManagersPanel } from '@/features/one-time-order-managers/ui/one-time-order-managers-panel';
 import { assignManagerWithConflictConfirmation } from '@/features/one-time-order-managers/lib/assign-manager-with-conflicts';
 import { OneTimeOrderInventoryPanel } from '@/features/one-time-order-inventory/ui/one-time-order-inventory-panel';
+import { createOneTimeOrderInventoryReturn } from '@/features/one-time-order-inventory/api/order-inventory-return';
 import { OneTimeOrderCommentsPanel } from '@/features/one-time-order-comments/ui/one-time-order-comments-panel';
 import { OneTimeOrderHistoryList, getOneTimeOrderHistoryActionLabel } from '@/features/one-time-order-history/ui/one-time-order-history-list';
 import { OneTimeOrderFilesPanel } from '@/features/one-time-order-files/ui/one-time-order-files-panel';
@@ -148,6 +149,7 @@ export default function OneTimeOrderDetailPage({
   params: Promise<{ id: string }>;
 }): React.JSX.Element {
   const { user, refreshUser, capabilitiesRefreshError } = useAuth();
+  const resourceRenderSession = getAccessSessionGeneration();
   const accessRevision = useAccessRevision();
   const [loadedAccessRevision, setLoadedAccessRevision] = useState<string | null>(null);
   const [loadedParams, setLoadedParams] = useState<typeof params | null>(null);
@@ -177,6 +179,8 @@ export default function OneTimeOrderDetailPage({
   const [equipment, setEquipment] = useState<EquipmentScope | null>(null);
   const [inventoryMovements, setInventoryMovements] = useState<InventoryMovement[]>([]);
   const [inventoryAvailableItems, setInventoryAvailableItems] = useState<InventoryItem[]>([]);
+  const [inventoryReturnItems, setInventoryReturnItems] = useState<InventoryItem[]>([]);
+  const [canReturnInventory, setCanReturnInventory] = useState(false);
   const [canIssueInventory, setCanIssueInventory] = useState(false);
   const [workforce, setWorkforce] = useState<OneTimeWorkforceEmployee[]>([]);
   const [accountability, setAccountability] =
@@ -186,7 +190,7 @@ export default function OneTimeOrderDetailPage({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [savedManagerAssignment, setSavedManagerAssignment] = useState<{ params: typeof params; userId: string; session: number } | null>(null);
-  const [savedShipment, setSavedShipment] = useState<{ params: typeof params; userId: string; hasUnsentPhotos: boolean } | null>(null);
+  const [savedShipment, setSavedShipment] = useState<{ params: typeof params; userId: string; hasUnsentPhotos: boolean; title?: string } | null>(null);
   const [savedExpenseNotice, setSavedExpenseNotice] = useState<{ params: typeof params; userId: string; message: string } | null>(null);
   const [expenseRecovery, setExpenseRecovery] = useState<{
     params: typeof params;
@@ -488,7 +492,7 @@ export default function OneTimeOrderDetailPage({
     if (!permitted('canReadFiles')) setFiles([]);
     if (!permitted('canReadPhotos')) setPhotos([]);
     if (!permitted('canReadEquipment')) setEquipment(null);
-    if (!permitted('canReadInventory')) { setInventoryMovements([]); setInventoryAvailableItems([]); setCanIssueInventory(false); }
+    if (!permitted('canReadInventory')) { setInventoryMovements([]); setInventoryAvailableItems([]); setCanIssueInventory(false); setCanReturnInventory(false); setInventoryReturnItems([]); }
     if (!permitted('canReadEmployees')) setWorkforce([]);
     if (!permitted('canReadTasks')) setTasks([]);
     if (!permitted('canReadAccountability')) setAccountability(null);
@@ -531,6 +535,8 @@ export default function OneTimeOrderDetailPage({
           setInventoryMovements(response.items);
           setInventoryAvailableItems(response.availableItems);
           setCanIssueInventory(response.capabilities.canIssueInventoryToOrder);
+          setCanReturnInventory(response.capabilities.canReturnInventoryFromOrder);
+          setInventoryReturnItems(response.availableReturnItems);
         }
       }));
     if (permitted('canReadEmployees')) requests.push(listOneTimeWorkforce(id).then((response) => {
@@ -663,7 +669,7 @@ export default function OneTimeOrderDetailPage({
     return (
       <div className={`ui-page ${orderStyles.orderDetailPage}`}>
         <ButtonLink href="/one-time-orders">К списку заказов</ButtonLink>
-        <Alert tone="success" role="status" title="Отгрузка записана">
+        <Alert tone="success" role="status" title={savedShipment.title ?? 'Отгрузка записана'}>
           Доступ к карточке изменился. Вернитесь к списку заказов.
           {savedShipment.hasUnsentPhotos ? ' Выбранные фото не прикрепились. Если доступ восстановится, добавьте их в журнале движений.' : ''}
         </Alert>
@@ -1062,6 +1068,7 @@ export default function OneTimeOrderDetailPage({
                 setIsRetryingExpense(true);
                 try {
                   const expense = await createAccountabilityExpense({
+                    clientRequestId: payload.clientRequestId,
                     amount: payload.amount,
                     description: payload.description,
                     oneTimeOrderId: orderId,
@@ -1131,6 +1138,16 @@ export default function OneTimeOrderDetailPage({
             items={inventoryMovements}
             availableItems={inventoryAvailableItems}
             canIssue={canIssueInventory}
+            canReturn={canReturnInventory}
+            availableReturnItems={inventoryReturnItems}
+            onReturn={async (payload, hasPendingPhotos) => {
+              const result = await createOneTimeOrderInventoryReturn(item.id, payload);
+              if ('outcome' in result) {
+                if (user) setSavedShipment({ params, userId: user.id, hasUnsentPhotos: hasPendingPhotos });
+                return null;
+              }
+              return result.id;
+            }}
             onIssue={async (payload, hasPendingPhotos) => {
               const result = await createOneTimeOrderInventoryIssue(item.id, payload);
               if ('outcome' in result) {
@@ -1150,6 +1167,8 @@ export default function OneTimeOrderDetailPage({
                 setInventoryMovements(response.items);
                 setInventoryAvailableItems(response.availableItems);
                 setCanIssueInventory(response.capabilities.canIssueInventoryToOrder);
+          setCanReturnInventory(response.capabilities.canReturnInventoryFromOrder);
+          setInventoryReturnItems(response.availableReturnItems);
               } catch (error) {
                 if (user && error instanceof ApiError && [403, 404].includes(error.statusCode)) {
                   setSavedShipment({ params, userId: user.id, hasUnsentPhotos: false });
@@ -1160,7 +1179,11 @@ export default function OneTimeOrderDetailPage({
             }}
           /> : null}
           {canRead('canReadEquipment') && equipment ? (
-            <EquipmentScopePanel title="Оборудование заказа" units={equipment.units} />
+            <EquipmentScopePanel title="Оборудование заказа" units={equipment.units} orderId={item.id}
+              onRefresh={async () => { await loadAll(item.id); }}
+              onSavedWithoutAccess={() => {
+                if (user && latestParams.current === params && resourceRenderSession === getAccessSessionGeneration()) setSavedShipment({ params, userId: user.id, hasUnsentPhotos: false, title: 'Движение оборудования записано' });
+              }} />
           ) : null}
           </div>
 

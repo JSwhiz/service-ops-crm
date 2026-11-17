@@ -9,11 +9,14 @@ import type { ContactInput } from './object-planning-client';
 import type {
   ObjectAuditLogItem,
   ServiceObject,
+  WindowCleaningMode,
+  WindowCleaningSeason,
 } from '../model/object.types';
 
 export interface ListObjectsParams {
   search?: string;
   status?: string;
+  archiveState?: 'active' | 'archived' | 'all';
 }
 
 export type ObjectSortField =
@@ -26,6 +29,7 @@ export type ObjectSortField =
 export interface ListObjectsPageParams {
   q?: string;
   status?: string;
+  archiveState?: 'active' | 'archived' | 'all';
   page: number;
   limit: number;
   sortBy: ObjectSortField;
@@ -38,6 +42,7 @@ export interface ObjectListPage {
   limit: number;
   total: number;
   totalPages: number;
+  archiveCounts?: { active: number; archived: number };
 }
 
 export interface ObjectRegistrySignal {
@@ -53,6 +58,8 @@ export interface CreateObjectPayload {
   status: string;
   seasonMode?: string | null;
   summerWindowCleaning?: boolean;
+  windowCleaningMode?: WindowCleaningMode | null;
+  windowCleaningSeasons?: WindowCleaningSeason[];
   engineeringRequired?: boolean;
   winterTractorMode?: 'none' | 'with_removal' | 'without_removal';
   instructionSteps?: string[];
@@ -92,6 +99,8 @@ export interface UpdateObjectPayload {
   status?: string;
   seasonMode?: string | null;
   summerWindowCleaning?: boolean;
+  windowCleaningMode?: WindowCleaningMode | null;
+  windowCleaningSeasons?: WindowCleaningSeason[];
   engineeringRequired?: boolean;
   winterTractorMode?: 'none' | 'with_removal' | 'without_removal';
   instructionSteps?: string[];
@@ -127,6 +136,7 @@ function buildObjectsQuery(params?: ListObjectsParams): string {
   const searchParams = new URLSearchParams();
   if (params.search) searchParams.set('search', params.search);
   if (params.status) searchParams.set('status', params.status);
+  if (params.archiveState) searchParams.set('archiveState', params.archiveState);
   const query = searchParams.toString();
   return query ? `?${query}` : '';
 }
@@ -145,6 +155,7 @@ export async function listObjectsPage(params: ListObjectsPageParams): Promise<Ob
   });
   if (params.q?.trim()) searchParams.set('q', params.q.trim());
   if (params.status) searchParams.set('status', params.status);
+  if (params.archiveState) searchParams.set('archiveState', params.archiveState);
   return fetcher<ObjectListPage>(`/objects?${searchParams.toString()}`, { method: 'GET' });
 }
 

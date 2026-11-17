@@ -27,6 +27,8 @@ import { useAccessRevision } from '@/shared/auth/use-access-revision';
 import { captureObjectWriteFence } from '@/features/object-shared-ui/object-write-fence';
 import { ApiError } from '@/shared/api/fetcher';
 import { getObjectCompensation } from '@/entities/object/api/object-compensation-client';
+import { WindowCleaningFields } from '@/entities/object/ui/window-cleaning-fields';
+import { windowCleaningDraft, windowCleaningPayload, windowCleaningValidation } from '@/entities/object/lib/window-cleaning';
 
 interface ObjectEditFormProps {
   mode?: 'full' | 'compensation';
@@ -62,6 +64,7 @@ export function ObjectEditForm({
     address: item.address,
     responsibleUserId: item.responsible?.id ?? '',
     summerWindowCleaning: item.summerWindowCleaning,
+    ...windowCleaningDraft(item),
     engineeringRequired: item.engineeringRequired,
     winterTractorMode: item.winterTractorMode,
     instructionStepsText: item.instructionSteps.join('\n'),
@@ -160,6 +163,7 @@ export function ObjectEditForm({
       address: item.address,
       responsibleUserId: item.responsible?.id ?? '',
       summerWindowCleaning: item.summerWindowCleaning,
+      ...windowCleaningDraft(item),
       engineeringRequired: item.engineeringRequired,
       winterTractorMode: item.winterTractorMode,
       instructionStepsText: item.instructionSteps.join('\n'),
@@ -248,6 +252,9 @@ export function ObjectEditForm({
     setError(null);
     setSuccess(null);
 
+    const windowError = mode === 'full' && canEditObject ? windowCleaningValidation(form) : null;
+    if (windowError) { setError(windowError); return; }
+
     if (mode === 'full' && canEditObject && !form.responsibleUserId) {
       setError('Выберите ответственного за объект.');
       return;
@@ -285,6 +292,7 @@ export function ObjectEditForm({
         internalName: form.internalName.trim(),
         address: form.address.trim(),
         summerWindowCleaning: form.summerWindowCleaning,
+        ...windowCleaningPayload(form),
         engineeringRequired: form.engineeringRequired,
         winterTractorMode: form.winterTractorMode,
         ...(instructionsChanged ? { instructionSteps } : {}),
@@ -341,10 +349,7 @@ export function ObjectEditForm({
 
       {mode === 'full' ? <>
       <section className={styles.formGrid} aria-label="Сезонные параметры">
-        <div className={styles.field}>
-          <span className={styles.fieldLabel}>Летний профиль</span>
-          <label><input type="checkbox" checked={form.summerWindowCleaning} onChange={(event) => setForm((prev) => ({ ...prev, summerWindowCleaning: event.target.checked }))} disabled={!canEditObject || isSubmitting} /> Мыть окна</label>
-        </div>
+        <WindowCleaningFields value={form} onChange={next => setForm(previous => ({ ...previous, ...next }))} disabled={!canEditObject || isSubmitting} legacySummer={form.summerWindowCleaning} />
         <label className={styles.field}>
           <span className={styles.fieldLabel}>Зимний профиль: трактор</span>
           <Select value={form.winterTractorMode} onChange={(event) => setForm((prev) => ({ ...prev, winterTractorMode: event.target.value as typeof prev.winterTractorMode }))} disabled={!canEditObject || isSubmitting}>

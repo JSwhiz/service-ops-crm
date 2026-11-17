@@ -7,6 +7,8 @@ import {
 import { Prisma } from '@prisma/client';
 import { lockActorAccessRevision } from '../../common/access/lock-actor-access-revision';
 
+import { canViewOneTimeOrderByScope } from '../one-time-orders/utils/one-time-order-access.util';
+
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
 import type { AccessContext, AccessSubject } from '../users-access/types/access-policy.type';
@@ -30,6 +32,37 @@ export class ScopedEquipmentService {
     private readonly prisma: PrismaService,
     private readonly auditService: AuditService,
   ) {}
+
+  async listOrderOptions(currentUser: CurrentAuthUser, orderId: string) {
+    const order = await this.prisma.oneTimeOrder.findUnique({ where: { id: orderId }, select: {
+      id: true, status: true, createdByUserId: true,
+      assignments: { where: { isActive: true }, select: { userId: true, assignmentRoleCode: true, isActive: true } },
+    } });
+    if (!order || !canViewOneTimeOrderByScope({ subject: currentUser, currentUserId: currentUser.id,
+      roleCodes: currentUser.roleCodes?.length ? currentUser.roleCodes : [currentUser.roleCode],
+      permissionCodes: currentUser.permissionCodes, order })) throw new ForbiddenException('Equipment order unavailable');
+    const orderContext: AccessContext = { resourceType: 'one_time_order', resourceId: order.id,
+      ownerUserId: order.createdByUserId, assignedUserIds: order.assignments.filter(a => a.assignmentRoleCode === 'one_time_manager').map(a => a.userId) };
+    if (!decideAccess(currentUser, 'one_time_orders.read', true, orderContext) ||
+        !decideAccess(currentUser, 'one_time_orders.equipment.read', true, orderContext)) throw new ForbiddenException('Equipment order unavailable');
+    const assigned = order.assignments.some(a => a.userId === currentUser.id && a.assignmentRoleCode === 'one_time_manager');
+    if (!assigned) return { availableUnits: [], returnableUnitIds: [], canAssign: false };
+    const units = await this.prisma.equipmentUnit.findMany({ where: { OR: [
+      { status: 'in_storage', currentObjectId: null, currentOneTimeOrderId: null },
+      { currentOneTimeOrderId: orderId },
+    ] }, select: { id: true, inventoryNumber: true, currentOneTimeOrderId: true,
+      catalogItem: { select: { name: true } } }, orderBy: [{ inventoryNumber: 'asc' }, { id: 'asc' }] });
+    const allowed = (id: string, action: string): boolean => {
+      const context: AccessContext = { resourceType: 'equipment_unit', resourceId: id,
+        parents: [{ actionCode: 'one_time_orders.read', context: orderContext }] };
+      return !hasModuleDeny(currentUser, 'equipment.read', context) && decideAccess(currentUser, action, true, context);
+    };
+    const open = !['frozen', 'archived', 'closed', 'completed', 'cancelled'].includes(order.status);
+    const availableUnits = units.filter(unit => !unit.currentOneTimeOrderId && open && allowed(unit.id, 'equipment.assign_order'))
+      .map(unit => ({ id: unit.id, inventoryNumber: unit.inventoryNumber, name: unit.catalogItem.name }));
+    return { availableUnits, returnableUnitIds: units.filter(unit => unit.currentOneTimeOrderId === orderId && allowed(unit.id, 'equipment.return')).map(unit => unit.id),
+      canAssign: availableUnits.length > 0 };
+  }
 
   async assignToObject(
     currentUser: CurrentAuthUser,
@@ -63,6 +96,11 @@ export class ScopedEquipmentService {
       toOneTimeOrderId: orderId,
       comment: payload.comment,
     });
+  }
+
+  async returnFromOrder(currentUser: CurrentAuthUser, unitId: string, orderId: string, payload: ScopedEquipmentActionDto): Promise<ScopedEquipmentMovementReceiptDto> {
+    return this.applyScopedMovement({ currentUser, unitId, expectedOneTimeOrderId: orderId,
+      movementType: 'return_to_storage', toStatus: 'in_storage', toObjectId: null, toOneTimeOrderId: null, comment: payload.comment });
   }
 
   async returnToStorage(
@@ -117,6 +155,7 @@ export class ScopedEquipmentService {
   private async applyScopedMovement(params: {
     currentUser: CurrentAuthUser;
     unitId: string;
+    expectedOneTimeOrderId?: string;
     movementType: 'issue_to_object' | 'issue_to_one_time_order' | 'return_to_storage';
     toStatus: 'assigned_to_object' | 'assigned_to_one_time_order' | 'in_storage';
     toObjectId: string | null;
@@ -196,6 +235,10 @@ export class ScopedEquipmentService {
           : await tx.oneTimeOrder.findUnique({ where: { id }, select: { id: true, status: true, createdByUserId: true,
             assignments: { where: { isActive: true }, select: { userId: true, assignmentRoleCode: true } } } });
         if (!work) throw new ForbiddenException('Equipment work scope unavailable');
+        if (entityType === 'one_time_order' && !decideAccess(params.currentUser, 'one_time_orders.equipment.read', true, {
+          resourceType: entityType, resourceId: id, ownerUserId: work.createdByUserId,
+          assignedUserIds: work.assignments.filter(a => a.assignmentRoleCode === 'one_time_manager').map(a => a.userId),
+        })) throw new ForbiddenException('Order equipment access denied');
         parents.push({ actionCode: entityType === 'object' ? 'objects.read' : 'one_time_orders.read', context: {
           resourceType: entityType, resourceId: id, ownerUserId: work.createdByUserId,
           assignedUserIds: work.assignments.map((assignment) => assignment.userId),
@@ -209,6 +252,9 @@ export class ScopedEquipmentService {
       assertAccess(context);
       // Positive leaf grants never replace this workflow's active assignment.
       if (workScopes.some((work) => !work.assigned || work.deleted)) throw new ForbiddenException('Equipment assignment was revoked');
+      if (params.expectedOneTimeOrderId && current.currentOneTimeOrderId !== params.expectedOneTimeOrderId) {
+        throw new ConflictException('Equipment unit no longer belongs to this order');
+      }
       if (params.movementType === 'return_to_storage') {
         if (!current.currentObjectId && !current.currentOneTimeOrderId) throw new ConflictException('Equipment unit is not assigned to a work scope');
       } else {

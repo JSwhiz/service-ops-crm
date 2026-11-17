@@ -1,10 +1,12 @@
-import { fetcher } from '@/shared/api/fetcher';
+import { committedWrite, fetcher } from '@/shared/api/fetcher';
 import { appConfig } from '@/shared/config/app-config';
 
 import type {
   ChatMessage,
   ChatMessageWindow,
   ChatRoom,
+  ChatMembershipMutationResponse,
+  ChatManagementRoomsPage,
   ChatRoomCode,
   ChatRoomParticipant,
   ChatSearchResponse,
@@ -92,8 +94,8 @@ export async function renameChatRoom(
 export async function addChatParticipants(
   roomId: string,
   payload: { userIds: string[] },
-): Promise<ChatRoom> {
-  return fetcher<ChatRoom>(`/chats/rooms/${roomId}/participants`, {
+): Promise<ChatMembershipMutationResponse> {
+  return committedWrite<ChatRoom>(`/chats/rooms/${roomId}/participants`, {
     method: 'POST',
     body: JSON.stringify(payload),
   });
@@ -105,8 +107,8 @@ export async function hideChatRoom(roomId: string): Promise<{ success: true }> {
   });
 }
 
-export async function removeChatParticipant(roomId: string, userId: string): Promise<ChatRoom> {
-  return fetcher<ChatRoom>(`/chats/rooms/${roomId}/participants/${userId}`, { method: 'DELETE' });
+export async function removeChatParticipant(roomId: string, userId: string): Promise<ChatMembershipMutationResponse> {
+  return committedWrite<ChatRoom>(`/chats/rooms/${roomId}/participants/${userId}`, { method: 'DELETE' });
 }
 
 export async function unhideChatRoom(roomId: string): Promise<ChatRoom> {
@@ -301,4 +303,16 @@ export function buildChatRealtimeUrl(): string {
   url.pathname = `${url.pathname.replace(/\/$/, '')}/chats/realtime`;
 
   return url.toString();
+}
+
+export async function restoreAutomaticChatParticipant(roomId: string, userId: string): Promise<ChatMembershipMutationResponse> {
+  return committedWrite<ChatRoom>(`/chats/rooms/${roomId}/participants/${userId}/automatic`, { method: 'POST' });
+}
+
+export function listChatManagementRooms(params: { after?: string; q?: string; roomId?: string } = {}): Promise<ChatManagementRoomsPage> {
+  const query = new URLSearchParams();
+  if (params.after) query.set('after', params.after);
+  if (params.q) query.set('q', params.q);
+  if (params.roomId) query.set('roomId', params.roomId);
+  return fetcher(`/chats/rooms/management${query.size ? `?${query}` : ''}`, { method: 'GET' });
 }

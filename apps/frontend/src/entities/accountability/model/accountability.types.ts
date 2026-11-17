@@ -123,6 +123,7 @@ export interface CreateAccountabilityFundingPayload {
 }
 
 export interface SaveAccountabilityExpensePayload {
+  clientRequestId?: string;
   amount: number;
   description: string;
   oneTimeOrderId?: string;

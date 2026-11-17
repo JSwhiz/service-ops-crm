@@ -6,6 +6,7 @@ import {
   NotFoundException,
   OnModuleDestroy,
   OnModuleInit,
+  Optional,
 } from '@nestjs/common';
 import { Notification, Prisma } from '@prisma/client';
 
@@ -16,6 +17,8 @@ import { notificationAccessWhere, loadAccessSubject } from '../../common/access/
 import { lockActorAccessRevision } from '../../common/access/lock-actor-access-revision';
 import { resourceAccessTarget } from '../../common/access/resource-access-context';
 import { decideAccess } from '../users-access/utils/access-policy.util';
+
+import { WebPushService } from './push/web-push.service';
 
 import { ListNotificationsQueryDto } from './dto/list-notifications-query.dto';
 import {
@@ -35,6 +38,7 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
   constructor(
     private readonly prisma: PrismaService,
     private readonly redisService: RedisService,
+    @Optional() private readonly webPushService?: WebPushService,
   ) {}
 
   async listActiveUserIdsByRoles(
@@ -90,6 +94,7 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
     if (!params.dedupeKey) {
       const notification = await database.notification.create({ data });
       await this.enqueueRealtimeIfAllowed(database, notification);
+      await this.webPushService?.enqueue(notification, database);
       return notification;
     }
 
@@ -107,6 +112,7 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
     });
     if (created.count > 0) {
       await this.enqueueRealtimeIfAllowed(database, notification);
+      await this.webPushService?.enqueue(notification, database);
     }
     return notification;
   }

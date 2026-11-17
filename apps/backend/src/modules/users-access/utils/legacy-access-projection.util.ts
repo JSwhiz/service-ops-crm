@@ -593,8 +593,8 @@ export function buildLegacyAccessProjection(
   ])
     set(
       `accountability.${code}`,
-      accountability.canViewOwnAccountability,
-      "canViewOwnAccountability",
+      code === "expenses.create" ? params.isActiveUser : accountability.canViewOwnAccountability,
+      code === "expenses.create" ? "active_user_own_expense_create" : "canViewOwnAccountability",
       ["own"],
       ["account_and_document_lifecycle"],
     );

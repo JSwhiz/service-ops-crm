@@ -1,0 +1,4 @@
+.page { max-width: 52rem; margin-inline: auto; width: 100%; min-width: 0; }
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ui-space-2); }
+.steps { padding-inline-start: var(--ui-space-6); margin: 0; display: grid; gap: var(--ui-space-2); }
+@media (max-width: 40rem) { .actions { align-items: stretch; } .actions > button { flex: 1 1 100%; } }

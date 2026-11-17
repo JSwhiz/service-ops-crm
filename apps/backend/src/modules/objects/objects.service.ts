@@ -58,6 +58,8 @@ import {
 import { buildObjectCapabilities } from './utils/object-capabilities.util';
 import { redactObjectFinancialPayload } from './utils/object-financial-redaction.util';
 import { annualSeason, baseCompensation, moscowDateKey, validAnnualDate } from './utils/object-season.util';
+import { objectRegistryArchiveState, objectRegistryArchiveWhere } from './utils/object-registry-query.util';
+import { resolveWindowCleaningChange, type WindowCleaningMode } from './utils/object-window-cleaning.util';
 
 interface CurrentAuthUser {
   id: string;
@@ -93,6 +95,8 @@ interface ObjectView {
   seasonMode: string | null;
   baseCompensationProfile: Prisma.JsonValue | null;
   summerWindowCleaning: boolean;
+  windowCleaningMode: WindowCleaningMode | null;
+  windowCleaningSeasons: string[];
   engineeringRequired: boolean;
   winterTractorMode: 'none' | 'with_removal' | 'without_removal';
   instructionSteps: string[];
@@ -226,10 +230,6 @@ export class ObjectsService {
       await this.buildVisibilityWhere(currentUser),
     ];
 
-    if (query?.status) {
-      filters.push({ status: query.status });
-    }
-
     if (search) {
       filters.push({
         OR: [
@@ -261,7 +261,9 @@ export class ObjectsService {
       });
     }
 
-    const where: Prisma.ObjectWhereInput = { AND: filters };
+    const baseWhere: Prisma.ObjectWhereInput = { AND: filters };
+    const filteredWhere: Prisma.ObjectWhereInput = query?.status ? { AND: [baseWhere, { status: query.status }] } : baseWhere;
+    const where = objectRegistryArchiveWhere(filteredWhere, objectRegistryArchiveState(query));
     const shouldPaginate =
       query?.q !== undefined ||
       query?.page !== undefined ||
@@ -296,8 +298,10 @@ export class ObjectsService {
       { [sortBy]: sortDirection },
       { id: 'asc' },
     ] as Prisma.ObjectOrderByWithRelationInput[];
-    const [total, objects] = await this.prisma.$transaction([
+    const [total, activeCount, archivedCount, objects] = await this.prisma.$transaction([
       this.prisma.object.count({ where }),
+      this.prisma.object.count({ where: objectRegistryArchiveWhere(baseWhere, 'active') }),
+      this.prisma.object.count({ where: objectRegistryArchiveWhere(baseWhere, 'archived') }),
       this.prisma.object.findMany({
         where,
         skip: (page - 1) * limit,
@@ -314,7 +318,7 @@ export class ObjectsService {
           },
         },
       }),
-    ]);
+    ], { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
 
     return {
       items: (objects as ObjectView[]).map((item) =>
@@ -324,6 +328,7 @@ export class ObjectsService {
       limit,
       total,
       totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+      archiveCounts: { active: activeCount, archived: archivedCount },
     };
   }
 
@@ -584,6 +589,7 @@ export class ObjectsService {
       winterScheduleProfile,
     );
 
+    const windowCleaning = resolveWindowCleaningChange(payload);
     const created = await this.prisma.$transaction(async (tx) => {
       await lockActorAccessRevision(tx, currentUser);
       const object = await tx.object.create({
@@ -598,6 +604,8 @@ export class ObjectsService {
             ...defaultScheduleProfile, paymentScheduleCycleStartDate: formatDateOnly(defaultScheduleProfile.paymentScheduleCycleStartDate),
           },
           summerWindowCleaning: payload.summerWindowCleaning ?? false,
+          windowCleaningMode: windowCleaning?.windowCleaningMode ?? null,
+          windowCleaningSeasons: windowCleaning?.windowCleaningSeasons ?? [],
           engineeringRequired: payload.engineeringRequired ?? false,
           winterTractorMode: payload.winterTractorMode ?? 'none',
           instructionSteps: (payload.instructionSteps ?? []).map((step) => step.trim()).filter(Boolean),
@@ -776,6 +784,8 @@ export class ObjectsService {
           status: object.status,
           seasonMode: object.seasonMode,
           summerWindowCleaning: object.summerWindowCleaning,
+          windowCleaningMode: object.windowCleaningMode,
+          windowCleaningSeasons: object.windowCleaningSeasons,
           engineeringRequired: object.engineeringRequired,
           winterTractorMode: object.winterTractorMode,
           instructionSteps: object.instructionSteps,
@@ -1004,6 +1014,12 @@ export class ObjectsService {
     }
 
     const normalizedInstructionSteps = payload.instructionSteps?.map((step) => step.trim()).filter(Boolean);
+    const windowCleaning = resolveWindowCleaningChange(payload, existing);
+    if (windowCleaning && (windowCleaning.windowCleaningMode !== existing.windowCleaningMode ||
+      JSON.stringify(windowCleaning.windowCleaningSeasons) !== JSON.stringify(existing.windowCleaningSeasons))) {
+      changes.windowCleaningMode = { oldValue: existing.windowCleaningMode, newValue: windowCleaning.windowCleaningMode };
+      changes.windowCleaningSeasons = { oldValue: existing.windowCleaningSeasons, newValue: windowCleaning.windowCleaningSeasons };
+    }
     if (payload.summerWindowCleaning !== undefined && payload.summerWindowCleaning !== existing.summerWindowCleaning) {
       changes.summerWindowCleaning = { oldValue: existing.summerWindowCleaning, newValue: payload.summerWindowCleaning };
     }
@@ -1108,6 +1124,7 @@ export class ObjectsService {
             ...defaultScheduleProfile, paymentScheduleCycleStartDate: formatDateOnly(defaultScheduleProfile.paymentScheduleCycleStartDate),
           } } : {}),
           ...(payload.summerWindowCleaning !== undefined ? { summerWindowCleaning: payload.summerWindowCleaning } : {}),
+          ...(windowCleaning ?? {}),
           ...(payload.engineeringRequired !== undefined ? { engineeringRequired: payload.engineeringRequired } : {}),
           ...(payload.winterTractorMode !== undefined ? { winterTractorMode: payload.winterTractorMode } : {}),
           ...(normalizedInstructionSteps !== undefined ? { instructionSteps: normalizedInstructionSteps } : {}),
@@ -2171,6 +2188,8 @@ export class ObjectsService {
       seasonMode: item.seasonMode,
       baseCompensationProfile: capabilities.canViewCompensationRates ? item.baseCompensationProfile : null,
       summerWindowCleaning: item.summerWindowCleaning,
+      windowCleaningMode: item.windowCleaningMode ?? null,
+      windowCleaningSeasons: item.windowCleaningSeasons ?? [],
       engineeringRequired: item.engineeringRequired,
       winterTractorMode: item.winterTractorMode,
       instructionSteps: canReadMaterials ? item.instructionSteps : [],

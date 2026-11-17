@@ -1943,3 +1943,45 @@
   font-size: 12.5px;
   font-weight: 450;
 }
+
+/* Mobile member roster: full identity and provenance, with stable touch targets. */
+@media (max-width: 640px) {
+  .peopleList > .personRow:has(> .personRole) {
+    display: grid;
+    grid-template-columns: 38px minmax(0, 1fr);
+    align-items: start;
+    column-gap: var(--ui-space-3);
+    row-gap: var(--ui-space-2);
+  }
+
+  .peopleList > .personRow:has(> .personRole) > :global(.user-avatar) {
+    grid-column: 1;
+    grid-row: 1 / 3;
+  }
+
+  .peopleList > .personRow:has(> .personRole) > span:not(:global(.user-avatar)),
+  .peopleList > .personRow:has(> .personRole) > .personRole {
+    grid-column: 2;
+    min-width: 0;
+  }
+
+  .peopleList > .personRow:has(> .personRole) strong,
+  .peopleList > .personRow:has(> .personRole) small {
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .peopleList > .personRow > .personRole {
+    margin-left: 0;
+  }
+
+  .peopleList > .personRow:has(> .personRole) > button {
+    grid-column: 2;
+    width: 100%;
+    min-width: 44px;
+    min-height: 44px;
+    white-space: normal;
+  }
+}

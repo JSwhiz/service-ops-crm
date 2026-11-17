@@ -39,6 +39,10 @@ export class ChatRoomParticipantResponseDto {
   lastReadAt!: string | null;
   leftAt!: string | null;
   user!: ChatUserSummaryDto;
+  membershipSource!: 'automatic' | 'manual' | 'excluded';
+  automaticEligible!: boolean;
+  canRemove!: boolean;
+  canRestoreAutomatic!: boolean;
 }
 
 export class ChatMessageReplyPreviewDto {
