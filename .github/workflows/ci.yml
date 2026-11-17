@@ -77,7 +77,7 @@ jobs:
           APP_BASE_URL=http://localhost:3000
           BACKEND_PORT=4000
           DATABASE_URL=postgresql://service_ops:service_ops_password@127.0.0.1:55432/service_ops?schema=public
-          REDIS_URL=redis://localhost:6379
+          REDIS_URL=redis://127.0.0.1:6379
           JWT_ACCESS_SECRET=ci_access_secret
           JWT_REFRESH_SECRET=ci_refresh_secret
           JWT_ACCESS_EXPIRES_IN=15m
@@ -85,13 +85,13 @@ jobs:
           AUTH_COOKIE_DOMAIN=
           AUTH_COOKIE_SECURE=false
           AUTH_COOKIE_SAME_SITE=lax
-          MINIO_ENDPOINT=localhost
+          MINIO_ENDPOINT=127.0.0.1
           MINIO_PORT=9000
           MINIO_USE_SSL=false
           MINIO_ACCESS_KEY=minioadmin
           MINIO_SECRET_KEY=minioadminpassword
           MINIO_BUCKET=service-ops-files
-          MINIO_PUBLIC_BASE_URL=http://localhost:9000
+          MINIO_PUBLIC_BASE_URL=http://127.0.0.1:9000
           FIRST_ADMIN_LOGIN=admin
           FIRST_ADMIN_PASSWORD=admin
           FIRST_ADMIN_FULL_NAME=Тестовый администратор
@@ -135,6 +135,12 @@ jobs:
         # Check all test types once above, not again in every isolated process.
         env:
           TS_NODE_TRANSPILE_ONLY: 'true'
+          P08_RETRY_ACCOUNTABILITY_OUTPUT: ${{ runner.temp }}/socrm-ci/retry-accountability-source/result.json
+          P08_RETRY_EXPIRY_OUTPUT: ${{ runner.temp }}/socrm-ci/retry-expiry/result.json
+          P08_RETRY_WRITE_FIRST_OUTPUT: ${{ runner.temp }}/socrm-ci/retry-source-write-first/result.json
+          P08_RETRY_SOURCE_OUTPUT: ${{ runner.temp }}/socrm-ci/retry-membership-source/result.json
+          P08_RETRY_OBJECT_OUTPUT: ${{ runner.temp }}/socrm-ci/retry-object-source/result.json
+          P08_STAGE_RACE_OUTPUT: ${{ runner.temp }}/socrm-ci/report-stage-storage-race/result.json
         run: pnpm --filter backend test:integration
 
       - name: Full repository CI check

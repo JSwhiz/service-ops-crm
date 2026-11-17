@@ -22,6 +22,7 @@ if (!process.env.DATABASE_URL) {
 const adminDatabaseUrl = process.env.DATABASE_URL;
 const admin = new PrismaClient({ datasourceUrl: adminDatabaseUrl });
 let totalTests = 0;
+const failedFiles = [];
 
 function run(command, args, env, printOutput = true) {
   const result = spawnSync(command, args, {
@@ -38,6 +39,9 @@ function run(command, args, env, printOutput = true) {
 
   if (result.error) {
     throw result.error;
+  }
+  if (result.signal) {
+    throw new Error(`${command} stopped by ${result.signal}`);
   }
 
   return result;
@@ -63,12 +67,14 @@ try {
         env,
         false,
       );
-      if (migrate.status !== 0) process.exitCode = migrate.status ?? 1;
+      if (migrate.status !== 0) {
+        throw new Error(`Migration failed for ${testFile} (${schema}): exit ${migrate.status}`);
+      }
 
       const seed = run('pnpm', ['exec', 'tsx', 'prisma/seed.ts'], env, false);
-      if (seed.status !== 0) process.exitCode = seed.status ?? 1;
-
-      if (process.exitCode) break;
+      if (seed.status !== 0) {
+        throw new Error(`Seed failed for ${testFile} (${schema}): exit ${seed.status}`);
+      }
 
       process.stdout.write(`\n[integration ${index + 1}/${testFiles.length}] ${testFile}\n`);
       const testResult = run(
@@ -76,11 +82,12 @@ try {
         ['-r', 'ts-node/register', '--test', testFile],
         env,
       );
-      const match = testResult.stdout?.match(/ℹ tests (\d+)/u);
+      const match = testResult.stdout?.match(/^(?:ℹ|#) tests (\d+)\r?$/mu);
       totalTests += match ? Number(match[1]) : 0;
       if (testResult.status !== 0) {
-        process.exitCode = testResult.status ?? 1;
-        break;
+        // Only a completed test-file failure continues. Infrastructure errors
+        // above and schema cleanup below still abort the campaign immediately.
+        failedFiles.push({ file: testFile, exitCode: testResult.status ?? 1 });
       }
     } finally {
       await admin.$executeRawUnsafe(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`);
@@ -90,7 +97,13 @@ try {
   await admin.$disconnect();
 }
 
-if (!process.exitCode) {
+if (failedFiles.length) {
+  process.exitCode = 1;
+  process.stderr.write(`\nIntegration suite failed: ${failedFiles.length}/${testFiles.length} files; ${totalTests} tests.\n`);
+  for (const failure of failedFiles) {
+    process.stderr.write(`  ${failure.file}: exit ${failure.exitCode}\n`);
+  }
+} else {
   process.stdout.write(
     `\nIntegration suite passed: ${totalTests} tests in ${testFiles.length} isolated schemas.\n`,
   );
