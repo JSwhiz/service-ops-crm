@@ -17,6 +17,7 @@ const paths = {
   preview: 'features/one-time-order-list/ui/one-time-order-preview-drawer.tsx',
   specification: 'features/one-time-order-specification/ui/one-time-order-specification-panel.tsx',
   photos: 'features/one-time-order-photos/ui/one-time-order-photos-panel.tsx',
+  fetcher: 'shared/api/fetcher.ts',
 };
 const sources = Object.fromEntries(Object.entries(paths).map(([key, path]) => [key,
   ts.createSourceFile(path, readFileSync(new URL(path, root), 'utf8'), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX),
@@ -49,6 +50,12 @@ function execute(node, bindings) {
   assert.deepEqual(source.diagnostics?.filter((diagnostic) => diagnostic.category === ts.DiagnosticCategory.Error), []);
   return new Function(...Object.keys(bindings), `${source.outputText}\nreturn extracted;`)(...Object.values(bindings));
 }
+// Use the production error class without loading fetcher/browser dependencies.
+const ApiError = execute({
+  getText: () => find('fetcher', (node) => ts.isClassDeclaration(node) && node.name?.text === 'ApiError')
+    .getText().replace(/^export\s+/, ''),
+}, {});
+
 function deferred() {
   let resolve;
   const promise = new Promise((settle) => { resolve = settle; });
@@ -238,6 +245,8 @@ for (const [api, kind, leaf] of [
       const accessRevision = 'user:1';
       const candidateContext = { current: { candidate, params, accessRevision, ready: true } };
       const capture = execute(declaration('candidate', 'captureCandidateAction'), { ...acl, candidate, params, accessRevision, candidateContext });
+      const draftOwner = { actorId: 'actor-a', candidateId: candidate.id, params };
+      const statusDraftOwner = { current: draftOwner };
       const candidateIntent = { kind, isCurrent: capture(leaf) };
       const candidateIntentRef = { current: candidateIntent };
       const isIntentCurrent = execute(declaration('candidate', 'isIntentCurrent'), { candidateIntent, candidateIntentRef });
@@ -245,7 +254,7 @@ for (const [api, kind, leaf] of [
       let applied = 0;
       const bindings = {
         ...acl, params, accessRevision, candidateContext, mutationSequence: { current: 0 },
-        candidate, candidateIntent, candidateIntentRef, isIntentCurrent, statusTarget: 'accepted', saving: false,
+        candidate, candidateIntent, candidateIntentRef, statusDraftOwner, isIntentCurrent, statusTarget: 'accepted', saving: false,
         reopenNeedsManagers: false, employeeType: 'regular', setSaving: noop, setError: noop, setConversionError: noop,
         setStatusTarget: noop, setArchiveOpen: noop, setConverting: noop, apply: () => { applied += 1; },
         router: { push: noop },
@@ -260,6 +269,8 @@ for (const [api, kind, leaf] of [
       await flush();
       assert.equal(calls.length, scenario === 'allowed' ? 1 : 0);
       assert.equal(applied, scenario === 'allowed' ? 1 : 0);
+      assert.equal(statusDraftOwner.current, kind === 'status' && scenario === 'allowed' ? null : draftOwner,
+        'Only a successful current status intent clears the private draft owner');
       if (calls.length) assert.equal(calls[0][0], 'candidate-a');
     });
   }
@@ -447,8 +458,24 @@ test('Me refresh failure conceals both parents and recovery schedules a fresh re
     const source = sources[file].text;
     assert.match(source, /if \(capabilitiesRefreshError\) return/);
     assert.match(source, /\[params,[^\]]*capabilitiesRefreshError\]/);
-    if (file === 'object') assert.match(source, /blocked=\{!!capabilitiesRefreshError \|\| coreLoading/);
-    else assert.match(declaration(file, 'snapshotReady').getText(), /!capabilitiesRefreshError/);
+    if (file === 'object') {
+      const blocked = find(file, (node) => ts.isJsxAttribute(node) && node.name.getText() === 'blocked' &&
+        node.initializer?.getText().includes('capabilitiesRefreshError') && node.initializer.getText().includes('coreLoading'))
+        .initializer.expression;
+      const params = Promise.resolve({ id: 'object-a' });
+      const base = {
+        writeAcknowledged: null, objectId: 'object-a', user: { id: 'actor-a' },
+        capabilitiesRefreshError: null, coreLoading: false, coreError: null,
+        loadedAccessRevision: 'actor-a:1', accessRevision: 'actor-a:1', loadedParams: params, params,
+      };
+      assert.equal(execute(blocked, base), false);
+      for (const changed of [
+        { capabilitiesRefreshError: 'Me refresh failed' }, { coreLoading: true }, { coreError: 'Read failed' },
+        { loadedAccessRevision: 'actor-a:0' }, { loadedParams: Promise.resolve({ id: 'object-b' }) },
+        { writeAcknowledged: { objectId: 'object-a', actorId: 'actor-a' } },
+      ]) assert.equal(execute(blocked, { ...base, ...changed }), true);
+      assert.equal(execute(blocked, { ...base, writeAcknowledged: { objectId: 'object-a', actorId: 'other-actor' } }), false);
+    } else assert.match(declaration(file, 'snapshotReady').getText(), /!capabilitiesRefreshError/);
   }
 });
 
@@ -474,13 +501,14 @@ for (const [file, api, cancelName] of [
   test(`${file}/${api}: real close callback invalidates a held final callback synchronously`, () => {
     let mutations = 0;
     const intent = () => true;
+    const statusDraftOwner = { current: { candidateId: 'candidate-a' } };
     const candidateIntent = { kind: 'archive', isCurrent: intent };
     const candidateIntentRef = { current: candidateIntent };
     const pendingIntents = { current: { deleteIntent: intent, attachmentIntent: intent } };
     const deleteIntentRef = { current: intent };
     const isIntentCurrent = execute(declaration('candidate', 'isIntentCurrent'), { candidateIntent, candidateIntentRef });
     const bindings = {
-      deleteIntent: intent, attachmentIntent: intent, pendingIntents, deleteIntentRef, candidateIntent, candidateIntentRef, isIntentCurrent,
+      deleteIntent: intent, attachmentIntent: intent, pendingIntents, deleteIntentRef, candidateIntent, candidateIntentRef, statusDraftOwner, isIntentCurrent,
       deleteTarget: { id: 'item' }, attachmentTarget: { item: { id: 'item' }, fileId: 'file' }, photoToDelete: 'photo',
       isDetachingAttachment: false, isDeleting: false, busyPhotoId: null, saving: false,
       setDeleteIntent: noop, setDeleteTarget: noop, setAttachmentIntent: noop, setAttachmentTarget: noop, setPhotoToDelete: noop,
@@ -490,6 +518,7 @@ for (const [file, api, cancelName] of [
     const heldConfirm = execute(handler(file, api), bindings);
     const cancel = execute(declaration(file, cancelName), bindings);
     execute(dialogAttribute(file, api, 'onOpenChange'), { ...bindings, [cancelName]: cancel })(false);
+    if (file === 'candidate') assert.equal(statusDraftOwner.current, null);
     heldConfirm('reason');
     assert.equal(mutations, 0);
   });
@@ -599,8 +628,10 @@ test('copy finance resolves fresh source independently from retained private edi
   assert.equal(privateForm.financialNotes, old.financialNotes);
   assert.equal(privateForm.agreedSum, '', 'Server-copied amount is not stored as a user draft');
   let payload;
+  const errors = [];
   const run = execute(declaration('form', 'handleSubmit'), {
-    isSubmitting: false, setError: noop, setNativeValidationIssue: noop, findSectionValidationIssue: () => null,
+    operation: 'create', ApiError,
+    isSubmitting: false, setError: (value) => { if (value) errors.push(value); }, setNativeValidationIssue: noop, findSectionValidationIssue: () => null,
     form, financialForm: old, privateForm, privateFinancialFields: ['financialNotes'], requirePlannedPaymentMethod: true,
     canEditFinancialFields: false, includeSpecificationItems: false, canComposeSpecification: false, specificationItems: [], specificationDraft: {},
     newPaymentMethodContext: undefined, newPaymentMethodValue: '', newPaymentMethod: null,
@@ -609,6 +640,8 @@ test('copy finance resolves fresh source independently from retained private edi
     creationRequestRef: { current: null }, onDraftChange: noop, onSubmit: async (value) => { payload = value; },
   });
   await run({ preventDefault: noop, currentTarget: { querySelectorAll: () => [] } });
+  assert.deepEqual(errors, [], 'The authorized submit must not be swallowed by an unbound dependency');
+  assert.ok(payload);
   for (const field of fields) assert.equal(field in payload, false, field);
   assert.match(sources.create.text, /canEditFinancialFields=\{!copyFromId \|\| copyFinanceAllowed\}/);
   assert.doesNotMatch(sources.create.text, /canSubmit && \(!copyFromId \|\| copyFinanceAllowed\)/);
@@ -645,10 +678,12 @@ test('authorized copy with source finance hidden submits an explicitly selected 
     agreedSum: '99999', financialNotes: 'hidden source note', expenseNotes: 'hidden source expense', plannedPaymentMethod: 'cash',
   };
   let retainedDraft;
+  const errors = [];
   const submit = execute(declaration('form', 'handleSubmit'), {
+    operation: 'create', ApiError,
     form, financialForm: form, privateForm: form, privateFinancialFields: ['financialNotes'], newPaymentMethod,
     newPaymentMethodContext, newPaymentMethodValue: selectedValue(), requirePlannedPaymentMethod: true,
-    isSubmitting: false, canEditFinancialFields: false, setError: noop, setNativeValidationIssue: noop, findSectionValidationIssue: () => null,
+    isSubmitting: false, canEditFinancialFields: false, setError: (value) => { if (value) errors.push(value); }, setNativeValidationIssue: noop, findSectionValidationIssue: () => null,
     includeSpecificationItems: false, canComposeSpecification: false, specificationItems: [], specificationDraft: {},
     canSelectLinkedObject: false, includeManagers: false, allowStatusEdit: false, notesDisclosureOpen: false, selectedManagers: [],
     setIsSubmitting: noop, onBusyChange: noop, creationRequestRef: { current: null },
@@ -656,6 +691,7 @@ test('authorized copy with source finance hidden submits an explicitly selected 
     onDraftChange: (draft) => { retainedDraft = draft; }, onSubmit: copy,
   });
   await submit({ preventDefault: noop, currentTarget: { querySelectorAll: () => [] } });
+  assert.deepEqual(errors, [], 'The authorized copy must reach the real submit path without a swallowed error');
   assert.equal(requests.length, 1);
   assert.equal(requests[0].id, 'source-a');
   assert.equal(requests[0].payload.plannedPaymentMethod, 'organization_transfer');

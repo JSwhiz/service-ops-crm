@@ -10,18 +10,31 @@ import type { AccessChange, AccessSubject } from '../src/modules/users-access/ty
 const actions = ACCESS_ACTION_CATALOG.filter(a => a.module === 'accountability');
 const actor = { id: 'founder', isActive: true, roleCodes: ['founder'] };
 
-test('management scopes restrict exactly the 15 user-account actions without changing runtime metadata or policy gates', () => {
+test('management scopes retain 15 user-account actions and current approved metadata restrictions', () => {
   assert.equal(actions.length, 15);
   for (const action of actions) {
     assert.equal(action.resourceType, 'user');
     assert.deepEqual(action.allowedScopes, ['own','assigned','selected','all']);
     assert.deepEqual(action.managementScopes, ['own','selected','all']);
   }
-  assert(ACCESS_ACTION_CATALOG.filter(a => a.module !== 'accountability').every(a => a.managementScopes === undefined));
+  assert.deepEqual(ACCESS_ACTION_CATALOG
+    .filter(a => a.module !== 'accountability' && a.managementScopes !== undefined)
+    .map(a => ({ code: a.code, scopes: a.managementScopes }))
+    .sort((a, b) => a.code.localeCompare(b.code)), [
+    { code: 'candidates.restore', scopes: ['selected','all'] },
+    { code: 'objects.substitutions.read', scopes: ['assigned','selected'] },
+  ]);
+  assert.deepEqual(ACCESS_ACTION_CATALOG.find(a => a.code === 'inventory.movement.photos.create')?.allowedScopes, ['own']);
   assert.deepEqual(actions.filter(a => !a.manageable).map(a => a.code).sort(), [
-    'accountability.expenses.approve','accountability.expenses.reject','accountability.closure.approve','accountability.closure.reject',
+    'accountability.closure.approve','accountability.closure.reject',
   ].sort());
   assert(actions.filter(a => !a.manageable).every(a => a.constraint === 'policy_decision_required'));
+  for (const code of ['accountability.expenses.approve','accountability.expenses.reject']) {
+    const action = actions.find(a => a.code === code);
+    assert.ok(action);
+    assert.equal(action.manageable, true);
+    assert.equal(action.constraint, undefined);
+  }
 });
 
 test('preview and save reject every new/changed assigned override before opening any transaction', async () => {

@@ -9,6 +9,10 @@ const compiled = ts.transpileModule(readFileSync(new URL('./auth-provider.tsx', 
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.React },
 }).outputText;
 
+const sessionCompiled = ts.transpileModule(readFileSync(new URL('./auth-session.ts', import.meta.url), 'utf8'), {
+  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+}).outputText;
+
 class TestApiError extends Error {
   constructor(message, statusCode) {
     super(message);
@@ -18,7 +22,7 @@ class TestApiError extends Error {
 
 // Executes the real provider with controlled requests and hook storage. This is
 // a lifecycle regression test, not a browser or React renderer acceptance test.
-function provider({ getProfile, loginRequest, confirmProfile } = {}) {
+function provider({ getProfile, loginRequest, confirmProfile, cookieLock = false } = {}) {
   const slots = [];
   const effects = [];
   const redirects = [];
@@ -46,9 +50,25 @@ function provider({ getProfile, loginRequest, confirmProfile } = {}) {
     useMemo: (factory) => factory(),
     useEffect: (effect) => { effects.push(effect); },
   };
+  const lockEvents = [];
+  let cookieWrites = Promise.resolve();
+  const browser = cookieLock ? { navigator: { locks: { request(name, write) {
+    assert.equal(name, 'service-ops-auth-cookie-write');
+    const pending = cookieWrites.then(async () => {
+      lockEvents.push('acquired');
+      try { return await write(); } finally { lockEvents.push('released'); }
+    });
+    cookieWrites = pending.catch(() => {});
+    return pending;
+  } } } } : {};
+  const sessionExports = {};
+  runInNewContext(sessionCompiled, {
+    exports: sessionExports, ...browser,
+    require: () => ({ fetcher: () => { throw new Error('Unexpected session request'); } }),
+  });
   const exports = {};
   runInNewContext(compiled, {
-    exports, window: {},
+    exports, window: {}, ...browser,
     require(name) {
       if (name === 'react') return { ...react, default: react };
       if (name === 'next/navigation') return {
@@ -75,7 +95,7 @@ function provider({ getProfile, loginRequest, confirmProfile } = {}) {
         notifyOtherTabsOfAccessChange: () => {},
         suspendSessionRefresh: () => () => {},
         waitForPendingSessionRefresh: () => null,
-        withAuthCookieLock: (write) => write(),
+        withAuthCookieLock: sessionExports.withAuthCookieLock,
         notifyOtherTabsOfLogout: () => {},
       };
       if (name === '@/shared/api/fetcher') return { ApiError: TestApiError };
@@ -86,7 +106,7 @@ function provider({ getProfile, loginRequest, confirmProfile } = {}) {
   const render = () => { index = 0; return exports.AuthProvider({ children: null }); };
   const initial = render();
   effects[0]();
-  return { initial, render, finishLogout, redirects, reads: () => profileReads, logins: () => loginCalls, logouts: () => logoutCalls };
+  return { initial, render, finishLogout, redirects, lockEvents, reads: () => profileReads, logins: () => loginCalls, logouts: () => logoutCalls };
 }
 
 test('profile refresh during pending logout cannot restore the previous account', async () => {
@@ -208,15 +228,32 @@ test('failed login queued behind logout does not leave loading stuck', async () 
   assert.equal(app.render().user, null);
 });
 
-test('a rejected login confirmation retires the issued cookies before the form can retry', async () => {
-  const app = provider({ confirmProfile: async () => { throw new TestApiError('Access denied', 401); } });
-  await app.initial.refreshUser();
-  const entering = app.render().login({ login: 'new', password: 'test' });
-  const rejected = assert.rejects(entering, /Access denied/);
-  await settleRequests();
-  assert.equal(app.logouts(), 1);
-  assert.equal(app.render().user.id, 'old');
-  app.finishLogout();
-  await rejected;
-  assert.equal(app.render().user.id, 'old');
-});
+for (const statusCode of [401, 403]) {
+  test(`rejected login confirmation ${statusCode} retires issued cookies under the cookie lock before retry`, async () => {
+    const app = provider({ cookieLock: true, confirmProfile: async () => { throw new TestApiError('Access denied', statusCode); } });
+    await app.initial.refreshUser();
+    const entering = app.render().login({ login: 'new', password: 'test' });
+    let settled = false;
+    const rejected = assert.rejects(entering, /Access denied/).then(() => { settled = true; });
+    await settleRequests();
+    assert.equal(app.logouts(), 1);
+    assert.deepEqual(app.lockEvents, ['acquired'], 'Cookie lock stays held during cleanup');
+    assert.equal(settled, false, 'Login failure cannot settle before cookie cleanup');
+    assert.equal(app.render().user.id, 'old', 'Unconfirmed new identity must never be accepted');
+    app.finishLogout();
+    await rejected;
+    assert.deepEqual(app.lockEvents, ['acquired', 'released']);
+    assert.equal(app.render().user, null, 'Rejected confirmation clears local identity');
+    assert.equal(app.logins(), 1);
+    assert.equal(app.logouts(), 1);
+  });
+
+  test(`rejected login confirmation ${statusCode} without cookie lock cannot erase another session's cookies`, async () => {
+    const app = provider({ confirmProfile: async () => { throw new TestApiError('Access denied', statusCode); } });
+    await app.initial.refreshUser();
+    await assert.rejects(app.render().login({ login: 'new', password: 'test' }), /Access denied/);
+    assert.equal(app.logouts(), 0, 'Without jar ownership proof, do not clear potentially newer cookies');
+    assert.deepEqual(app.lockEvents, []);
+    assert.equal(app.render().user, null, 'No rejected or previous identity remains authenticated locally');
+  });
+}

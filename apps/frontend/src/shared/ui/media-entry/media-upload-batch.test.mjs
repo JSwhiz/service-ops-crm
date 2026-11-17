@@ -43,7 +43,11 @@ test('the picker gates native inputs, menus, callbacks and retries by current up
   assert.match(source, /if \(!isDisabled\) input.current\?\.click\(\)/);
   assert.ok((source.match(/disabled=\{isDisabled\}/g) ?? []).length >= 4);
   assert.match(source, /setPendingFailures\(previous => mergeMediaUploadFailures\(previous, files, failures\)\)/);
-  assert.match(source, /if \(batchInFlight.current\) return/);
+  assert.match(source, /if \(!mounted\.current \|\| batchInFlight\.current\) return/);
+  assert.match(source, /\(\) => isCurrentPicker\(\) && availableAtStart && uploadAvailable\.current && isAccessGenerationCurrent\(generation\), onPick/);
+  assert.match(source, /<AttachmentTrigger\s+ref=\{triggerRef\}\s+disabled=\{isDisabled\}\s+aria-expanded=\{menuOpen\}\s+aria-haspopup="menu"/);
+  const trigger = readFileSync(new URL('./attachment-trigger.tsx', import.meta.url), 'utf8');
+  assert.match(trigger, /<IconButton\s+ref=\{ref\}\s+\{\.\.\.props\}/);
 });
 
 test('a later selection preserves earlier failures until an explicit retry or discard', async () => {

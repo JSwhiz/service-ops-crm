@@ -75,10 +75,10 @@ export function ObjectInventoryPanel({
       current.current.movements.some(row => row.id === movement.id && row.inventoryItem.id === movement.inventoryItem.id &&
         row.relatedObject?.id === movement.relatedObject?.id && row.relatedOneTimeOrder?.id === movement.relatedOneTimeOrder?.id && row.projection.canCorrectMovement);
     if (isSaving || !available()) return;
+    const generation = getAccessGeneration();
     setCorrectionTarget({ id: movement.id, itemId: movement.inventoryItem.id, objectId: movement.relatedObject?.id, orderId: movement.relatedOneTimeOrder?.id });
     const reason = await promptReason({ title: 'Исправить выдачу?', description: 'Неподтверждённая выдача будет отменена. Для подтверждённой создаётся возврат с исходной стоимостью; история сохраняется.', confirmLabel: 'Исправить', reasonLabel: 'Причина', minLength: 2 });
     setCorrectionTarget(null);
-    const generation = getAccessGeneration();
     const allowed = () => isAccessGenerationCurrent(generation) && available();
     if (!reason || !allowed()) return;
     setIsSaving(true); setError(null);

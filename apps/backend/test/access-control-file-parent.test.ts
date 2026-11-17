@@ -68,6 +68,7 @@ test('specification child grant cannot download attached file without root order
   };
   const db = {
     user: persistedReader(() => reader),
+    userSubstitution: { findMany: async () => [] },
     file: { findFirst: async ({ where }: { where: RecordValue }) => matches(where, file) ? file : null },
     oneTimeOrder: {
       findFirst: async ({ where }: { where: RecordValue }) => matches(where, order) ? order : null,
@@ -114,7 +115,9 @@ function objectFileFixture() {
     findFirst: async ({ where }: { where: RecordValue }) => rows.find((row) => matches(where, row)) ?? null,
     findUnique: async ({ where }: { where: RecordValue }) => rows.find((row) => matches(where, row)) ?? null,
   });
-  const db = { user: persistedReader(() => reader), file: model(files), object: model([object]),
+  const db = { user: persistedReader(() => reader),
+    userSubstitution: { findMany: async () => [] },
+    file: model(files), object: model([object]),
     objectDailyReport: model([{ id: 'object_daily_report', objectId: object.id, object }]),
     objectComment: model([{ id: 'object_comment', objectId: object.id, object }]),
     objectArrivalPhoto: model([{ id: 'object_arrival_photo', objectId: object.id, object }]),

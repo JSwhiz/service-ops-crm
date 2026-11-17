@@ -4,7 +4,7 @@ import test from 'node:test';
 import ts from 'typescript';
 
 const flush = async () => { await new Promise(resolve => setImmediate(resolve)); await new Promise(resolve => setImmediate(resolve)); };
-const deferred = () => { let resolve; const promise = new Promise(done => { resolve = done; }); return { promise, resolve }; };
+const deferred = () => { let resolve, reject; const promise = new Promise((done, fail) => { resolve = done; reject = fail; }); return { promise, resolve, reject }; };
 function dialog() {
   const calls = [];
   let pending;
@@ -22,6 +22,12 @@ const button = (tree, label) => nodes(tree, 'Button').find(node => node.props.ch
 // Execute actual TSX handlers, retaining hook state while props, auth generation,
 // source DTOs and ancestor concealment change. No browser/API/DB/build needed.
 function harness(path, mocks) {
+  // An ACL revision is not a login/session change. Tests may override the
+  // session explicitly; ordinary revoke/regrant keeps this identity stable.
+  mocks = { ...mocks, '@/shared/auth/access-generation': {
+    getAccessSessionGeneration: () => 1,
+    ...mocks['@/shared/auth/access-generation'],
+  } };
   const slots = [];
   let cursor = 0;
   let effects = [];
@@ -49,6 +55,10 @@ function harness(path, mocks) {
     const output = ts.transpileModule(readFileSync(url, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.React } }).outputText;
     new Function('require', 'exports', output)(name => name === 'react' ? React
       : mocks[name] ?? (mocks.__realDialogs && name === '@/shared/ui/overlays/use-dialogs' ? load(new URL('../../../shared/ui/overlays/use-dialogs.tsx', import.meta.url))
+        : name === '@/shared/api/saved-without-access' ? load(new URL('../../../shared/api/saved-without-access.ts', import.meta.url))
+        : name === '@/features/object-shared-ui/object-write-fence' ? load(new URL('../../object-shared-ui/object-write-fence.ts', import.meta.url))
+        : name === '@/shared/lib/error-message' ? load(new URL('../../../shared/lib/error-message.ts', import.meta.url))
+        : name === '@/shared/api/fetcher' ? { ApiError: class extends Error {} }
         : name === '../model/attachment-correction-draft' ? load(new URL('../model/attachment-correction-draft.ts', import.meta.url))
         : name.endsWith('.css') ? { default: {} } : primitives), exports);
     return exports;
@@ -111,7 +121,7 @@ for (const feature of ['contact', 'inventory']) for (const scenario of ['allowed
     let generation = 1, blocked = false;
     const prompt = dialog();
     const calls = [];
-    const contact = { id: 'contact-a', name: 'Contact', version: 1, phones: [], emails: [], links: [] };
+    const contact = { id: 'contact-a', objectId: 'object-a', name: 'Contact', version: 1, phones: [], emails: [], links: [] };
     const movement = { id: 'movement-a', inventoryItem: { id: 'item-a', name: 'Item', unit: 'шт' }, quantity: 2,
       unitPriceSnapshot: 17, totalAmountSnapshot: 34, createdBy: { fullName: 'User' }, createdAt: '2026-11-08', status: 'applied',
       relatedObject: { id: 'object-a' }, relatedOneTimeOrder: null, attachments: [], projection: { canCorrectMovement: true } };
@@ -147,6 +157,16 @@ for (const feature of ['contact', 'inventory']) for (const scenario of ['allowed
     prompt.settle(scenario === 'cancelled' ? feature === 'contact' ? false : null : feature === 'contact' ? true : 'Reason');
     await flush();
     assert.deepEqual(calls, scenario === 'allowed' ? feature === 'contact' ? [['object-a', contact]] : [['movement-a', 'Reason']] : []);
+    if (feature === 'inventory' && scenario === 'generation-changed') {
+      tree = h.render(name, props); await flush();
+      assert.deepEqual(calls, [], 'Regrant and settling the old reason never send the abandoned intent');
+      button(tree, 'Исправить выдачу').props.onClick();
+      assert.equal(prompt.calls.length, 2, 'A new manual intent must ask for confirmation again');
+      assert.deepEqual(calls, []);
+      prompt.settle('New manually confirmed reason'); await flush();
+      assert.deepEqual(calls, [['movement-a', 'New manually confirmed reason']]);
+    }
+    if (scenario !== 'unmounted') h.unmount();
   });
 }
 
@@ -173,7 +193,7 @@ function attachmentFixture() {
   return { h, render, files, report, reason, confirm, staged, patches,
     setProps: value => { props = { ...props, ...value }; }, revoke: () => { props = { ...props, report: { ...report, capabilities: { editAttachments: false } } }; },
     regrant: () => { props = { ...props, report }; generation += 1; }, invalidate: () => { generation += 2; }, block: () => { blocked = true; },
-    deferUpload: () => (upload = deferred()), clearUpload: () => { upload = undefined; }, deferPatch: () => (patch = deferred()),
+    deferUpload: () => (upload = deferred()), clearUpload: () => { upload = undefined; }, deferPatch: () => (patch = deferred()), clearPatch: () => { patch = undefined; },
     async pick() { for (const file of files) await nodes(render(), 'MediaActionPicker')[0].props.onPick(file); },
     apply() { button(render(), 'Исправить вложения').props.onClick(); },
   };
@@ -200,7 +220,7 @@ for (const checkpoint of ['reason', 'confirm']) for (const scenario of ['allowed
   });
 }
 
-test('staging acknowledgement survives revoke/regrant; no next upload/PATCH or auto replay; manual continuation reuses ID', async () => {
+test('late staging acknowledgement after revoke is terminal; retains private queue without upload/PATCH replay', async () => {
   const f = attachmentFixture(); await f.pick();
   const upload = f.deferUpload(); f.apply(); f.reason.settle('Keep my reason'); await flush(); f.confirm.settle(true); await flush();
   assert.equal(f.staged.length, 1);
@@ -210,23 +230,43 @@ test('staging acknowledgement survives revoke/regrant; no next upload/PATCH or a
   f.regrant(); f.clearUpload(); f.render(); await flush();
   assert.equal(f.staged.length, 1); assert.equal(f.patches.length, 0);
   f.apply(); await flush(); assert.equal(f.reason.calls.length, 1, 'Retain the private reason');
-  f.confirm.settle(true); await flush();
-  assert.equal(f.staged.length, 2, 'Only the second file is uploaded after explicit continuation');
+  assert.equal(button(f.render(), 'Исправить вложения').props.disabled, true);
+  assert.deepEqual(nodes(f.render(), 'PendingMediaList')[0].props.files, f.files);
+  assert.equal(f.staged.length, 1, 'A known commit cannot be retried as a new upload');
   assert.equal(f.staged[0][3], acknowledgedRequest);
-  assert.equal(f.staged[1][2], f.files[1]);
-  assert.deepEqual(f.patches[0][2].addFileIds, ['acknowledged-file-a', 'file-2']);
-  assert.equal(f.patches[0][2].reason, 'Keep my reason');
+  assert.equal(f.patches.length, 0);
+  f.h.unmount();
 });
 
-test('revocation during final PATCH retains exact explicit retry payload and staged IDs', async () => {
+test('revocation during final PATCH preserves private queue but terminal ACK prevents explicit retry', async () => {
   const f = attachmentFixture(); await f.pick(); const patch = f.deferPatch(); f.apply();
   f.reason.settle('Private reason'); await flush(); f.confirm.settle(true); await flush();
   assert.equal(f.patches.length, 1); const payload = f.patches[0][2];
   f.revoke(); f.render(); patch.resolve({ publication: { status: 'queued' } }); await flush();
   f.regrant(); let tree = f.render(); await flush();
   assert.equal(f.patches.length, 1); assert.equal(f.staged.length, 2);
-  button(tree, 'Повторить применение').props.onClick(); await flush(); tree = f.render();
+  assert.deepEqual(nodes(tree, 'PendingMediaList')[0].props.files, f.files);
+  assert.equal(button(tree, 'Повторить применение').props.disabled, true);
+  button(tree, 'Повторить применение').props.onClick(); await flush();
+  assert.equal(f.patches.length, 1); assert.equal(f.patches[0][2], payload); assert.equal(f.staged.length, 2);
+  f.h.unmount();
+});
+
+test('failed final PATCH without a commit ACK retains exact explicit retry payload and staged IDs', async () => {
+  const f = attachmentFixture(); await f.pick(); const patch = f.deferPatch(); f.apply();
+  f.reason.settle('Private reason'); await flush(); f.confirm.settle(true); await flush();
+  assert.equal(f.patches.length, 1); const payload = f.patches[0][2];
+  patch.reject(new Error('Temporary transport failure')); await flush();
+  const tree = f.render();
+  assert.deepEqual(nodes(tree, 'PendingMediaList')[0].props.files, f.files);
+  assert.equal(button(tree, 'Повторить применение').props.disabled, false);
+  // The second call returns a successful response; the acknowledged file IDs
+  // and original requestId/reason must be reused instead of staging again.
+  f.clearPatch();
+  button(tree, 'Повторить применение').props.onClick(); await flush();
   assert.equal(f.patches.length, 2); assert.equal(f.patches[1][2], payload); assert.equal(f.staged.length, 2);
+  assert.equal(nodes(f.render(), 'PendingMediaList').length, 0, 'Only the successful authorized retry clears the queue');
+  f.h.unmount();
 });
 
 for (const operation of ['link', 'master', 'clear-master', 'unlink']) for (const scenario of ['allowed', 'cancelled', 'leaf-denied', 'generation-changed', 'target-changed', 'selection-changed', 'unmounted']) {
@@ -381,7 +421,7 @@ for (const checkpoint of ['issue', 'refresh', 'first-upload', 'last-upload', 'se
 for (const checkpoint of ['before-post', 'awaiting-response']) test(`contact edit ${checkpoint}: live deny blocks writes/clearing while preserving private form`, async () => {
   let generation = 1, writable = true;
   const writes = [], pending = deferred();
-  const contact = { id: 'contact-a', name: 'Original', version: 1, phones: [], emails: [], links: [], notes: 'Original notes' };
+  const contact = { id: 'contact-a', objectId: 'object-a', name: 'Original', version: 1, phones: [], emails: [], links: [], notes: 'Original notes' };
   const h = harness('../../object-contacts/ui/object-contacts-panel.tsx', {
     '@/shared/auth/access-generation': { getAccessGeneration: () => generation, isAccessGenerationCurrent: value => value === generation },
     '@/shared/ui/overlays': { useConfirm: () => [async () => false, null] },
@@ -402,9 +442,17 @@ for (const checkpoint of ['before-post', 'awaiting-response']) test(`contact edi
   oldSubmit({ preventDefault() {} }); await flush();
   assert.equal(writes.length, checkpoint === 'awaiting-response' ? 1 : 0);
   if (checkpoint === 'awaiting-response') { pending.resolve({ ...contact, name: 'Private name', notes: 'Private notes' }); await flush(); }
-  tree = render(); assert.equal(nodes(tree, 'ContactEditor')[0].props.value.notes, 'Private notes');
+  tree = render();
+  if (checkpoint === 'before-post') assert.equal(nodes(tree, 'ContactEditor')[0].props.value.notes, 'Private notes');
+  else assert.equal(nodes(tree, 'ContactEditor').length, 0, 'A committed response after revoke closes the editor with a terminal ACK');
   writable = true; generation += 1; tree = render(); await flush();
-  assert.equal(nodes(tree, 'ContactEditor')[0].props.value.name, 'Private name');
+  if (checkpoint === 'before-post') assert.equal(nodes(tree, 'ContactEditor')[0].props.value.name, 'Private name');
+  else {
+    assert.equal(nodes(tree, 'ContactEditor').length, 0);
+    button(tree, 'Изменить').props.onClick();
+    assert.equal(nodes(render(), 'ContactEditor').length, 0, 'Regrant cannot reopen a known committed operation');
+    assert.equal(writes[0][2].notes, 'Private notes', 'Submitted private text remains bound to its single write');
+  }
   assert.equal(writes.length, checkpoint === 'awaiting-response' ? 1 : 0, 'Regrant does not submit the retained form');
   if (checkpoint === 'before-post') { nodes(tree, 'form')[0].props.onSubmit({ preventDefault() {} }); await flush(); assert.equal(writes.length, 1); }
   h.unmount();
@@ -421,9 +469,12 @@ test('in-flight report staging retains its acknowledgement before releasing busy
   upload.resolve({ file: { id: 'ack-before-release' } }); await flush(); tree = f.render();
   assert.equal(button(tree, 'Исправить вложения').props.pending, false);
   assert.equal(f.patches.length, 0);
-  f.clearUpload(); f.apply(); await flush(); f.confirm.settle(true); await flush();
-  assert.equal(f.staged.length, 2);
-  assert.deepEqual(f.patches[0][2].addFileIds, ['ack-before-release', 'file-2']);
+  f.clearUpload(); f.apply(); await flush();
+  assert.equal(button(f.render(), 'Исправить вложения').props.disabled, true);
+  assert.equal(f.staged.length, 1, 'The late acknowledged upload is terminal even after explicit regrant intent');
+  assert.equal(f.patches.length, 0);
+  assert.deepEqual(nodes(f.render(), 'PendingMediaList')[0].props.files, f.files);
+  f.h.unmount();
 });
 
 for (const editWhilePending of [true, false]) test(`successful issue clears only its submitted comment; newer mid-await edit=${editWhilePending}`, async () => {

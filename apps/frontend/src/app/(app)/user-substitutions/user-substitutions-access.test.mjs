@@ -37,7 +37,12 @@ test('principal is separate from replacement and only an actual target change cl
   assert.match(page, /principal: canCreateOwn && user \? user\.id : ''/);
   assert.match(page, /createUserSubstitution\(\{ principalUserId: principal/);
   assert.match(page, /getSubstitutionOptions\(\{ principalSearch: query \}\)/);
-  assert.match(page, /JSON\.stringify\(\[scope, principal, objectSearch\]\)/);
+  assert.match(page, /const selectedIdsKey = selected\.map\(item => item\.id\)\.sort\(\)\.join\(','\)/);
+  assert.match(page, /JSON\.stringify\(\[scope, principal, objectSearch, selectedIdsKey\]\)/);
+  assert.match(page, /selectedObjectIds: selectedIdsKey \? selectedIdsKey\.split\(','\) : \[\]/);
+  assert.match(page, /setEligibleSelectedObjectIds\(response\.eligibleSelectedObjectIds \?\? \[\]\)/);
+  assert.match(page, /selectedObjectsAllowed = selected\.every\(item => eligibleSelectedObjectIds\.includes\(item\.id\)\)/);
+  assert.match(page, /canSubmit = canCreate && optionsCurrent && !!principal && selectedObjectsAllowed/);
 });
 
 test('submit and revoke consult current capabilities, not a stale target snapshot', () => {
