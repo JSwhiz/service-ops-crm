@@ -46,7 +46,7 @@ test('malformed selected denies fail closed in direct decisions and list predica
 });
 
 test('catalog has one definition per action, valid parents and declared scopes', () => {
-  assert.equal(ACCESS_ACTION_CATALOG.length, 291, 'Deliberately update the acceptance registry if the catalog changes');
+  assert.equal(ACCESS_ACTION_CATALOG.length, 293, 'Deliberately update the acceptance registry if the catalog changes');
   const codes = new Set(ACCESS_ACTION_CATALOG.map((action) => action.code));
   assert.equal(codes.size, ACCESS_ACTION_CATALOG.length);
   assert.deepEqual([...codes].sort(), expectedRegistry.rows.map((row) => row.code).sort());

@@ -593,10 +593,79 @@ test('15 accountability actions enforce live personal rules and preserve money/a
     await reset();
   });
 
-  // These decisions are deliberately constrained, not missing grant support.
-  // Direct deny fixtures model pre-existing personal restrictions; the admin API
-  // must reject issuing new positive authority (or new rules for these codes).
-  for (const leaf of ['expenses.approve', 'expenses.reject', 'closure.approve', 'closure.reject'] as const) {
+  // Personal expense decisions are founder-manageable. Reuse the existing
+  // independent-decision ledger/audit assertions; self-approval is covered above.
+  for (const leaf of ['expenses.approve', 'expenses.reject'] as const) {
+    await t.test(`${leaf}: founder selected/all grants resolve only authorized sources and retain explicit denies`, async () => {
+      await reset();
+      const owner = await newUser(`grant-${leaf}-A`);
+      const control = await newUser(`grant-${leaf}-B`);
+      try {
+        const code = `accountability.${leaf}`;
+        const definition = ACCESS_ACTION_CATALOG.find((action) => action.code === code)!;
+        assert.equal(definition.manageable, true);
+        assert.notEqual(definition.constraint, 'policy_decision_required');
+        const decision = leaf.endsWith('approve') ? 'approve' : 'reject';
+        const target = await draft(owner);
+        const other = await draft(control);
+        await submit(owner, target.id);
+        await submit(control, other.id);
+        const path = (id: string) => `/accountability/expenses/${id}/${decision}`;
+        await denied(grantReviewer, path(target.id), 'POST', { comment: 'No personal decision authority yet' });
+
+        // The founder issues real personal authority through preview/save;
+        // no permission, role, source ownership or manager assignment is added.
+        const grant = async (scope: 'selected' | 'all') => {
+          const { accessVersion } = await prisma.user.findUniqueOrThrow({
+            where: { id: grantReviewer.id }, select: { accessVersion: true },
+          });
+          const payload = {
+            expectedVersion: accessVersion, reason: 'Approved personal expense decision fixture',
+            changes: [{ actionCode: code, effect: 'allow', scope,
+              selectedIds: scope === 'selected' ? [owner.id] : [] }],
+          };
+          const route = `/users-access/admin/users/${grantReviewer.id}`;
+          const preview = await json<{ previewToken: string; previewHash: string }>(
+            await request(reviewer, `${route}/preview`, 'POST', payload), 201,
+          );
+          const saved = await json<{ accessVersion: number }>(await request(reviewer, `${route}/save`, 'POST', {
+            ...payload, previewToken: preview.previewToken, previewHash: preview.previewHash,
+          }), 201);
+          assert.equal(saved.accessVersion, accessVersion + 1);
+          const stored = await prisma.userAccessRule.findUniqueOrThrow({
+            where: { userId_actionCode: { userId: grantReviewer.id, actionCode: code } },
+          });
+          assert.equal(stored.effect, 'allow');
+          assert.equal(stored.scope, scope);
+          assert.deepEqual(stored.selectedIds, scope === 'selected' ? [owner.id] : []);
+        };
+
+        await grant('selected');
+        await denied(grantReviewer, path(other.id), 'POST', { comment: 'Outside selected account' });
+        await rule(grantReviewer, 'read', 'deny', 'selected', [owner.id]);
+        await denied(grantReviewer, path(target.id), 'POST', { comment: 'Source read denial overrides selected grant' });
+        await revoke(grantReviewer, 'read');
+        await rule(grantReviewer, 'access', 'deny', 'selected', [owner.id]);
+        await denied(grantReviewer, path(target.id), 'POST', { comment: 'Root denial overrides selected grant' });
+        await revoke(grantReviewer, 'access');
+        await resolveExpense(grantReviewer, owner, target.id, decision);
+        await denied(grantReviewer, path(target.id), 'POST', { comment: 'Replay' }, 409);
+
+        await grant('all');
+        await rule(grantReviewer, 'read', 'deny', 'selected', [control.id]);
+        await denied(grantReviewer, path(other.id), 'POST', { comment: 'Source read denial overrides all grant' });
+        await revoke(grantReviewer, 'read');
+        await resolveExpense(grantReviewer, control, other.id, decision);
+        await denied(grantReviewer, path(other.id), 'POST', { comment: 'Replay' }, 409);
+        await revoke(grantReviewer, leaf);
+        await denied(grantReviewer, path(other.id), 'POST', { comment: 'Revoked personal authority on same cookie' });
+      } finally { await reset(); }
+    });
+  }
+
+  // Closure decisions remain constrained. Personal expense authority does not
+  // grant closure approval/rejection or change their independent resolution.
+  for (const leaf of ['closure.approve', 'closure.reject'] as const) {
     await t.test(`${leaf}: constrained admin allow is rejected; legacy independent resolution honors personal deny`, async () => {
       await reset();
       const owner = await newUser(`grant-${leaf}`);

@@ -10,8 +10,8 @@ import { loginAndGetCookieHeader } from './helpers/auth';
 import { createTestApp } from './helpers/create-test-app';
 import { usesIsolatedIntegrationDatabase } from './helpers/isolated-database';
 
-// All five codes are global and policy_decision_required. Do not manufacture
-// unsupported selected/allow rules in Prisma to bypass the real admin boundary.
+// Access/read are approved global rules; the three write codes remain locked.
+// Exercise grants through admin preview/save, never manufactured Prisma rules.
 test('specification catalog preserves its constrained policy and real item/template HTTP lifecycle', async (t) => {
   assert.equal(usesIsolatedIntegrationDatabase(), true);
   const database = new URL(process.env.DATABASE_URL!);
@@ -19,10 +19,13 @@ test('specification catalog preserves its constrained policy and real item/templ
   assert.ok(['localhost', '127.0.0.1', '[::1]'].includes(database.hostname));
   assert.match(database.searchParams.get('schema') ?? '', /^integration_\d+_\d+$/);
   const actions = ACCESS_ACTION_CATALOG.filter((entry) => entry.module === 'specification_catalog');
+  const readCodes = ['specification_catalog.access', 'specification_catalog.read'];
+  const writeActions = actions.filter((action) => !readCodes.includes(action.code));
   assert.deepEqual(actions.map((entry) => entry.code).sort(), ['access', 'read', 'create', 'update', 'archive'].map((suffix) => `specification_catalog.${suffix}`).sort());
   for (const action of actions) {
-    assert.equal(action.manageable, false);
-    assert.equal(action.constraint, 'policy_decision_required');
+    const readAction = readCodes.includes(action.code);
+    assert.equal(action.manageable, readAction);
+    assert.equal(action.constraint, readAction ? undefined : 'policy_decision_required');
     assert.deepEqual(action.allowedScopes, ['all']);
     assert.equal(action.parentAction, action.code === 'specification_catalog.access' ? undefined : 'specification_catalog.access');
   }
@@ -108,7 +111,7 @@ test('specification catalog preserves its constrained policy and real item/templ
   } });
   const originalSources = await accessState();
 
-  await t.test('HTTP catalog truthfully declares exactly five constrained global actions; leadership reads do not mutate', async () => {
+  await t.test('HTTP catalog declares two manageable read actions and three locked global writes; leadership reads do not mutate', async () => {
     const before = await domain();
     const definitions = await json<{ actions: typeof ACCESS_ACTION_CATALOG }>(await request('founder', '/users-access/admin/catalog'), 200);
     assert.deepEqual(definitions.actions.filter((entry) => entry.module === 'specification_catalog'), actions);
@@ -124,8 +127,8 @@ test('specification catalog preserves its constrained policy and real item/templ
     await audit(template.id, 'specification_template_created');
   });
 
-  for (const action of actions) {
-    await t.test(`${action.code}: reject new allow/deny and unsupported selected scope atomically`, async () => {
+  for (const action of writeActions) {
+    await t.test(`${action.code}: reject new allow/deny atomically`, async () => {
       const expectedVersion = (await prisma.user.findUniqueOrThrow({ where: { id: managerId } })).accessVersion;
       for (const effect of ['allow', 'deny'] as const) {
         const input = { expectedVersion, reason: marker, changes: [{ actionCode: action.code, effect, scope: 'all' }] };
@@ -134,6 +137,12 @@ test('specification catalog preserves its constrained policy and real item/templ
         await denied('founder', `${adminPath}/preview`, 'POST', input, 400);
         await denied('founder', `${adminPath}/save`, 'POST', { ...input, previewToken: '0'.repeat(64), previewHash: '0'.repeat(64) }, 400);
       }
+    });
+  }
+
+  for (const action of actions) {
+    await t.test(`${action.code}: reject unsupported selected scope atomically`, async () => {
+      const expectedVersion = (await prisma.user.findUniqueOrThrow({ where: { id: managerId } })).accessVersion;
       await denied('founder', `${adminPath}/preview`, 'POST', {
         expectedVersion, reason: marker, changes: [{ actionCode: action.code, effect: 'default', scope: 'selected', selectedIds: [a.id] }],
       }, 400);
@@ -187,6 +196,52 @@ test('specification catalog preserves its constrained policy and real item/templ
     await denied('manager1', templatesPath);
     await denied('manager1', catalogPath, 'POST', { title: `${marker}-still-denied` });
     await denied('founder', `${adminPath}/save`, 'POST', saveInput, 409);
+  });
+
+  await t.test('canonical read grants allow current catalog reads without write authority; root and leaf denies remain effective', async () => {
+    const beforeDomain = await domain();
+    const before = await accessState();
+    const setReadRules = async (effects: readonly ['allow' | 'deny' | 'default', 'allow' | 'deny' | 'default']) => {
+      const expectedVersion = (await prisma.user.findUniqueOrThrow({ where: { id: managerId } })).accessVersion;
+      const input = { expectedVersion, reason: `${marker}-approved-catalog-read`, changes: readCodes.map((actionCode, index) => ({ actionCode, effect: effects[index], scope: 'all' })) };
+      const preview = await json<{ previewToken: string; previewHash: string }>(await request('founder', `${adminPath}/preview`, 'POST', input), 201);
+      const saved = await json<{ accessVersion: number }>(await request('founder', `${adminPath}/save`, 'POST', { ...input, previewToken: preview.previewToken, previewHash: preview.previewHash }), 201);
+      assert.equal(saved.accessVersion, expectedVersion + 1);
+      assert.deepEqual(await domain(), beforeDomain);
+      const after = await accessState();
+      assert.deepEqual(after.roles, before.roles);
+      assert.deepEqual(after.permissions, before.permissions);
+      assert.deepEqual(after.objectAssignments, before.objectAssignments);
+      assert.deepEqual(after.orderAssignments, before.orderAssignments);
+      assert.ok(after.rules.every((rule) => readCodes.includes(rule.actionCode)));
+      for (const [index, actionCode] of readCodes.entries()) {
+        const rules = after.rules.filter((rule) => rule.userId === managerId && rule.actionCode === actionCode);
+        assert.deepEqual(rules.map((rule) => ({ effect: rule.effect, scope: rule.scope, selectedIds: rule.selectedIds })),
+          effects[index] === 'default' ? [] : [{ effect: effects[index], scope: 'all', selectedIds: [] }]);
+      }
+    };
+    await setReadRules(['allow', 'allow']);
+    const items = await json<SpecificationCatalogItemResponseDto[]>(await request('manager1', catalogPath), 200);
+    assert.ok(items.some((item) => item.id === a.id));
+    assert.ok(items.some((item) => item.id === b.id));
+    const templates = await json<SpecificationTemplateResponseDto[]>(await request('manager1', templatesPath), 200);
+    assert.equal(templates.find((item) => item.id === template.id)?.items[0]?.catalogItemId, a.id);
+    await denied('manager1', catalogPath, 'POST', { title: `${marker}-read-only` });
+    await denied('manager1', `${catalogPath}/${a.id}`, 'PATCH', { description: 'Read grant is not write authority' });
+    await denied('manager1', `${catalogPath}/${a.id}`, 'DELETE');
+    await denied('manager1', templatesPath, 'POST', { name: `${marker}-read-only`, items: [{ catalogItemId: a.id, sortOrder: 0 }] });
+    await denied('manager1', `${templatesPath}/${template.id}`, 'PATCH', { expectedVersion: template.version, name: `${marker}-read-only` });
+    await denied('manager1', `${templatesPath}/${template.id}`, 'DELETE', { expectedVersion: template.version });
+    for (const effects of [['deny', 'allow'], ['allow', 'deny']] as const) {
+      await setReadRules(effects);
+      await denied('manager1', catalogPath);
+      await denied('manager1', templatesPath);
+    }
+    await setReadRules(['default', 'default']);
+    assert.deepEqual((await accessState()).rules, before.rules);
+    await denied('manager1', catalogPath);
+    await denied('manager1', templatesPath);
+    assert.deepEqual(await domain(), beforeDomain);
   });
 
   await t.test('leadership update touches A only; template replacement is versioned and preserves stored order text', async () => {

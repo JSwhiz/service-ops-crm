@@ -210,7 +210,7 @@ test('ACL admin HTTP: preview/save ownership, validation, baseline, versions and
       { ...base, changes: [{ ...change('allow'), scope: 'selected', selectedIds: [target.id] }] },
       { ...base, changes: [{ ...change('allow'), scope: 'selected', selectedIds: [unknownId, unknownId] }] },
       { ...base, changes: [change('allow'), change('deny')] },
-      { ...base, changes: [change('allow', 'accountability.expenses.approve')] },
+      { ...base, changes: [change('allow', 'accountability.closure.approve')] },
     ]) {
       const response = await request(endpoint(target.id, '/preview'), founder.cookie, body);
       assert.equal(response.status, 400, await response.clone().text());

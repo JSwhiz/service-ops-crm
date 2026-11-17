@@ -72,7 +72,11 @@ test('accountability management scopes: real admin rejection, legacy retention/r
       assert.deepEqual(a.allowedScopes, ['own','assigned','selected','all']);
       assert.deepEqual(a.managementScopes, ['own','selected','all']);
     }
-    assert.equal(actions.filter((a: { manageable: boolean }) => !a.manageable).length, 4);
+    assert.deepEqual(
+      actions.filter((a: { manageable: boolean }) => !a.manageable)
+        .map((a: { code: string }) => a.code).sort(),
+      ['accountability.closure.approve', 'accountability.closure.reject'],
+    );
   });
 
   await t.test('new and changed assigned allow/deny fail with no admin/source changes; unrelated save retains old rows; default resets all 15 with audit', async () => {

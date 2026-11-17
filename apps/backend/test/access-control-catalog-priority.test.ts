@@ -51,15 +51,15 @@ test('catalog fast classification covers adjustable, restricted implemented and 
   const unsupported = ACCESS_ACTION_CATALOG.filter(({ constraint }) => constraint === 'unsupported_standalone_operation');
   assert.deepEqual(unsupported.map(({ code }) => code).sort(), unsupportedStandalone);
   const adjustable = ACCESS_ACTION_CATALOG.filter(({ manageable }) => manageable);
-  assert.equal(adjustable.length, 265);
+  assert.equal(adjustable.length, 271);
   const restricted = ACCESS_ACTION_CATALOG.filter(({ manageable, code }) => !manageable && !unsupportedStandalone.includes(code));
-  assert.equal(restricted.filter(({ constraint }) => constraint === 'policy_decision_required').length, 16);
+  assert.equal(restricted.filter(({ constraint }) => constraint === 'policy_decision_required').length, 12);
   assert.deepEqual(
     restricted.filter(({ constraint }) => constraint !== 'policy_decision_required')
       .map(({ code, constraint }) => [code, constraint]).sort(),
     [['auth.logout', 'logout_always_available'], ['candidates.denied', 'legacy_negative']],
   );
-  assert.equal(ACCESS_ACTION_CATALOG.length, 291);
+  assert.equal(ACCESS_ACTION_CATALOG.length, 293);
 });
 
 for (const action of ACCESS_ACTION_CATALOG) {
@@ -140,7 +140,7 @@ for (const action of ACCESS_ACTION_CATALOG) {
         ['deny first', [deny, allow]],
       ] as const) {
         check([...rules], resourceIds, remaining, `${scope} deny over legacy allowance, ${order}`);
-        check([...rules], [], action.manageable ? remaining : [], `${scope} deny over personal allow, ${order}`);
+        check([...rules], [], action.manageable && action.allowedScopes.includes('all') ? remaining : [], `${scope} deny over personal all allow, ${order}`);
       }
     }
   });
