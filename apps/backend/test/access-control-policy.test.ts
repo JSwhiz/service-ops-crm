@@ -227,8 +227,29 @@ test('candidates.denied survives role/direct allowances, new grants and returnin
   }
 });
 
+test('approved personal expense decisions grant only the selected scope and retain explicit deny and read parents', () => {
+  for (const code of ['accountability.expenses.approve', 'accountability.expenses.reject']) {
+    const target: AccessContext = { resourceType: 'user', resourceId: 'selected', ownerUserId: 'other' };
+    const control: AccessContext = { ...target, resourceId: 'outside' };
+    const allow = rule('selected', 'allow', code);
+    const user = subject(allow);
+    assert.equal(decideAccess(user, code, false, target), true, code);
+    assert.equal(decideAccess(user, code, false, control), false, `${code}: unselected control`);
+    assert.deepEqual(visible(accessFilter({ user, code })).map(row => row.id), ['selected']);
+    const denied = subject(rule('selected', 'deny', code));
+    assert.equal(decideAccess(denied, code, true, target), false, `${code}: explicit deny`);
+    assert.equal(decideAccess(denied, code, true, control), true, `${code}: control baseline retained`);
+    for (const parent of ['accountability.access', 'accountability.read']) {
+      const blocked = subject(allow, rule('all', 'deny', parent));
+      assert.equal(decideAccess(blocked, code, true, { ...target, parents: [{ actionCode: parent, context: target }] }), false, `${code}: ${parent}`);
+      assert.deepEqual(visible(accessFilter({ user: blocked, code, legacy: {}, parents: [parent] })), [], `${code}: parent list deny`);
+    }
+    assert.equal(decideAccess(user, code, true, { ...target, invariantAllowed: false }), false, `${code}: business invariants remain mandatory`);
+  }
+});
+
 test('sensitive approver actions preserve legacy authority rather than accepting a new allow', () => {
-  for (const code of ['accountability.expenses.approve', 'approvals.resolve_inventory_exception', 'one_time_orders.specification.manage']) {
+  for (const code of ['accountability.closure.approve', 'accountability.closure.reject', 'approvals.resolve_inventory_exception', 'one_time_orders.specification.manage']) {
     const user = subject(rule('all', 'allow', code));
     assert.equal(decideAccess(user, code, false), false, code);
     assert.deepEqual(visible(accessFilter({ user, code })), [], code);

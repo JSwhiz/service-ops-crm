@@ -36,7 +36,7 @@ function fixture(operation: Operation, rules: AccessRule[], own = false) {
   const otherId = randomUUID(), addId = randomUUID();
   const task = {
     id: 'task-a', title: 'Controlled task', createdByUserId: own ? actor.id : 'original-author',
-    objectId: null, oneTimeOrderId: null, object: null, oneTimeOrder: null,
+    objectId: null as string | null, oneTimeOrderId: null as string | null, object: null, oneTimeOrder: null,
     status: operation === 'undo' ? 'awaiting_confirmation' : 'in_progress', workCycle: 1,
     requiresConfirmation: true, completionRequirement: 'comment_required', visibilityType: 'private',
     visibilityUsers: [{ userId: actor.id }],
@@ -49,10 +49,18 @@ function fixture(operation: Operation, rules: AccessRule[], own = false) {
   const queries: Array<{ transaction: boolean; where: unknown }> = [];
   const reachedWrite = new Error('Reached first effect after authorization and domain invariants');
   let committed = false;
+  let beforeTransaction: (() => void) | undefined;
+  const sourceReads: Array<{ transaction: boolean; objectId: string | null; oneTimeOrderId: string | null }> = [];
+  const readSource = (transaction: boolean) => {
+    const source = { objectId: task.objectId, oneTimeOrderId: task.oneTimeOrderId };
+    sourceReads.push({ transaction, ...source });
+    return source;
+  };
   const firstEffect = async () => { effects.push('attempt'); throw reachedWrite; };
   const tx = {
     $queryRaw: async () => [{ id: task.id }],
-    task: { findUnique: async () => task, findFirst: async ({ where }: { where: unknown }) => {
+    task: { findUnique: async (query: { select: Record<string, unknown> }) =>
+      Object.keys(query.select).length === 2 ? readSource(true) : task, findFirst: async ({ where }: { where: unknown }) => {
       queries.push({ transaction: true, where });
       return matches(where, task) ? { id: task.id } : null;
     }, update: firstEffect },
@@ -61,11 +69,14 @@ function fixture(operation: Operation, rules: AccessRule[], own = false) {
   };
   const database = {
     user: { count: async () => 1 },
-    task: { findFirst: async ({ where }: { where: unknown }) => {
+    task: { findUnique: async (query: unknown) => {
+      assert.deepEqual(query, { where: { id: task.id }, select: { objectId: true, oneTimeOrderId: true } });
+      return readSource(false);
+    }, findFirst: async ({ where }: { where: unknown }) => {
       queries.push({ transaction: false, where });
       return matches(where, task) ? { id: task.id } : null;
     } },
-    $transaction: async (work: (client: typeof tx) => Promise<unknown>) => { const result = await work(tx); committed = true; return result; },
+    $transaction: async (work: (client: typeof tx) => Promise<unknown>) => { beforeTransaction?.(); const result = await work(tx); committed = true; return result; },
   };
   const service = new TasksService(database as never, {} as never, {} as never, {} as never);
   const internals = service as unknown as { taskActionWhere(user: User, code: string): unknown };
@@ -73,7 +84,8 @@ function fixture(operation: Operation, rules: AccessRule[], own = false) {
     : operation === 'cancel' ? service.cancelTask(actor, task.id, { reason: 'Authorized reason' })
       : operation === 'add' ? service.addAssignees(actor, task.id, { userIds: [addId] })
         : service.removeAssignee(actor, task.id, otherId);
-  return { actor, task, service, internals, effects, queries, reachedWrite, invoke, isCommitted: () => committed };
+  return { actor, task, service, internals, effects, queries, sourceReads, reachedWrite, invoke, isCommitted: () => committed,
+    setBeforeTransaction: (callback: () => void) => { beforeTransaction = callback; } };
 }
 
 for (const operation of ['undo', 'cancel', 'add', 'remove'] as const) {
@@ -85,11 +97,28 @@ for (const operation of ['undo', 'cancel', 'add', 'remove'] as const) {
       await assert.rejects(f.invoke(), ForbiddenException);
       assert.equal(f.queries.length, 1, 'No post-commit DTO query is used as admission');
       assert.equal(f.queries[0].transaction, true);
+      assert.deepEqual(f.sourceReads, [
+        { transaction: false, objectId: null, oneTimeOrderId: null },
+        { transaction: true, objectId: null, oneTimeOrderId: null },
+      ]);
       assert.deepEqual(f.effects, []);
       assert.equal(f.isCommitted(), false);
       assert.deepEqual(f.task, before);
     });
   }
+
+  test(`${operation}: changed source after preflight is rejected inside the transaction before any effect`, async () => {
+    const f = fixture(operation, [rule(leaf(operation), 'allow', 'all')]);
+    f.setBeforeTransaction(() => { f.task.objectId = 'new-source'; });
+    await assert.rejects(f.invoke(), ConflictException);
+    assert.deepEqual(f.sourceReads, [
+      { transaction: false, objectId: null, oneTimeOrderId: null },
+      { transaction: true, objectId: 'new-source', oneTimeOrderId: null },
+    ]);
+    assert.deepEqual(f.queries, []);
+    assert.deepEqual(f.effects, []);
+    assert.equal(f.isCommitted(), false);
+  });
 
   test(`${operation}: default read plus a valid leaf allow still reaches the original domain mutation`, async () => {
     const f = fixture(operation, [rule(leaf(operation), 'allow', 'all')]);

@@ -59,7 +59,7 @@ function fixture(rules: AccessRule[] = [], permissions: string[] = []) {
     oneTimeOrderSpecificationItem: [{ id: 'spec-a', oneTimeOrderId: 'order-a' }],
     task: [{ id: 'task-a', objectId: 'object-a', oneTimeOrderId: null, createdByUserId: 'creator', assignees: [{ userId: 'reader', isActive: true }], visibilityUsers: [] }],
     taskAssigneeCompletion: [{ id: 'completion-a', taskAssignee: { taskId: 'task-a' } }], candidate: [],
-    userSubstitution: [], employee: [], chatRoom: [], chatMessage: [], objectAssignment: [], oneTimeOrderAssignment: [],
+    userSubstitution: [], employee: [], chatRoom: [], chatRoomParticipant: [], chatMessage: [], objectAssignment: [], oneTimeOrderAssignment: [],
     inventoryMovement: [{ id: 'movement-a', inventoryItemId: 'item-a', createdByUserId: 'creator', relatedObjectId: 'object-a', relatedOneTimeOrderId: null }],
     equipmentUnit: [{ id: 'equipment-a', currentObjectId: 'object-a', currentOneTimeOrderId: null }],
     equipmentMovement: [{ id: 'equipment-movement-a', equipmentUnitId: 'equipment-a', fromObjectId: null, toObjectId: 'object-a', fromOneTimeOrderId: null, toOneTimeOrderId: null }],
@@ -117,6 +117,17 @@ function fixture(rules: AccessRule[] = [], permissions: string[] = []) {
       return select ? result.map((row) => project(row, select)) : result;
     },
   }]));
+  // Membership is a fresh lookup by the compound key, not the filtered room
+  // projection. Return the actual mutable row, including leave/rejoin timestamps.
+  models.chatRoomParticipant.findUnique = async ({ where }: { where: Row }) => {
+    queries.push({ model: 'chatRoomParticipant', where });
+    const key = where.chatRoomId_userId;
+    assert.ok(isRecord(key));
+    const room = data.chatRoom.find(row => row.id === key.chatRoomId);
+    if (!room) return null;
+    assert.ok(Array.isArray(room.participants));
+    return (room.participants as Row[]).find(member => member.userId === key.userId) ?? null;
+  };
   const syncNotifications = () => {
     data.notification.splice(0, data.notification.length);
     for (const [model, type] of [
@@ -458,7 +469,8 @@ function chatFixture() {
   const f = fixture();
   for (const id of ['room-a', 'room-control']) f.data.chatRoom.push({
     id, createdByUserId: 'other', deletedAt: null, visibilityType: 'explicit_members',
-    participants: [{ userId: 'reader', leftAt: null, joinedAt: new Date('2026-01-01T00:00:00Z') }],
+    participants: [{ id: `member-${id}-reader`, chatRoomId: id, userId: 'reader', membershipOverride: null,
+      leftAt: null, joinedAt: new Date('2026-01-01T00:00:00Z') }],
   });
   f.syncNotifications();
   return f;

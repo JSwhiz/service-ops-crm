@@ -239,8 +239,29 @@ const specificationFlags = [
   ['update', 'canUpdateSpecificationCatalog'],
   ['archive', 'canArchiveSpecificationCatalog'],
 ] as const;
-// Locked actions cannot use the manageable-action fixture helper above. Persisted
-// personal allows are modeled only to prove that they cannot bypass the role baseline.
+test('canReadSpecificationCatalog: approved read grant retains parent deny, independent locked writes and default', () => {
+  for (const roleCode of canonicalRoles) {
+    const isLeader = catalogLeaders.includes(roleCode);
+    const allow = rule('specification_catalog.read');
+    assert.equal(capabilities(roleCode).canReadSpecificationCatalog, isLeader, roleCode);
+    const viewer = subject(roleCode, [allow]);
+    const original = structuredClone(viewer);
+    const granted = applyAccessCapabilities(viewer, {});
+    assert.equal(granted.canReadSpecificationCatalog, true, `${roleCode}: approved read grant`);
+    for (const [suffix, flag] of specificationFlags) if (suffix !== 'read') {
+      assert.equal(granted[flag], isLeader, `${roleCode}: read grant cannot promote catalog writes`);
+    }
+    assert.deepEqual(viewer, original, 'No role, permission or rule mutation');
+    assert.equal(capabilities(roleCode, [rule('specification_catalog.read', 'deny')]).canReadSpecificationCatalog, false);
+    const blocked = capabilities(roleCode, [allow, rule('specification_catalog.access', 'deny')]);
+    for (const [, flag] of specificationFlags) assert.equal(blocked[flag], false, `${roleCode}: root deny`);
+    assert.equal(capabilities(roleCode, [rule('specification_catalog.access')]).canReadSpecificationCatalog, isLeader, 'Root grant alone is not a child read grant');
+    assert.equal(capabilities(roleCode).canReadSpecificationCatalog, isLeader, 'Default restores actual role baseline');
+  }
+});
+
+// The three catalog writes remain locked. Read/access rules use the validated
+// manageable-action helper; synthetic write allows cannot promote ordinary roles.
 const lockedCatalogRule = (actionCode: string, effect: AccessRule['effect']): AccessRule => {
   const action = getAccessAction(actionCode);
   assert.ok(action);
@@ -249,12 +270,12 @@ const lockedCatalogRule = (actionCode: string, effect: AccessRule['effect']): Ac
   assert.deepEqual(action.allowedScopes, ['all']);
   return { actionCode, effect, scope: 'all', selectedIds: [] };
 };
-for (const [suffix, flag] of specificationFlags) {
+for (const [suffix, flag] of specificationFlags.filter(([suffix]) => suffix !== 'read')) {
   test(`${flag}: locked catalog action preserves only four leader roles and personal deny precedence`, () => {
     const actionCode = `specification_catalog.${suffix}`;
     const allow = lockedCatalogRule(actionCode, 'allow');
     const deny = lockedCatalogRule(actionCode, 'deny');
-    const rootDeny = lockedCatalogRule('specification_catalog.access', 'deny');
+    const rootDeny = rule('specification_catalog.access', 'deny');
     for (const roleCode of canonicalRoles) {
       const isLeader = catalogLeaders.includes(roleCode);
       assert.equal(capabilities(roleCode)[flag], isLeader, roleCode);
@@ -268,7 +289,7 @@ for (const [suffix, flag] of specificationFlags) {
           assert.equal(independent[otherFlag], true, 'Leaf deny does not silently deny independent catalog actions');
         }
       } else {
-        const viewer = subject(roleCode, [allow, lockedCatalogRule('specification_catalog.access', 'allow')]);
+        const viewer = subject(roleCode, [allow, rule('specification_catalog.access', 'allow')]);
         const original = structuredClone(viewer);
         assert.equal(applyAccessCapabilities(viewer, {})[flag], false, 'Even root plus leaf allow cannot promote an ordinary role');
         assert.deepEqual(viewer, original);

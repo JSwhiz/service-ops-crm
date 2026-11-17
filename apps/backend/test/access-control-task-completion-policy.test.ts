@@ -160,17 +160,42 @@ function mutationFixture(rules: AccessRule[], owner = 'author') {
   let beforeTransaction: (() => void) | undefined;
   const task = {
     id: 'task', title: 'Task', status: 'in_progress', workCycle: 1, createdByUserId: owner,
-    objectId: null, oneTimeOrderId: null, object: null, oneTimeOrder: null, visibilityType: 'private', visibilityUsers: [{ userId: 'reader' }],
+    objectId: null as string | null, oneTimeOrderId: null as string | null, object: null, oneTimeOrder: null, visibilityType: 'private', visibilityUsers: [{ userId: 'reader' }],
     requiresConfirmation: true, completionRequirement: 'comment_required',
     assignees: [{ id: 'assignment', userId: 'reader', isActive: true, isCompleted: false, completions: [] as Array<{ id: string; workCycle: number; status: string }> }],
   };
   const findFirst = async ({ where }: { where: unknown }) => matches(where, task) ? { id: task.id } : null;
+  const sourceReads: Array<{ transaction: boolean; objectId: string | null; oneTimeOrderId: string | null }> = [];
+  const readSource = (transaction: boolean) => {
+    const source = { objectId: task.objectId, oneTimeOrderId: task.oneTimeOrderId };
+    sourceReads.push({ transaction, ...source });
+    return source;
+  };
   const tx = {
     $queryRaw: async () => [{ id: 'task' }],
-    task: { findUnique: async () => task, findFirst },
+    task: { findUnique: async (query: { select: Record<string, unknown> }) =>
+      Object.keys(query.select).length === 2 ? readSource(true) : task, findFirst },
     taskAssigneeCompletion: { create: async () => { writes.push('completion'); throw new Error('unexpected write'); } },
   };
-  const db = { task: { findFirst }, $transaction: async (work: (client: typeof tx) => Promise<unknown>) => {
+  const db = {
+    task: { findFirst, findUnique: async (query: unknown) => {
+      assert.deepEqual(query, { where: { id: task.id }, select: { objectId: true, oneTimeOrderId: true } });
+      return readSource(false);
+    } },
+    user: { findFirst: async ({ where }: { where: { id: string } }) => {
+      assert.equal(where.id, 'reader');
+      return { id: 'reader', isActive: true, accessVersion: 1, accessRules: rules,
+        roles: [{ role: { code: 'manager', permissions: [] } }], permissions: [] };
+    } },
+    userSubstitution: { findMany: async () => [] },
+    taskAssigneeCompletion: { findFirst: async ({ where }: { where: unknown }) => {
+      const drafts = task.assignees.flatMap((assignment) => assignment.completions.map((completion) => ({
+        ...completion, taskAssignee: { ...assignment, taskId: task.id, task },
+      })));
+      const draft = drafts.find((completion) => matches(where, completion));
+      return draft ? { id: draft.id } : null;
+    } },
+    $transaction: async (work: (client: typeof tx) => Promise<unknown>) => {
     calls.transactions++;
     beforeTransaction?.();
     return work(tx);
@@ -187,7 +212,7 @@ function mutationFixture(rules: AccessRule[], owner = 'author') {
     ? service.createCompletionDraft(user, 'task') : operation === 'result'
       ? service.submitResult(user, 'task', { resultText: 'Result' })
       : service.completeMyAssignment(user, 'task', { completionText: 'Result', completionId });
-  return { service, internals, user, task, writes, queries, calls, invoke,
+  return { service, internals, user, task, writes, queries, sourceReads, calls, invoke,
     setBeforeTransaction: (callback: () => void) => { beforeTransaction = callback; } };
 }
 
@@ -205,6 +230,10 @@ for (const operation of ['draft', 'submit', 'result'] as const) {
         assert.ok(f.queries.some((entry) => entry.transaction && entry.code === 'tasks.read'));
         assert.equal(f.calls.transactions, 1);
       }
+      assert.deepEqual(f.sourceReads, operation === 'result' ? [] : [
+        { transaction: false, objectId: null, oneTimeOrderId: null },
+        { transaction: true, objectId: null, oneTimeOrderId: null },
+      ]);
       assert.deepEqual(f.writes, []);
       assert.equal(f.task.status, 'in_progress');
       assert.equal(f.task.workCycle, 1);
@@ -271,3 +300,17 @@ test('read guard does not bypass draft retry identity or old workCycle validatio
   await assert.rejects(f.invoke('submit', 'retained-draft'), BadRequestException);
   assert.deepEqual(f.writes, []);
 });
+
+for (const field of ['objectId', 'oneTimeOrderId'] as const) {
+  test(`completion draft: a changed ${field} between source preflight and lock stops before ACL/domain effects`, async () => {
+    const f = mutationFixture([]);
+    f.setBeforeTransaction(() => { f.task[field] = 'new-source'; });
+    await assert.rejects(f.invoke('draft'), ConflictException);
+    assert.equal(f.calls.transactions, 1);
+    assert.equal(f.sourceReads[0][field], null, 'Preflight is an immutable source snapshot');
+    assert.equal(f.sourceReads[1][field], 'new-source');
+    assert.deepEqual(f.queries, []);
+    assert.deepEqual(f.writes, []);
+    assert.deepEqual(f.task.assignees[0].completions, []);
+  });
+}
