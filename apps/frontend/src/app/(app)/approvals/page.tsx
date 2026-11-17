@@ -18,6 +18,7 @@ import {
 import type { ApprovalRequestItem } from '@/entities/approval/model/approval.types';
 import { isSavedWithoutAccess } from '@/shared/api/saved-without-access';
 import { useAccessRevision } from '@/shared/auth/use-access-revision';
+import { AccessSnapshotBoundary } from '@/shared/auth/access-snapshot-boundary';
 import { formatUiDate } from '@/shared/lib/format-date';
 import {
   APPROVAL_SOURCE_OPTIONS,
@@ -313,9 +314,8 @@ export default function ApprovalsPage(): React.JSX.Element {
 
   useEffect(() => {
     if (!selectedItem) return;
-    if ((rejectingId === selectedItem.id && !selectedItem.capabilities.canReject) ||
-        (cancellingId === selectedItem.id && !selectedItem.capabilities.canCancel)) {
-      clearDecisionDialogs();
+    if (cancellingId === selectedItem.id && !selectedItem.capabilities.canCancel) {
+      setCancellingId(null); setCancelError(null);
     }
   }, [cancellingId, clearDecisionDialogs, rejectingId, selectedItem]);
 
@@ -739,6 +739,7 @@ export default function ApprovalsPage(): React.JSX.Element {
         </Surface>
       ) : null}
 
+      <AccessSnapshotBoundary blocked={loadedAccessRevision !== accessRevision}>
       <Drawer
         open={Boolean(selectedItem)}
         onOpenChange={(open) => {
@@ -778,7 +779,7 @@ export default function ApprovalsPage(): React.JSX.Element {
 
       <ReasonDialog
         open={Boolean(
-          selectedItem?.capabilities.canReject && rejectingId === selectedItem.id,
+          selectedItem && rejectingId === selectedItem.id,
         )}
         onOpenChange={(open) => {
           if (!open) {
@@ -801,9 +802,12 @@ export default function ApprovalsPage(): React.JSX.Element {
         pending={Boolean(
           selectedItem && actingId === selectedItem.id,
         )}
+        confirmDisabled={!selectedItem?.capabilities.canReject}
+        confirmDisabledReason={selectedItem && !selectedItem.capabilities.canReject ? 'Отклонение недоступно. Введённая причина сохранена; отправка заблокирована. Проверьте доступ перед повторным действием.' : undefined}
         error={rejectError}
         returnFocusRef={queueFallbackRef}
       />
+      </AccessSnapshotBoundary>
 
       <ConfirmDialog
         open={Boolean(

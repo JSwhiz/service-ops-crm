@@ -20,9 +20,10 @@ import { initialHolidayContour, isHolidayContourSelected } from '../model/holida
 
 const titles: Record<AdjustmentKind, string> = { extra_work: 'Добавить допработу', shift_override: 'Изменить цену выхода', replacement: 'Оплатить подмену вместо основного', holiday_exception: 'Исключение оплаты праздника' };
 
-export function CompensationAdjustmentDialog({ objectId, kind, employees, initialFact, onClose, onSaved }: {
+export function CompensationAdjustmentDialog({ objectId, kind, employees, initialFact, accessReason, onClose, onSaved }: {
   objectId: string; kind: AdjustmentKind; employees: ObjectEmployeeOption[]; initialFact?: ShiftAttendance;
   onClose: () => void; onSaved: (result: CompensationMutationResult) => void;
+  accessReason?: string | null;
 }): React.JSX.Element {
   const [date, setDate] = useState(initialFact?.operationDate ?? moscowToday());
   const [employeeId, setEmployeeId] = useState(initialFact?.employeeId ?? '');
@@ -81,7 +82,7 @@ export function CompensationAdjustmentDialog({ objectId, kind, employees, initia
   };
   const save = async (event: React.FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault();
-    if (lock.current || blocked || loading || readError || holidayLoading || holidayReadError) return;
+    if (lock.current || blocked || accessReason || loading || readError || holidayLoading || holidayReadError) return;
     const form = event.currentTarget;
     const invalid = (field: string, message: string): void => { setInvalidField(field); setError(message); focusCompensationField(form, field); };
     if (!date || date > moscowToday()) { invalid('operationDate', 'Укажите прошедшую или текущую дату.'); return; }
@@ -107,8 +108,9 @@ export function CompensationAdjustmentDialog({ objectId, kind, employees, initia
     finally { lock.current = false; setPending(false); }
   };
   return <>{confirmation}<Dialog open onOpenChange={(open) => { if (!open) void close(); }} busy={pending} size="regular" title={titles[kind]}
-    footer={<div className="ui-inline"><Button disabled={pending} onClick={() => { void close(); }}>Отмена</Button><Button form={formId} type="submit" variant="primary" pending={pending} disabled={blocked || loading || !!readError || holidayLoading || !!holidayReadError}>{date < moscowToday() ? 'Отправить на согласование' : 'Сохранить изменение'}</Button></div>}>
+    footer={<div className="ui-inline"><Button disabled={pending} onClick={() => { void close(); }}>Отмена</Button><Button form={formId} type="submit" variant="primary" pending={pending} disabled={blocked || !!accessReason || loading || !!readError || holidayLoading || !!holidayReadError}>{date < moscowToday() ? 'Отправить на согласование' : 'Сохранить изменение'}</Button></div>}>
     <form id={formId} noValidate className={styles.content} onSubmit={(event) => { void save(event); }}>
+      {accessReason ? <Alert tone="warning" role="status">{accessReason}</Alert> : null}
       <div className={styles.short}><Field label="Дата операции · Москва" required error={invalidField === 'operationDate' ? error : undefined}><DatePicker name="operationDate" value={date} max={moscowToday()} required disabled={pending} onChange={(value) => { setDate(value); setAttendanceId(''); setSubstitutionId(''); }} /></Field></div>
       {needsShift ? <>
         {loading ? <LoadingState label="Загрузка сохранённых выходов" /> : null}

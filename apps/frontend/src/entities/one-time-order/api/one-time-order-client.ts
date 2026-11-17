@@ -1,4 +1,4 @@
-import { fetcher, postCommittedWrite } from "@/shared/api/fetcher";
+import { committedWrite, fetcher, postCommittedWrite } from "@/shared/api/fetcher";
 import type { SavedWithoutAccess } from "@/shared/api/saved-without-access";
 import { historyPageQueryString } from "@/shared/api/history-page";
 import type { HistoryPageQuery, HistoryPageResponse } from "@/shared/api/history-page";
@@ -62,8 +62,8 @@ export async function listSpecificationCatalog(): Promise<
 export async function createSpecificationCatalogItem(
   payload: Pick<SpecificationCatalogItem, "title"> &
     Partial<Pick<SpecificationCatalogItem, "description" | "sortOrder">>,
-): Promise<SpecificationCatalogItem> {
-  return fetcher<SpecificationCatalogItem>(
+): Promise<SpecificationCatalogItem | SavedWithoutAccess> {
+  return committedWrite<SpecificationCatalogItem>(
     "/one-time-orders/specification-catalog",
     { method: "POST", body: JSON.stringify(payload) },
   );
@@ -77,8 +77,8 @@ export async function updateSpecificationCatalogItem(
       "title" | "description" | "sortOrder" | "isArchived"
     >
   >,
-): Promise<SpecificationCatalogItem> {
-  return fetcher<SpecificationCatalogItem>(
+): Promise<SpecificationCatalogItem | SavedWithoutAccess> {
+  return committedWrite<SpecificationCatalogItem>(
     `/one-time-orders/specification-catalog/${id}`,
     { method: "PATCH", body: JSON.stringify(payload) },
   );
@@ -96,8 +96,8 @@ export async function listSpecificationTemplates(): Promise<
 export async function createSpecificationTemplate(payload: {
   name: string;
   items: Array<{ catalogItemId: string; sortOrder: number }>;
-}): Promise<SpecificationTemplate> {
-  return fetcher<SpecificationTemplate>(
+}): Promise<SpecificationTemplate | SavedWithoutAccess> {
+  return committedWrite<SpecificationTemplate>(
     "/one-time-orders/specification-templates",
     { method: "POST", body: JSON.stringify(payload) },
   );
@@ -111,8 +111,8 @@ export async function updateSpecificationTemplate(
     isArchived?: boolean;
     items?: Array<{ catalogItemId: string; sortOrder: number }>;
   },
-): Promise<SpecificationTemplate> {
-  return fetcher<SpecificationTemplate>(
+): Promise<SpecificationTemplate | SavedWithoutAccess> {
+  return committedWrite<SpecificationTemplate>(
     `/one-time-orders/specification-templates/${id}`,
     { method: "PATCH", body: JSON.stringify(payload) },
   );

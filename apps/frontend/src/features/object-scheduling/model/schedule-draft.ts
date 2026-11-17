@@ -35,6 +35,18 @@ export interface PositionDraft {
   groups: GroupDraft[];
   exceptions: { date: string; working: boolean }[];
 }
+
+/** Compare only restricted bindings; ordinary schedule edits remain available. */
+export function restrictedPositionChanges(value: PositionDraft, baseline: PositionDraft): { assignments: boolean; payConditions: boolean } {
+  const assignments = (draft: PositionDraft): string => JSON.stringify(draft.groups
+    .filter((group) => group.assignments.length > 0)
+    .map((group) => [group.key, group.assignments.map((item) => [item.employeeId, item.startDate, item.endDate]).sort()])
+    .sort());
+  const payConditions = (draft: PositionDraft): string => JSON.stringify(draft.groups
+    .flatMap((group) => group.intervals.filter((item) => item.contourId).map((item) => [group.key, item.key, item.contourId]))
+    .sort());
+  return { assignments: assignments(value) !== assignments(baseline), payConditions: payConditions(value) !== payConditions(baseline) };
+}
 export const schedulePresets = [
   { value: 'weekly', label: '5/2 — понедельник–пятница' },
   { value: '2/2', label: '2/2 — стандартный' },

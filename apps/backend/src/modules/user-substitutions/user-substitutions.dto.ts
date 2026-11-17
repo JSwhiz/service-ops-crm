@@ -1,4 +1,4 @@
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { ArrayMaxSize, ArrayMinSize, ArrayUnique, IsArray, IsInt, IsISO8601, IsOptional, IsString, IsUUID, Matches, Max, MaxLength, Min, MinLength } from 'class-validator';
 
 export class CreateUserSubstitutionDto {
@@ -15,6 +15,8 @@ export class RevokeUserSubstitutionDto {
 }
 
 export class SubstitutionOptionsQueryDto {
+  @IsOptional() @Transform(({ value }) => typeof value === 'string' ? value.split(',') : value)
+  @IsArray() @ArrayMaxSize(100) @ArrayUnique() @IsUUID(undefined, { each: true }) selectedObjectIds?: string[];
   @IsOptional() @IsString() @MaxLength(100) principalSearch?: string;
   @IsOptional() @IsUUID() principalUserId?: string;
   @IsOptional() @IsString() @MaxLength(100) userSearch?: string;

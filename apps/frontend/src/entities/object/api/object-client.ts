@@ -162,8 +162,8 @@ export async function listObjectAuditLogs(id: string): Promise<ObjectAuditLogIte
   return fetcher<ObjectAuditLogItem[]>(`/objects/${id}/audit`, { method: 'GET' });
 }
 
-export async function createObject(payload: CreateObjectPayload): Promise<ServiceObject> {
-  return fetcher<ServiceObject>('/objects', { method: 'POST', body: JSON.stringify(payload) });
+export async function createObject(payload: CreateObjectPayload): Promise<ServiceObject | SavedWithoutAccess> {
+  return committedWrite<ServiceObject>('/objects', { method: 'POST', body: JSON.stringify(payload) });
 }
 
 export async function updateObject(id: string, payload: UpdateObjectPayload): Promise<ServiceObject | SavedWithoutAccess> {

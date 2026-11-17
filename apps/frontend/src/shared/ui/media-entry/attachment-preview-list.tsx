@@ -55,9 +55,18 @@ function AttachmentPreviewCard({
   const [view, setView] = useState<FileView | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
   const [pollingRun, setPollingRun] = useState(0);
-  const [isRetrying, setIsRetrying] = useState(false);
+  const [retryingTarget, setRetryingTarget] = useState<string | null>(null);
   const [thumbnailFailed, setThumbnailFailed] = useState(false);
   const actionsTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const target = `${accessRevision}:${file.id}`;
+  const targetRef = useRef<string | null>(target);
+  targetRef.current = target;
+  const isRetrying = retryingTarget === target;
+
+  useEffect(() => {
+    targetRef.current = target;
+    return () => { targetRef.current = null; };
+  }, [target]);
   const viewerUrl = buildFileViewerUrl(file.id);
   const downloadUrl = buildFileDownloadUrl(file.id);
   // Metadata/read access alone is not download or preview-retry permission.
@@ -133,16 +142,16 @@ function AttachmentPreviewCard({
 
   const handleRetry = async (): Promise<void> => {
     if (!canRetryPreview || isRetrying) return;
-    setIsRetrying(true);
+    setRetryingTarget(target);
     setLoadFailed(false);
 
     try {
       await retryFilePreview(file.id);
-      setPollingRun((current) => current + 1);
+      if (targetRef.current === target) setPollingRun((current) => current + 1);
     } catch {
-      setLoadFailed(true);
+      if (targetRef.current === target) setLoadFailed(true);
     } finally {
-      setIsRetrying(false);
+      if (targetRef.current === target) setRetryingTarget(null);
     }
   };
 

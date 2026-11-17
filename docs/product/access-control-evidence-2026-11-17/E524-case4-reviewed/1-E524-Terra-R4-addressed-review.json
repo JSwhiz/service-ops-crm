@@ -1,0 +1,35 @@
+{
+  "review": "Terra E524 R4 bounded addressed source review",
+  "originalFinding": "Known ordinary 201 can lose visible confirmation after movement row unmounts",
+  "verdict": "addressed_in_source",
+  "sourceEpoch": [
+    {
+      "path": "/Users/dmitrijkruckov/Desktop/service-ops-crm/apps/frontend/src/entities/file/api/file-client.ts",
+      "sha256": "f85d8dc343c764ca641bed5979c7ea39d5aa9662657804c775263cc96e11bed0"
+    },
+    {
+      "path": "/Users/dmitrijkruckov/Desktop/service-ops-crm/apps/frontend/src/features/inventory-movement-list/ui/inventory-movement-list.tsx",
+      "sha256": "beed052fd96947c00dd041d23820934b3bded0c307c4770e104c5c458ff42aa8"
+    },
+    {
+      "path": "/Users/dmitrijkruckov/Desktop/service-ops-crm/apps/frontend/src/app/(app)/inventory/[id]/page.tsx",
+      "sha256": "2701710853eedf7bf20974dcdc477bb0a9be3bcbbe5262a65d78e49df71cb9c4"
+    },
+    {
+      "path": "/Users/dmitrijkruckov/Desktop/service-ops-crm/apps/frontend/src/app/(app)/inventory/movements/page.tsx",
+      "sha256": "079c4c2772d278d72940649c02d80a5b5171e2f08efc4a8be6d16adc30a5d395"
+    }
+  ],
+  "observations": [
+    "Child records known success and clears own pending file before checking view availability, then invokes root callback only if view lost and session unchanged.",
+    "Both root pages bind callback to render-captured actor/session, with item params for item page; mismatched preflight rejects before upload.",
+    "Lost-view ordinary success displays nonterminal root notice outside access boundary; saved_without_access produces terminal generic acknowledgement. A later nonterminal notification preserves terminal state.",
+    "No new source finding in the bounded R4 paths."
+  ],
+  "limits": [
+    "No tests executed by reviewer.",
+    "E527 evidence could not be read: macOS returned EPERM even after a read grant; no controlled or native behavior is independently validated.",
+    "No stale epoch is equated with this source snapshot."
+  ],
+  "productEdited": false
+}

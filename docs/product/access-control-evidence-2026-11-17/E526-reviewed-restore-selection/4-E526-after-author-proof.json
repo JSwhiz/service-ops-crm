@@ -1,0 +1,481 @@
+{
+  "id": "E526",
+  "kind": "after_lookup_fix_and_bounded_dependency_author_proof_not_independent_review",
+  "status": "all_requested_after_cases_passed",
+  "lookupGETs": 18,
+  "literalLookupAssertions": 54,
+  "noEffectsAssertion": {
+    "path": "/private/tmp/E526-after-isolated/attempt-001/restore-picker-after.json",
+    "sha256": "2fe29ad3fc20c5a544bc71c46be660b169418730fc72becc48b33765a1ef1737",
+    "pointer": "/noEffects"
+  },
+  "cases": [
+    {
+      "key": "candidate_restore_exact_archived_q",
+      "status": "passed",
+      "http": {
+        "path": "/private/tmp/E526-after-isolated/attempt-001/restore-picker-after.json",
+        "sha256": "2fe29ad3fc20c5a544bc71c46be660b169418730fc72becc48b33765a1ef1737",
+        "pointer": "/cases/0/http"
+      },
+      "assertions": {
+        "path": "/private/tmp/E526-after-isolated/attempt-001/restore-picker-after.json",
+        "sha256": "2fe29ad3fc20c5a544bc71c46be660b169418730fc72becc48b33765a1ef1737",
+        "pointer": "/cases/0/assertions",
+        "assertionIndexes": [
+          0,
+          1,
+          2,
+          3
+        ]
+      },
+      "httpStatus": 200,
+      "actualItemIds": [
+        "8e09e2a4-0da2-4187-8ef2-766298215ce2"
+      ]
+    },
+    {
+      "key": "candidate_restore_exact_archived_ids",
+      "status": "passed",
+      "http": {
+        "path": "/private/tmp/E526-after-isolated/attempt-001/restore-picker-after.json",
+        "sha256": "2fe29ad3fc20c5a544bc71c46be660b169418730fc72becc48b33765a1ef1737",
+        "pointer": "/cases/1/http"
+      },
+      "assertions": {
+        "path": "/private/tmp/E526-after-isolated/attempt-001/restore-picker-after.json",
+        "sha256": "2fe29ad3fc20c5a544bc71c46be660b169418730fc72becc48b33765a1ef1737",
+        "pointer": "/cases/1/assertions",
+        "assertionIndexes": [
+          0,
+          1,
+          2,
+          3
+        ]
+      },
+      "httpStatus": 200,
+      "actualItemIds": [
+        "8e09e2a4-0da2-4187-8ef2-766298215ce2"
+      ]
+    },
+    {
+      "key": "candidate_restore_active_and_archived",
+      "status": "passed",
+      "http": {
+        "path": "/private/tmp/E526-after-isolated/attempt-001/restore-picker-after.json",
+        "sha256": "2fe29ad3fc20c5a544bc71c46be660b169418730fc72becc48b33765a1ef1737",
+        "pointer": "/cases/2/http"
+      },
+      "assertions": {
+        "path": "/private/tmp/E526-after-isolated/attempt-001/restore-picker-after.json",
+        "sha256": "2fe29ad3fc20c5a544bc71c46be660b169418730fc72becc48b33765a1ef1737",
+        "pointer": "/cases/2/assertions",
+        "assertionIndexes": [
+          0,
+          1,
+          2,
+          3
+        ]
+      },
+      "httpStatus": 200,
+      "actualItemIds": [
+        "0f646c05-0000-4f4f-aeae-bd4c37052798",
+        "8e09e2a4-0da2-4187-8ef2-766298215ce2"
+      ]
+    },
+    {
+      "key": "candidate_no_action_q_active_only",
+      "status": "passed",
+      "http": {
+        "path": "/private/tmp/E526-after-isolated/attempt-001/restore-picker-after.json",
+        "sha256": "2fe29ad3fc20c5a544bc71c46be660b169418730fc72becc48b33765a1ef1737",
+        "pointer": "/cases/3/http"
+      },
+      "assertions": {
+        "path": "/private/tmp/E526-after-isolated/attempt-001/restore-picker-after.json",
+        "sha256": "2fe29ad3fc20c5a544bc71c46be660b169418730fc72becc48b33765a1ef1737",
+        "pointer": "/cases/3/assertions",
+        "assertionIndexes": [
+          0,
+          1
+        ]
+      },
+      "httpStatus": 200,
+      "actualItemIds": [
+        "0f646c05-0000-4f4f-aeae-bd4c37052798"
+      ]
+    },
+    {
+      "key": "candidate_no_action_ids_archived_hidden",
+      "status": "passed",
+      "http": {
+        "path": "/private/tmp/E526-after-isolated/attempt-001/restore-picker-after.json",
+        "sha256": "2fe29ad3fc20c5a544bc71c46be660b169418730fc72becc48b33765a1ef1737",
+        "pointer": "/cases/4/http"
+      },
+      "assertions": {
+        "path": "/private/tmp/E526-after-isolated/attempt-001/restore-picker-after.json",
+        "sha256": "2fe29ad3fc20c5a544bc71c46be660b169418730fc72becc48b33765a1ef1737",
+        "pointer": "/cases/4/assertions",
+        "assertionIndexes": [
+          0,
+          1
+        ]
+      },
+      "httpStatus": 200,
+      "actualItemIds": []
+    },
+    {
+      "key": "candidate_ordinary_update_q_active_only",
+      "status": "passed",
+      "http": {
+        "path": "/private/tmp/E526-after-isolated/attempt-001/restore-picker-after.json",
+        "sha256": "2fe29ad3fc20c5a544bc71c46be660b169418730fc72becc48b33765a1ef1737",
+        "pointer": "/cases/5/http"
+      },
+      "assertions": {
+        "path": "/private/tmp/E526-after-isolated/attempt-001/restore-picker-after.json",
+        "sha256": "2fe29ad3fc20c5a544bc71c46be660b169418730fc72becc48b33765a1ef1737",
+        "pointer": "/cases/5/assertions",
+        "assertionIndexes": [
+          0,
+          1
+        ]
+      },
+      "httpStatus": 200,
+      "actualItemIds": [
+        "0f646c05-0000-4f4f-aeae-bd4c37052798"
+      ]
+    },
+    {
+      "key": "candidate_ordinary_update_ids_archived_hidden",
+      "status": "passed",
+      "http": {
+        "path": "/private/tmp/E526-after-isolated/attempt-001/restore-picker-after.json",
+        "sha256": "2fe29ad3fc20c5a544bc71c46be660b169418730fc72becc48b33765a1ef1737",
+        "pointer": "/cases/6/http"
+      },
+      "assertions": {
+        "path": "/private/tmp/E526-after-isolated/attempt-001/restore-picker-after.json",
+        "sha256": "2fe29ad3fc20c5a544bc71c46be660b169418730fc72becc48b33765a1ef1737",
+        "pointer": "/cases/6/assertions",
+        "assertionIndexes": [
+          0,
+          1
+        ]
+      },
+      "httpStatus": 200,
+      "actualItemIds": []
+    },
+    {
+      "key": "unknown_action400",
+      "status": "passed",
+      "http": {
+        "path": "/private/tmp/E526-after-isolated/attempt-001/restore-picker-after.json",
+        "sha256": "2fe29ad3fc20c5a544bc71c46be660b169418730fc72becc48b33765a1ef1737",
+        "pointer": "/cases/7/http"
+      },
+      "assertions": {
+        "path": "/private/tmp/E526-after-isolated/attempt-001/restore-picker-after.json",
+        "sha256": "2fe29ad3fc20c5a544bc71c46be660b169418730fc72becc48b33765a1ef1737",
+        "pointer": "/cases/7/assertions",
+        "assertionIndexes": [
+          0,
+          1
+        ]
+      },
+      "httpStatus": 400,
+      "actualItemIds": []
+    },
+    {
+      "key": "mismatched_resource_action400",
+      "status": "passed",
+      "http": {
+        "path": "/private/tmp/E526-after-isolated/attempt-001/restore-picker-after.json",
+        "sha256": "2fe29ad3fc20c5a544bc71c46be660b169418730fc72becc48b33765a1ef1737",
+        "pointer": "/cases/8/http"
+      },
+      "assertions": {
+        "path": "/private/tmp/E526-after-isolated/attempt-001/restore-picker-after.json",
+        "sha256": "2fe29ad3fc20c5a544bc71c46be660b169418730fc72becc48b33765a1ef1737",
+        "pointer": "/cases/8/assertions",
+        "assertionIndexes": [
+          0,
+          1
+        ]
+      },
+      "httpStatus": 400,
+      "actualItemIds": []
+    },
+    {
+      "key": "object_restore_q_active_and_archived",
+      "status": "passed",
+      "http": {
+        "path": "/private/tmp/E526-after-isolated/attempt-001/restore-picker-after.json",
+        "sha256": "2fe29ad3fc20c5a544bc71c46be660b169418730fc72becc48b33765a1ef1737",
+        "pointer": "/cases/9/http"
+      },
+      "assertions": {
+        "path": "/private/tmp/E526-after-isolated/attempt-001/restore-picker-after.json",
+        "sha256": "2fe29ad3fc20c5a544bc71c46be660b169418730fc72becc48b33765a1ef1737",
+        "pointer": "/cases/9/assertions",
+        "assertionIndexes": [
+          0,
+          1,
+          2,
+          3
+        ]
+      },
+      "httpStatus": 200,
+      "actualItemIds": [
+        "121ad51d-3062-4e0c-9ebd-55a8b2a03424",
+        "884e1cd0-a36d-446b-a98b-44e50201a97d"
+      ]
+    },
+    {
+      "key": "object_restore_ids_archived",
+      "status": "passed",
+      "http": {
+        "path": "/private/tmp/E526-after-isolated/attempt-001/restore-picker-after.json",
+        "sha256": "2fe29ad3fc20c5a544bc71c46be660b169418730fc72becc48b33765a1ef1737",
+        "pointer": "/cases/10/http"
+      },
+      "assertions": {
+        "path": "/private/tmp/E526-after-isolated/attempt-001/restore-picker-after.json",
+        "sha256": "2fe29ad3fc20c5a544bc71c46be660b169418730fc72becc48b33765a1ef1737",
+        "pointer": "/cases/10/assertions",
+        "assertionIndexes": [
+          0,
+          1,
+          2,
+          3
+        ]
+      },
+      "httpStatus": 200,
+      "actualItemIds": [
+        "884e1cd0-a36d-446b-a98b-44e50201a97d"
+      ]
+    },
+    {
+      "key": "object_ordinary_no_action_still_active_only",
+      "status": "passed",
+      "http": {
+        "path": "/private/tmp/E526-after-isolated/attempt-001/restore-picker-after.json",
+        "sha256": "2fe29ad3fc20c5a544bc71c46be660b169418730fc72becc48b33765a1ef1737",
+        "pointer": "/cases/11/http"
+      },
+      "assertions": {
+        "path": "/private/tmp/E526-after-isolated/attempt-001/restore-picker-after.json",
+        "sha256": "2fe29ad3fc20c5a544bc71c46be660b169418730fc72becc48b33765a1ef1737",
+        "pointer": "/cases/11/assertions",
+        "assertionIndexes": [
+          0,
+          1
+        ]
+      },
+      "httpStatus": 200,
+      "actualItemIds": [
+        "121ad51d-3062-4e0c-9ebd-55a8b2a03424"
+      ]
+    },
+    {
+      "key": "employee_restore_q_active_and_archived",
+      "status": "passed",
+      "http": {
+        "path": "/private/tmp/E526-after-isolated/attempt-001/restore-picker-after.json",
+        "sha256": "2fe29ad3fc20c5a544bc71c46be660b169418730fc72becc48b33765a1ef1737",
+        "pointer": "/cases/12/http"
+      },
+      "assertions": {
+        "path": "/private/tmp/E526-after-isolated/attempt-001/restore-picker-after.json",
+        "sha256": "2fe29ad3fc20c5a544bc71c46be660b169418730fc72becc48b33765a1ef1737",
+        "pointer": "/cases/12/assertions",
+        "assertionIndexes": [
+          0,
+          1,
+          2,
+          3
+        ]
+      },
+      "httpStatus": 200,
+      "actualItemIds": [
+        "ea1bee5f-0039-4e34-924e-6b525af47341",
+        "29621085-638a-4d32-b9d4-8fc6b7090689"
+      ]
+    },
+    {
+      "key": "employee_restore_ids_archived",
+      "status": "passed",
+      "http": {
+        "path": "/private/tmp/E526-after-isolated/attempt-001/restore-picker-after.json",
+        "sha256": "2fe29ad3fc20c5a544bc71c46be660b169418730fc72becc48b33765a1ef1737",
+        "pointer": "/cases/13/http"
+      },
+      "assertions": {
+        "path": "/private/tmp/E526-after-isolated/attempt-001/restore-picker-after.json",
+        "sha256": "2fe29ad3fc20c5a544bc71c46be660b169418730fc72becc48b33765a1ef1737",
+        "pointer": "/cases/13/assertions",
+        "assertionIndexes": [
+          0,
+          1,
+          2,
+          3
+        ]
+      },
+      "httpStatus": 200,
+      "actualItemIds": [
+        "29621085-638a-4d32-b9d4-8fc6b7090689"
+      ]
+    },
+    {
+      "key": "employee_ordinary_no_action_still_active_only",
+      "status": "passed",
+      "http": {
+        "path": "/private/tmp/E526-after-isolated/attempt-001/restore-picker-after.json",
+        "sha256": "2fe29ad3fc20c5a544bc71c46be660b169418730fc72becc48b33765a1ef1737",
+        "pointer": "/cases/14/http"
+      },
+      "assertions": {
+        "path": "/private/tmp/E526-after-isolated/attempt-001/restore-picker-after.json",
+        "sha256": "2fe29ad3fc20c5a544bc71c46be660b169418730fc72becc48b33765a1ef1737",
+        "pointer": "/cases/14/assertions",
+        "assertionIndexes": [
+          0,
+          1
+        ]
+      },
+      "httpStatus": 200,
+      "actualItemIds": [
+        "ea1bee5f-0039-4e34-924e-6b525af47341"
+      ]
+    },
+    {
+      "key": "inventory_item_restore_q_active_and_archived",
+      "status": "passed",
+      "http": {
+        "path": "/private/tmp/E526-after-isolated/attempt-001/restore-picker-after.json",
+        "sha256": "2fe29ad3fc20c5a544bc71c46be660b169418730fc72becc48b33765a1ef1737",
+        "pointer": "/cases/15/http"
+      },
+      "assertions": {
+        "path": "/private/tmp/E526-after-isolated/attempt-001/restore-picker-after.json",
+        "sha256": "2fe29ad3fc20c5a544bc71c46be660b169418730fc72becc48b33765a1ef1737",
+        "pointer": "/cases/15/assertions",
+        "assertionIndexes": [
+          0,
+          1,
+          2,
+          3
+        ]
+      },
+      "httpStatus": 200,
+      "actualItemIds": [
+        "d8dd59f6-3512-4588-a792-61c63b9272bd",
+        "0de194a6-3d9b-4f26-96d6-f4755c2787d1"
+      ]
+    },
+    {
+      "key": "inventory_item_restore_ids_archived",
+      "status": "passed",
+      "http": {
+        "path": "/private/tmp/E526-after-isolated/attempt-001/restore-picker-after.json",
+        "sha256": "2fe29ad3fc20c5a544bc71c46be660b169418730fc72becc48b33765a1ef1737",
+        "pointer": "/cases/16/http"
+      },
+      "assertions": {
+        "path": "/private/tmp/E526-after-isolated/attempt-001/restore-picker-after.json",
+        "sha256": "2fe29ad3fc20c5a544bc71c46be660b169418730fc72becc48b33765a1ef1737",
+        "pointer": "/cases/16/assertions",
+        "assertionIndexes": [
+          0,
+          1,
+          2,
+          3
+        ]
+      },
+      "httpStatus": 200,
+      "actualItemIds": [
+        "0de194a6-3d9b-4f26-96d6-f4755c2787d1"
+      ]
+    },
+    {
+      "key": "inventory_item_ordinary_no_action_still_active_only",
+      "status": "passed",
+      "http": {
+        "path": "/private/tmp/E526-after-isolated/attempt-001/restore-picker-after.json",
+        "sha256": "2fe29ad3fc20c5a544bc71c46be660b169418730fc72becc48b33765a1ef1737",
+        "pointer": "/cases/17/http"
+      },
+      "assertions": {
+        "path": "/private/tmp/E526-after-isolated/attempt-001/restore-picker-after.json",
+        "sha256": "2fe29ad3fc20c5a544bc71c46be660b169418730fc72becc48b33765a1ef1737",
+        "pointer": "/cases/17/assertions",
+        "assertionIndexes": [
+          0,
+          1
+        ]
+      },
+      "httpStatus": 200,
+      "actualItemIds": [
+        "d8dd59f6-3512-4588-a792-61c63b9272bd"
+      ]
+    }
+  ],
+  "fixtures": {
+    "path": "/private/tmp/E526-after-isolated/attempt-001/restore-picker-after.json",
+    "sha256": "2fe29ad3fc20c5a544bc71c46be660b169418730fc72becc48b33765a1ef1737",
+    "pointer": "/fixtures"
+  },
+  "archivedRowsStillArchived": {
+    "path": "/private/tmp/E526-after-isolated/attempt-001/restore-picker-after.json",
+    "sha256": "2fe29ad3fc20c5a544bc71c46be660b169418730fc72becc48b33765a1ef1737",
+    "pointer": "/archivedRowsAfter"
+  },
+  "actor": {
+    "path": "/private/tmp/E526-after-isolated/attempt-001/restore-picker-after.json",
+    "sha256": "2fe29ad3fc20c5a544bc71c46be660b169418730fc72becc48b33765a1ef1737",
+    "pointer": "/actor"
+  },
+  "sourceManifest": {
+    "path": "/private/tmp/E526-after-isolated/attempt-001/restore-picker-after.json",
+    "sha256": "2fe29ad3fc20c5a544bc71c46be660b169418730fc72becc48b33765a1ef1737",
+    "pointer": "/sourceManifest"
+  },
+  "sourceQueryReview": {
+    "path": "/private/tmp/E526-after-isolated/source-query-review.json",
+    "sha256": "ab5b00919f3e55dd19d0d87276697df77e31649716465af0b65103d8eb7c27ce"
+  },
+  "criticalSourceHashes": {
+    "accessAdminService": "f98be998611b63ded5d055a91c87c731daffe95e8940834c1446a0b406367111",
+    "accessResourceDTO": "3fea03e5d8b8042f614e5604f9bbd05fed83bab798dbfb5cfd1b9ab240f2a375",
+    "client": "e753d56a450e87b34d1a123f5f4f42bade744ed445ce5b35d3342c6b0aee2462",
+    "picker": "8760a73865ad69049649564ec8c9707cea61844ef3fe028c98758cfc49a0054d",
+    "parent": "71cd237a3b8c8f73fa258313c8830db171b44bd535264e42ff61f93f7067d515"
+  },
+  "scope": "Candidate failed q/id counterparts with candidates.restore action; restore search returns active+archived; ordinary noaction/candidates.update remains active-only for q and ids; unknown and mismatched action400. Object/employee/inventory_item restore search+ids and ordinary noaction boundary tested on minimal DB fixtures. No grant or restore commands.",
+  "provenance": {
+    "DocumentsOSDenied": true,
+    "oldDocumentsProofsUntouched": true,
+    "beforeKnownFromPriorConversation": {
+      "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/api-restore-picker-E526/E526-before-author-proof.json",
+      "sha256": "994fdc1af7892c018a5fc0217a43aa0c890f4dc7711942b3fbd1ea82f37307c8",
+      "freshlyReverified": false
+    },
+    "beforeSourceSHAKnownFromPriorConversation": "047360dd25643b0e5c0773507a05bbd3f81a989c8c64d9c680a261e8ed5b5fc1",
+    "beforeSHAFreshlyReverified": false,
+    "newCodeAndProofRoot": "/private/tmp/E526-after-isolated",
+    "noPermissionWorkarounds": true
+  },
+  "limitations": [
+    "Frontend action propagation/context remount/late-result discard are frozen documentary source evidence only; no browser execution.",
+    "Backend typecheck is Main-owned/queued; this author ran only targeted API lookups, not a broad suite.",
+    "Original Documents before artifacts cannot be freshly rehashed under current OS restriction; previous exact SHA is labeled conversation provenance only."
+  ],
+  "authorIsRuntimeAuthorNotIndependentReviewer": true,
+  "wholeAccepted": false,
+  "applicationEdited": false,
+  "policyGrantWritten": false,
+  "restoreCommandExecuted": false,
+  "productionServerTouched": false,
+  "cleanupComplete": true
+}

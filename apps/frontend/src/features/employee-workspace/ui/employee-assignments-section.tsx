@@ -12,6 +12,7 @@ import {
 import { formatEmployeeCompensation } from '@/entities/employee/lib/employee-presentation';
 import type { EmployeeDetail, EmployeeObjectReference } from '@/entities/employee/model/employee.types';
 import { ApiError } from '@/shared/api/fetcher';
+import { isSavedWithoutAccess } from '@/shared/api/saved-without-access';
 import { useAccessRevision } from '@/shared/auth/use-access-revision';
 import { AccessSnapshotBoundary } from '@/shared/auth/access-snapshot-boundary';
 import { Alert, Button, Field, Surface } from '@/shared/ui/foundation';
@@ -51,11 +52,13 @@ function ObjectName({
 export function EmployeeAssignmentsSection({
   item,
   onItemChange,
+  onSavedWithoutAccess,
   assignOpen,
   onAssignOpenChange,
 }: {
   item: EmployeeDetail;
   onItemChange: (employee: EmployeeDetail) => void;
+  onSavedWithoutAccess: () => void;
   assignOpen: boolean;
   onAssignOpenChange: (open: boolean) => void;
 }): React.JSX.Element {
@@ -210,7 +213,9 @@ export function EmployeeAssignmentsSection({
           setPending(true);
           setDialogError(null);
           try {
-            onItemChange(await deleteEmployeeAssignmentAsError(item.id, deleteTarget.historyId, value.trim()));
+            const result = await deleteEmployeeAssignmentAsError(item.id, deleteTarget.historyId, value.trim());
+            if (isSavedWithoutAccess(result)) { onSavedWithoutAccess(); return; }
+            onItemChange(result);
             setDeleteTarget(null);
           } catch (error) {
             setDialogError(error instanceof ApiError && error.code === 'ASSIGNMENT_HAS_OPERATIONAL_HISTORY'

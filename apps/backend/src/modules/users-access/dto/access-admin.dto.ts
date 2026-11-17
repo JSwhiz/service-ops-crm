@@ -39,6 +39,14 @@ export class SaveAccessDto extends PreviewAccessDto {
   @IsString() @Length(64, 64) previewToken!: string;
   @IsString() @Length(64, 64) previewHash!: string;
 }
+export class PreviewLegacyCandidateDenyRemovalDto {
+  @IsInt() @Min(0) expectedVersion!: number;
+  @IsString() @Length(1, 2000) reason!: string;
+}
+export class SaveLegacyCandidateDenyRemovalDto extends PreviewLegacyCandidateDenyRemovalDto {
+  @IsString() @Length(64, 64) previewToken!: string;
+  @IsString() @Length(64, 64) previewHash!: string;
+}
 export class AccessAdminListQueryDto {
   @IsOptional() @IsString() @Length(0, 200) q?: string;
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) offset = 0;
@@ -63,6 +71,7 @@ export class AccessResourceQueryDto {
     "file",
   ])
   resourceType!: string;
+  @IsOptional() @IsString() @Length(1, 160) actionCode?: string;
   @IsOptional() @IsString() @Length(0, 200) q?: string;
   @IsOptional() @IsString() @Length(0, 7500) ids?: string;
 }

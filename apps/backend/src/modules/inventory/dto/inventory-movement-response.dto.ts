@@ -43,6 +43,7 @@ export class InventoryMovementResponseDto {
     status: string;
   } | null;
   projection!: {
+    canAttachStandalonePhoto?: boolean;
     canCorrectMovement: boolean;
     hasEvidence: boolean;
     requiresApprovalBridge: boolean;

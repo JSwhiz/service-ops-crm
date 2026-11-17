@@ -1,3 +1,5 @@
+import type { SavedWithoutAccess } from '@/shared/api/saved-without-access';
+
 export type AccessScope = 'own' | 'assigned' | 'selected' | 'all';
 export interface AccessRule {
   actionCode: string;
@@ -7,6 +9,7 @@ export interface AccessRule {
 }
 export interface AccessChange extends Omit<AccessRule, 'effect'> {
   effect: 'allow' | 'deny' | 'default';
+  operation?: 'remove_legacy_user_permission';
 }
 export interface AccessAction {
   code: string;
@@ -59,6 +62,7 @@ export interface AccessAssignments {
   substitutions: Array<{ id: string; principalUserId: string; replacementUserId: string; startsAt: string; endsAt: string; reason: string; revokedAt: string | null; objects: Array<{ objectId: string }> }>;
 }
 export interface AccessDetail {
+  canRemoveLegacyCandidateDeny?: boolean;
   user: AccessUser;
   accessVersion: number;
   rules: AccessRule[];
@@ -71,6 +75,12 @@ export interface AccessDetail {
   assignments: AccessAssignments;
 }
 export interface AccessPayload { expectedVersion: number; reason: string; changes: AccessChange[] }
+export interface LegacyCandidateDenyRemovalPayload { expectedVersion: number; reason: string }
+export interface LegacyCandidateDenyRemovalPreview {
+  operation: 'remove_legacy_candidate_deny';
+  previewToken: string; previewHash: string; expiresAt: string; expectedVersion: number;
+  reason: string; effective: EffectiveAccess[]; warnings: string[];
+}
 export interface AccessPreview {
   previewToken: string;
   previewHash: string;
@@ -81,6 +91,8 @@ export interface AccessPreview {
   effective: EffectiveAccess[];
 }
 export interface AccessSaveResult { accessVersion: number; rules: AccessRule[]; effective: EffectiveAccess[] }
+export type AccessSaveOutcome = AccessSaveResult | SavedWithoutAccess;
+export interface AccessSaveNoticeContext { actorId: string; sessionGeneration: number }
 export interface AccessHistoryEntry {
   id: string;
   versionBefore: number;

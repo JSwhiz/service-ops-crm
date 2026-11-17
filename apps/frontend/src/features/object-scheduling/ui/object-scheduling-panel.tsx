@@ -9,7 +9,7 @@ import { ApiError } from '@/shared/api/fetcher';
 import { Alert, Button, EmptyState, LoadingState, Surface } from '@/shared/ui/foundation';
 import { useConfirm } from '@/shared/ui/overlays';
 import { getErrorMessage } from '@/shared/lib/error-message';
-import { newPositionDraft, positionPayload, revisionDraft, type PositionDraft } from '../model/schedule-draft';
+import { newPositionDraft, positionPayload, restrictedPositionChanges, revisionDraft, type PositionDraft } from '../model/schedule-draft';
 import { PositionEditor } from './position-editor';
 import { SchedulePreviewPanel } from './schedule-preview';
 import { PayContoursPanel } from './pay-contours-panel';
@@ -17,11 +17,13 @@ import styles from './object-scheduling.module.css';
 import { AccessSnapshotBoundary, AccessSnapshotBlockedContext } from '@/shared/auth/access-snapshot-boundary';
 import { useAccessRevision } from '@/shared/auth/use-access-revision';
 import { useAuth } from '@/shared/auth/use-auth';
-import { getAccessGeneration, isAccessGenerationCurrent } from '@/shared/auth/access-generation';
+import { getAccessGeneration, getAccessSessionGeneration, isAccessGenerationCurrent } from '@/shared/auth/access-generation';
+import { isSavedWithoutAccess } from '@/shared/api/saved-without-access';
 
 
-export function ObjectSchedulingPanel({ objectId, canSelectEmployees, employees, onChanged }: {
+export function ObjectSchedulingPanel({ objectId, canSelectEmployees, employees, onChanged, onSavedWithoutAccess }: {
   objectId: string; canSelectEmployees: boolean; employees: ObjectEmployeeOption[]; onChanged?: () => void;
+  onSavedWithoutAccess?: () => void;
 }): React.JSX.Element {
   const accessRevision = useAccessRevision();
   const { capabilitiesRefreshError } = useAuth();
@@ -30,6 +32,8 @@ export function ObjectSchedulingPanel({ objectId, canSelectEmployees, employees,
   const snapshotKey = `${objectId}:${accessRevision}`;
   const latest = useRef({ snapshotKey, capabilitiesRefreshError });
   latest.current = { snapshotKey, capabilitiesRefreshError };
+  const mounted = useRef(false);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const [data, setData] = useState<PositionsResponse | null>(null);
   const [contours, setContours] = useState<PayContour[]>([]);
   const [contourError, setContourError] = useState<string | null>(null);
@@ -38,6 +42,7 @@ export function ObjectSchedulingPanel({ objectId, canSelectEmployees, employees,
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<StaffingPosition | null>(null);
   const [draft, setDraft] = useState<PositionDraft | null>(null);
+  const [draftBaseline, setDraftBaseline] = useState<PositionDraft | null>(null);
   const [pending, setPending] = useState(false);
   const [conflict, setConflict] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
@@ -58,6 +63,14 @@ export function ObjectSchedulingPanel({ objectId, canSelectEmployees, employees,
   }, [objectId, snapshotKey, capabilitiesRefreshError]);
   const accessBlocked = ancestorBlocked || loading || readDenied || !!capabilitiesRefreshError || loadedSnapshot !== snapshotKey;
   const canManagePositions = !accessBlocked && data?.capabilities.managePositions === true;
+  const restrictedDraftMessage = (capabilities: PositionsResponse['capabilities']): string | null => {
+    if (!draft || !draftBaseline) return null;
+    const changes = restrictedPositionChanges(draft, draftBaseline);
+    if (changes.assignments && (!canSelectEmployees || !capabilities.manageAssignments)) return 'Право изменять состав недоступно. Изменения назначений сохранены в черновике; отправка заблокирована до возврата права.';
+    if (changes.payConditions && !capabilities.selectPayConditions) return 'Право выбирать условия оплаты недоступно. Выбранные условия сохранены в черновике; отправка заблокирована до возврата права.';
+    return null;
+  };
+  const draftAccessMessage = data ? restrictedDraftMessage(data.capabilities) : null;
   const refresh = async (): Promise<void> => {
     setError(null);
     try {
@@ -70,14 +83,17 @@ export function ObjectSchedulingPanel({ objectId, canSelectEmployees, employees,
   const start = (position: StaffingPosition | null): void => {
     if (!canManagePositions) return;
     const revision = position?.revisions.at(-1);
-    setEditing(position); setDraft(position && revision ? revisionDraft(position.clientKey, revision, names) : newPositionDraft());
+    const nextDraft = position && revision ? revisionDraft(position.clientKey, revision, names) : newPositionDraft();
+    setEditing(position); setDraft(nextDraft); setDraftBaseline(nextDraft);
     setConflict(false); setError(null); setSuccess(null);
   };
   const save = async (event: React.FormEvent): Promise<void> => {
     event.preventDefault();
     if (pending || !draft || conflict) return;
     if (!canManagePositions) { setError('Право изменения графика недоступно. Черновик сохранён.'); return; }
+    if (draftAccessMessage) { setError(draftAccessMessage); return; }
     const generation = getAccessGeneration();
+    const session = getAccessSessionGeneration();
     const requestKey = snapshotKey;
     setPending(true); setError(null); setSuccess(null);
     try {
@@ -85,11 +101,17 @@ export function ObjectSchedulingPanel({ objectId, canSelectEmployees, employees,
       if (!isAccessGenerationCurrent(generation) || latest.current.snapshotKey !== requestKey || latest.current.capabilitiesRefreshError) return;
       setData(fresh);
       if (!fresh.capabilities.managePositions) throw new Error('Право изменения графика отозвано. Черновик сохранён.');
+      const freshDraftAccessMessage = restrictedDraftMessage(fresh.capabilities);
+      if (freshDraftAccessMessage) throw new Error(freshDraftAccessMessage);
       const { clientKey, ...fields } = positionPayload(draft);
       const saved = editing
         ? await saveStaffingPosition(objectId, editing.id, { ...fields, expectedVersion: editing.version })
         : await createStaffingPosition(objectId, { ...fields, clientKey });
-      if (!isAccessGenerationCurrent(generation) || latest.current.snapshotKey !== requestKey) return;
+      if (getAccessSessionGeneration() !== session) return;
+      if (isSavedWithoutAccess(saved)) { onSavedWithoutAccess?.(); return; }
+      if (!mounted.current || !isAccessGenerationCurrent(generation) || latest.current.snapshotKey !== requestKey) {
+        onSavedWithoutAccess?.(); return;
+      }
       setData((previous) => previous ? { ...previous, positions: [...previous.positions.filter((position) => position.id !== saved.id), saved] } : previous);
       setDraft(null); setEditing(null); setSuccess('Позиция и график сохранены.'); onChanged?.();
     } catch (caught) {
@@ -139,12 +161,13 @@ export function ObjectSchedulingPanel({ objectId, canSelectEmployees, employees,
       {!loading && data && data.positions.length === 0 && !draft ? <EmptyState title="Позиции пока не заведены" description="Действующий состав и прежняя посещаемость доступны ниже." /> : null}
       {draft && !canManagePositions ? <Alert tone="warning">Право изменения графика отозвано. Черновик сохранён; автоматического повтора нет.</Alert> : null}
       {draft && data ? <form onSubmit={(event) => { void save(event); }} className={styles.editor}>
+        {draftAccessMessage ? <Alert tone="warning">{draftAccessMessage}</Alert> : null}
         {editing ? <p className="ui-text-muted">Новая дата действия — сегодня или позднее. При совпадении даты применяется последняя версия; будущие версии сохраняются. Прошлые начисления не меняются.</p> : null}
         <PositionEditor value={draft} onChange={setDraft} disabled={pending || !canManagePositions} canAssignEmployees={canSelectEmployees && data.capabilities.manageAssignments}
           contours={contours.filter((contour) => contour.isActive).map((contour) => ({ value: contour.id, label: contour.name }))} canSelectPayConditions={data.capabilities.selectPayConditions}
           searchEmployees={async (search) => (await searchEmployeeDirectory(objectId, search)).map((employee) => ({ value: employee.id, label: employee.fullName, description: employee.position ?? undefined }))} />
         <SchedulePreviewPanel draftKey={JSON.stringify(draft)} employeeNames={names} onPreview={(from, to) => previewSchedule(objectId, { from, to, draft: positionPayload(draft) })} />
-        <div className="ui-inline"><Button type="submit" variant="primary" pending={pending} disabled={conflict || !canManagePositions}>Сохранить график</Button>
+        <div className="ui-inline"><Button type="submit" variant="primary" pending={pending} disabled={conflict || !canManagePositions || !!draftAccessMessage}>Сохранить график</Button>
           <Button disabled={pending} onClick={async () => { if (await confirm({ title: 'Закрыть редактор?', consequence: 'Несохранённый черновик графика будет потерян.', confirmLabel: 'Закрыть' })) setDraft(null); }}>Отмена</Button></div>
       </form> : data ? <SchedulePreviewPanel draftKey={JSON.stringify(data.positions)} employeeNames={names} onPreview={(from, to) => previewSchedule(objectId, { from, to })} /> : null}
       {contourError ? <Alert tone="warning">{contourError}</Alert> : null}

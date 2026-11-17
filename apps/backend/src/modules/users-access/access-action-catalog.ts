@@ -196,6 +196,7 @@ group(
     ["catalog.restore", "Восстановление номенклатуры"],
     ["movements.read", "История движений"],
     ["receipt", "Приход"],
+    ["movement.photos.create", "Фото своего прихода или корректировки за сегодня"],
     ["issue_to_object", "Выдача на объект"],
     ["issue_to_one_time_order", "Отгрузка в разовый заказ"],
     ["return", "Возврат"],
@@ -468,6 +469,12 @@ for (const action of actions) {
   // Keep allowedScopes unchanged for stored rules and historical runtime behavior.
   if (action.module === "accountability" && action.resourceType === "user")
     action.managementScopes = ["own", "selected", "all"];
+  if (action.code === "candidates.restore")
+    action.managementScopes = ["selected", "all"];
+  if (action.code === "inventory.movement.photos.create") {
+    action.allowedScopes = ["own"];
+    action.description = "Фото собственного прихода или корректировки без объекта и заказа за текущие сутки по Москве. Не заменяет право загрузки файлов и не расширяет назначения.";
+  }
   // Chat rules select rooms. Message authorship/edit windows remain independent
   // invariants; room ownership must never be advertised as own-message scope.
   if (action.module === "chat")
@@ -617,14 +624,10 @@ for (const action of actions) {
       "approvals.resolve_inventory_exception",
       "approvals.resolve_accountability",
       "approvals.resolve_timesheet",
-      "accountability.expenses.approve",
-      "accountability.expenses.reject",
       "accountability.closure.approve",
       "accountability.closure.reject",
       "one_time_order_calendar.availability.approve",
       "one_time_orders.specification.manage",
-      "specification_catalog.access",
-      "specification_catalog.read",
       "specification_catalog.create",
       "specification_catalog.update",
       "specification_catalog.archive",

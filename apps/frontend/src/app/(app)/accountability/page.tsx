@@ -649,12 +649,15 @@ export default function AccountabilityPage(): React.JSX.Element {
               setActionError(null);
 
               try {
-                await rejectAccountabilityExpense(expenseId, comment);
+                const generation = getAccessGeneration();
+                const result = await rejectAccountabilityExpense(expenseId, comment);
+                if (acknowledgeIfAccessChanged(result, generation, 'Расход отклонён.')) return;
                 await reloadAfterAccountChange(user?.id ?? ownView.account.user.id);
               } catch (error) {
                 setActionError(
                   getErrorMessage(error, 'Не удалось отклонить расход.'),
                 );
+                throw error;
               }
             }}
             onRequestClosure={async () => {
@@ -903,21 +906,22 @@ export default function AccountabilityPage(): React.JSX.Element {
               )}
             </details>
           </Surface>
-        {canDiscoverAccountabilityReview ? (
-          reviewLoading ? (
+        {canDiscoverAccountabilityReview ? <>
+          {reviewLoading ? (
             <Surface padding="md">Загрузка подотчёта пользователя…</Surface>
           ) : reviewError ? (
             <Alert tone="danger" role="alert">
               {reviewError}
             </Alert>
-          ) : freshReviewView && selectedUser ? (
+          ) : null}
+          {reviewView?.account.user.id === selectedUserId ? (
+            <AccessSnapshotBoundary blocked={reviewLoading || Boolean(reviewError) || reviewViewRevision !== accessRevision || !selectedUser}>
             <AccountabilityAccountPanel
+              key={reviewView.account.user.id}
               title={
-                selectedUser
-                  ? `Подотчет пользователя: ${getUserDisplayName(selectedUser)}`
-                  : 'Подотчет пользователя'
+                `Подотчет пользователя: ${getUserDisplayName(reviewView.account.user)}`
               }
-              view={freshReviewView}
+              view={reviewView}
               isOwnView={false}
               section={activeAccountSection}
               onSectionChange={changeAccountSection}
@@ -954,6 +958,7 @@ export default function AccountabilityPage(): React.JSX.Element {
                   setActionError(
                     getErrorMessage(error, 'Не удалось отклонить расход пользователя.'),
                   );
+                  throw error;
                 }
               }}
               onRequestClosure={async () => {
@@ -965,15 +970,16 @@ export default function AccountabilityPage(): React.JSX.Element {
                   const generation = getAccessGeneration();
                   const result = await reverseExternalAccountabilityReceipt(fundingId, reason);
                   if (acknowledgeIfAccessChanged(result, generation, 'Сторно сохранено.')) return;
-                  await reloadAfterAccountChange(freshReviewView.account.user.id);
+                  await reloadAfterAccountChange(reviewView.account.user.id);
                 } catch (error) {
                   setActionError(getErrorMessage(error, 'Не удалось сторнировать внешнее поступление.'));
                   throw error;
                 }
               }}
             />
-          ) : <EmptyState title={selectedUserId ? 'Подотчёт пользователя пока не открыт' : 'Выберите пользователя'} description={selectedUserId ? (canIssueAccountabilityFunds ? 'Это не нулевой остаток. Для начала работы используйте выдачу средств выше.' : 'Счёт появляется при начале работы с подотчётом. Выдача средств доступна пользователю с соответствующим правом.') : 'Выберите пользователя выше, чтобы просмотреть его подотчёт.'} />
-        ) : null}
+            </AccessSnapshotBoundary>
+          ) : !reviewLoading && !reviewError ? <EmptyState title={selectedUserId ? 'Подотчёт пользователя пока не открыт' : 'Выберите пользователя'} description={selectedUserId ? (canIssueAccountabilityFunds ? 'Это не нулевой остаток. Для начала работы используйте выдачу средств выше.' : 'Счёт появляется при начале работы с подотчётом. Выдача средств доступна пользователю с соответствующим правом.') : 'Выберите пользователя выше, чтобы просмотреть его подотчёт.'} /> : null}
+        </> : null}
         </section>
         ) : null}
       </div>

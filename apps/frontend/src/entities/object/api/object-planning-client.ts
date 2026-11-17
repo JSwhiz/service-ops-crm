@@ -63,8 +63,8 @@ export const getObjectPlanning = (id: string): Promise<ObjectPlanning> =>
 export const saveObjectPlanning = (
   id: string,
   payload: PlanningInput,
-): Promise<ObjectPlanning> =>
-  fetcher(`/objects/${id}/planning`, {
+): Promise<ObjectPlanning | SavedWithoutAccess> =>
+  committedWrite(`/objects/${id}/planning`, {
     method: "PATCH",
     body: JSON.stringify(payload),
   });

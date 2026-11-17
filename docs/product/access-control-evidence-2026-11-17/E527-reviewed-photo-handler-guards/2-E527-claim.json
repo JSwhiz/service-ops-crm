@@ -1,0 +1,61 @@
+{
+  "id": "E527",
+  "reservationOwner": "Main",
+  "kind": "bounded_controlled_component_behavior_proof",
+  "status": "author_passed_independent_Terra_review_pending",
+  "scope": [
+    "Stale auth-session handlers before React rerender",
+    "Stale same-session access-generation Upload/picker before rerender",
+    "Old lexical Upload handler after new-session/new-generation rerender with retained updated ref",
+    "Same-session already-open picker retains selected own File on write revoke without upload",
+    "Fresh manual callback positive control"
+  ],
+  "actualObservations": 9,
+  "failures": 0,
+  "proof": {
+    "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/actual-behavior-proof.json",
+    "sha256": "ffec596d9b581b00772451e5a3370557f04fb995921dace2a27027a1ba71e3ee",
+    "pointer": ""
+  },
+  "assertions": {
+    "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/actual-assertions.json",
+    "sha256": "adb383a1590b80c9a9d7e86cd80b75fe61f71cbb0bc4a5119fa7f8c76a189d8e",
+    "pointer": ""
+  },
+  "harness": {
+    "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/controlled-ui.cjs",
+    "sha256": "0e1339ef49a6982917d22a1409786a72e481283bb77d939b93ff6c658a5c67d4",
+    "pointer": ""
+  },
+  "sourceManifest": {
+    "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/source-manifest.json",
+    "sha256": "4e15aaeb88d01fbf6602f54f141716094a4e4e8d191a99b49b8f1b9773e48acb",
+    "pointer": ""
+  },
+  "sourceCompatibility": {
+    "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/source-compatibility.json",
+    "sha256": "e1ad8363c3f8e964252462b339d6b3af69bc48a19a51bf9513867f6c993452b1",
+    "pointer": ""
+  },
+  "productSourceSHA256": "db5cefc67b7066cb3a0460e31b4b8cefd10ef2909b9e78fb2761faafcab63040",
+  "actualSourceEpoch": "2026-11-16T23:33:01.427Z",
+  "wholeK5Claim": false,
+  "canonicalCellsProposed": [],
+  "canonicalWritten": false,
+  "productEdited": false,
+  "apiRuntimeExecuted": false,
+  "browserExecuted": false,
+  "native130Replayed": false,
+  "beforeRuntimeDefectClaim": false,
+  "productFixAuthor": "Main, per user assignment",
+  "harnessAuthorship": "This packet author; not independent of this harness",
+  "limits": [
+    "Controlled hook/virtual JSX host; not browser/DOM/native K5 acceptance.",
+    "useCreateDraft is a session-scoped controlled adapter with counted submit/setValue and synchronous lock; real provider integration is not claimed.",
+    "Presentation primitives are virtual JSX leaves.",
+    "onAttachStandalonePhoto/onRefresh are counted controlled callbacks. No real API/HTTP/server/storage operation.",
+    "No before-runtime defect claim; this tests the final frozen source only.",
+    "Existing native130 and E521 proofs are not rerun."
+  ],
+  "artifactFrozenManifest": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/artifact-frozen-manifest.json"
+}

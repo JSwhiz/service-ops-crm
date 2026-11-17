@@ -27,7 +27,8 @@ import { useAccessRevision } from '@/shared/auth/use-access-revision';
 import { AccessSnapshotBoundary } from '@/shared/auth/access-snapshot-boundary';
 import { useCreateDraft } from '@/shared/drafts';
 import { useCreateNavigation } from '@/shared/create-navigation';
-import { Alert } from '@/shared/ui/foundation';
+import { Alert, BackLink } from '@/shared/ui/foundation';
+import { isSavedWithoutAccess } from '@/shared/api/saved-without-access';
 import {
   listSystemUsers,
   type SystemUserOption,
@@ -234,6 +235,7 @@ export function ObjectCreateDialog(): React.JSX.Element {
   const [confirmOmissions, omissionDialog] = useConfirm();
   const draft = useCreateDraft<ObjectCreateDraft>('object-create', {});
   const [activeSection, setActiveSection] = useState('basic');
+  const [createdWithoutAccess, setCreatedWithoutAccess] = useState(false);
   const fallbackSearch = navigation.getTargetSearchParams().toString();
   const closeContext = navigation.closeContext(`/objects${fallbackSearch ? `?${fallbackSearch}` : ''}`);
 
@@ -427,7 +429,7 @@ export function ObjectCreateDialog(): React.JSX.Element {
     setIsSubmitting(true);
 
     try {
-      await draft.submit(() => createObject(createPayloadForAccess({
+      const result = await draft.submit(() => createObject(createPayloadForAccess({
         contacts: contacts.map(contactPayload),
         name: form.name.trim(),
         internalName: form.internalName.trim() || undefined,
@@ -476,6 +478,7 @@ export function ObjectCreateDialog(): React.JSX.Element {
         counterparty: () => ({ counterpartyId }),
       })));
       draft.clear();
+      if (isSavedWithoutAccess(result)) { setCreatedWithoutAccess(true); return; }
       router.push('/objects');
     } catch (caughtError) {
       setError(
@@ -488,6 +491,10 @@ export function ObjectCreateDialog(): React.JSX.Element {
       setIsSubmitting(false);
     }
   };
+
+  if (createdWithoutAccess) return <div className="ui-page"><BackLink href="/objects">Объекты</BackLink>
+    <Alert tone="success" role="status">Объект создан. Доступ изменился, поэтому окно закрыто без его данных. Повторять создание не нужно.</Alert>
+  </div>;
 
   return (<>
     {omissionDialog}

@@ -8,6 +8,7 @@ import {
 import { Prisma } from "@prisma/client";
 import { createHash, randomBytes } from "node:crypto";
 import { lockActorAccessRevision } from "../../common/access/lock-actor-access-revision";
+import { projectCommittedWrite } from "../../common/access/project-committed-write";
 import { PrismaService } from "../prisma/prisma.service";
 import {
   ACCESS_ACTION_CATALOG,
@@ -18,6 +19,8 @@ import {
   AccessResourceQueryDto,
   PreviewAccessDto,
   SaveAccessDto,
+  PreviewLegacyCandidateDenyRemovalDto,
+  SaveLegacyCandidateDenyRemovalDto,
 } from "./dto/access-admin.dto";
 import {
   AccessChange,
@@ -246,8 +249,15 @@ export class AccessAdminService {
       item: "inventory_item",
       unit: "equipment_unit",
     };
-    const config = registry[aliases[query.resourceType] ?? query.resourceType];
+    const resourceType = aliases[query.resourceType] ?? query.resourceType;
+    const config = registry[resourceType];
     if (!config) throw new BadRequestException("Unsupported resource type");
+    const action = query.actionCode ? ACCESS_ACTION_CATALOG.find((item) => item.code === query.actionCode) : undefined;
+    if (query.actionCode && (!action || action.resourceType !== resourceType))
+      throw new BadRequestException("Действие не соответствует типу выбранных записей");
+    const includeArchived = config.softDelete && [
+      "objects.restore", "inventory.catalog.restore", "employees.restore", "candidates.restore",
+    ].includes(action?.code ?? "");
     const ids =
       query.ids === undefined
         ? []
@@ -266,7 +276,7 @@ export class AccessAdminService {
     const q = query.q?.trim();
     const selectedOnly = ids.length > 0 && !q;
     const where = {
-      ...(config.softDelete ? { deletedAt: null } : {}),
+      ...(config.softDelete && !includeArchived ? { deletedAt: null } : {}),
       ...(selectedOnly
         ? { id: { in: ids } }
         : q
@@ -286,6 +296,7 @@ export class AccessAdminService {
       select: {
         id: true,
         [config.label]: true,
+        ...(includeArchived ? { deletedAt: true } : {}),
         ...(config.description ? { [config.description]: true } : {}),
       },
       orderBy: [{ [config.label]: "asc" }, { id: "asc" }],
@@ -295,7 +306,9 @@ export class AccessAdminService {
       items: rows.slice(0, limit).map((row) => ({
         id: String(row.id),
         label: String(row[config.label] ?? row.id),
-        ...(config.description && typeof row[config.description] === "string"
+        ...(includeArchived && row.deletedAt
+          ? { description: [config.description ? row[config.description] : null, "В архиве"].filter(Boolean).join(" · ") }
+          : config.description && typeof row[config.description] === "string"
           ? { description: row[config.description] as string }
           : {}),
       })),
@@ -607,10 +620,12 @@ export class AccessAdminService {
     };
   }
   async detail(actor: AccessSubject, id: string) {
-    await this.assertFounder(this.prisma, actor.id);
+    const admin = await this.assertFounder(this.prisma, actor.id);
     const user = await this.user(this.prisma, id);
     return {
       user: this.summary(user),
+      canRemoveLegacyCandidateDeny: admin.roles.some(({ role }) => role.code === "founder") &&
+        user.permissions.some(({ permission }) => permission.code === "candidates.denied"),
       accessVersion: user.accessVersion,
       rules: rulesOf(user),
       effective: this.effectiveRows(
@@ -793,7 +808,10 @@ export class AccessAdminService {
       let count: number;
       if (type === "object")
         count = await db.object.count({
-          where: { id: { in: ids }, deletedAt: null },
+          where: {
+            id: { in: ids },
+            ...(change.actionCode === "objects.restore" ? {} : { deletedAt: null }),
+          },
         });
       else if (type === "one_time_order")
         count = await db.oneTimeOrder.count({ where: { id: { in: ids } } });
@@ -870,6 +888,96 @@ export class AccessAdminService {
       baseline: [...baseline.entries()],
     });
   }
+  private async candidateDenyRemovalState(db: Db, actor: AccessSubject, id: string, input: PreviewLegacyCandidateDenyRemovalDto) {
+    const admin = await this.assertFounder(db, actor.id);
+    // A personal users_access.manage grant never confers founder identity.
+    if (!admin.roles.some(({ role }) => role.code === "founder"))
+      throw new ForbiddenException("Only a founder may remove the legacy candidate restriction");
+    const reason = typeof input.reason === "string" ? input.reason.trim() : "";
+    if (!reason || reason.length > 2000 || !Number.isSafeInteger(input.expectedVersion) || input.expectedVersion < 0)
+      throw new BadRequestException("Укажите причину снятия запрета и текущую версию прав");
+    const user = await this.user(db, id);
+    if (user.accessVersion !== input.expectedVersion) throw new ConflictException("Access version changed");
+    const permission = await db.userPermission.findFirst({
+      where: { userId: id, permission: { code: "candidates.denied" } },
+      select: { id: true, permissionId: true, createdAt: true },
+    });
+    if (!permission) throw new ConflictException("Прежний персональный запрет уже отсутствует. Обновите сведения пользователя.");
+    const payload = { operation: "remove_legacy_candidate_deny", expectedVersion: input.expectedVersion, reason,
+      permission: { ...permission, createdAt: permission.createdAt.toISOString() } };
+    const baseline = await this.baseline(db, user);
+    const baseHash = await this.baseHash(db, user, baseline);
+    const previewHash = hash({ actorId: actor.id, actorAccessVersion: admin.accessVersion, userId: id, payload, baseHash });
+    const projected: Source = { ...user, permissions: user.permissions.filter(({ permission }) => permission.code !== "candidates.denied") };
+    const effective = this.effectiveRows(projected, undefined, await this.baseline(db, projected));
+    const warnings = subjectOf(projected).permissionCodes?.includes("candidates.denied")
+      ? ["Запрет также выдан ролью и останется действующим. Разрешения ролей не изменяются."]
+      : ["Снимается только прежний персональный запрет. Другие правила, области и ограничения сохраняются."];
+    return { admin, user, permission, payload, baseHash, previewHash, effective, warnings };
+  }
+
+  async previewLegacyCandidateDenyRemoval(actor: AccessSubject, id: string, input: PreviewLegacyCandidateDenyRemovalDto) {
+    return this.accessTransaction(async (db) => {
+      const state = await this.candidateDenyRemovalState(db, actor, id, input);
+      const previewToken = randomBytes(32).toString("hex");
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+      await db.userAccessPreview.create({ data: { userId: id, actorUserId: actor.id,
+        tokenHash: hash(previewToken), previewHash: state.previewHash, expectedVersion: input.expectedVersion,
+        baseHash: state.baseHash, payload: state.payload, expiresAt } });
+      return { operation: state.payload.operation, previewToken, previewHash: state.previewHash, expiresAt,
+        expectedVersion: input.expectedVersion, reason: state.payload.reason,
+        effective: state.effective, warnings: state.warnings };
+    });
+  }
+
+  async saveLegacyCandidateDenyRemoval(actor: AccessSubject, id: string, input: SaveLegacyCandidateDenyRemovalDto) {
+    if (!/^[0-9a-f]{64}$/.test(input.previewToken) || !/^[0-9a-f]{64}$/.test(input.previewHash))
+      throw new BadRequestException("Invalid preview token/hash");
+    const saved = await this.accessTransaction(async (db) => {
+      await db.$queryRaw`SELECT 1 AS locked FROM pg_advisory_xact_lock(20261106, 100000)`;
+      const state = await this.candidateDenyRemovalState(db, actor, id, input);
+      await lockActorAccessRevision(db, { id: state.admin.id, accessVersion: state.admin.accessVersion });
+      const preview = await db.userAccessPreview.findUnique({ where: { tokenHash: hash(input.previewToken) } });
+      if (!preview || preview.actorUserId !== actor.id || preview.userId !== id || preview.usedAt ||
+          preview.expiresAt <= new Date() || preview.expectedVersion !== input.expectedVersion ||
+          preview.previewHash !== input.previewHash || state.previewHash !== preview.previewHash ||
+          state.baseHash !== preview.baseHash || hash(preview.payload) !== hash(state.payload))
+        throw new ConflictException("Preview is expired, changed or already used; preview again");
+      const changed = await db.user.updateMany({ where: { id, accessVersion: input.expectedVersion },
+        data: { accessVersion: { increment: 1 } } });
+      if (changed.count !== 1) throw new ConflictException("Access version changed");
+      const removed = await db.userPermission.deleteMany({ where: {
+        id: state.permission.id, userId: id, permissionId: state.permission.permissionId,
+      } });
+      if (removed.count !== 1) throw new ConflictException("Legacy permission changed; preview again");
+      const before = [...rulesOf(state.user), { actionCode: "candidates.denied", effect: "deny", scope: "all", selectedIds: [],
+        source: "legacy_user_permission", userPermissionId: state.permission.id }];
+      const change = { actionCode: "candidates.denied", effect: "default", scope: "all", selectedIds: [],
+        operation: "remove_legacy_user_permission", userPermissionId: state.permission.id };
+      await db.userAccessAudit.create({ data: { userId: id, actorUserId: actor.id,
+        versionBefore: input.expectedVersion, versionAfter: input.expectedVersion + 1, reason: state.payload.reason,
+        before: before as unknown as Prisma.InputJsonValue, after: rulesOf(state.user) as unknown as Prisma.InputJsonValue,
+        changes: [change], previewHash: preview.previewHash } });
+      await db.userAccessPreview.update({ where: { id: preview.id }, data: { usedAt: new Date() } });
+      // No session is revoked. JwtStrategy reloads permissions for the same cookie;
+      // accessVersion invalidates mounted capability snapshots on the next refresh.
+      return { accessVersion: input.expectedVersion + 1, rules: rulesOf(state.user),
+        effective: state.effective, removedUserPermissionId: state.permission.id };
+    });
+    return this.projectAdminSave(actor, saved, true);
+  }
+
+  private projectAdminSave<T>(actor: AccessSubject, saved: T, requireFounderIdentity = false) {
+    // Call only after the real transaction resolves. A refused write must never
+    // become a successful acknowledgement through a response projection catch.
+    return projectCommittedWrite(this.prisma, actor, async () => {
+      const current = await this.assertFounder(this.prisma, actor.id);
+      if (requireFounderIdentity && !current.roles.some(({ role }) => role.code === "founder"))
+        throw new ForbiddenException("Only a founder may remove the legacy candidate restriction");
+      return saved;
+    });
+  }
+
   async preview(actor: AccessSubject, id: string, input: PreviewAccessDto) {
     const payload = this.normalize(input);
     return this.accessTransaction(
@@ -938,7 +1046,7 @@ export class AccessAdminService {
     )
       throw new BadRequestException("Invalid preview token/hash");
     try {
-      return await this.accessTransaction(
+      const saved = await this.accessTransaction(
         async (db) => {
           // Serializes administrative writes and last-founder checks across target users.
           // Do not return the lock function's PostgreSQL void value to Prisma.
@@ -1059,6 +1167,7 @@ export class AccessAdminService {
           };
         },
       );
+      return this.projectAdminSave(actor, saved);
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&

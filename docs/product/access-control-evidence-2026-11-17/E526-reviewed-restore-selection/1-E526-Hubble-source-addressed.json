@@ -1,0 +1,22 @@
+{
+  "id": "E526-Hubble-P2-01",
+  "status": "addressed_in_current_source_static_only",
+  "originalSourceReview": {
+    "path": "/private/tmp/E526-Hubble-source-review.json",
+    "sha256": "aa971d35070e19b4052f4c8a45323d2c289fdbe8799f083f671fa758da8719d4"
+  },
+  "originalExecutedSourceSHA256": "f98be998611b63ded5d055a91c87c731daffe95e8940834c1446a0b406367111",
+  "currentSource": {
+    "source": "/Users/dmitrijkruckov/Desktop/service-ops-crm/apps/backend/src/modules/users-access/access-admin.service.ts",
+    "frozen": "/private/tmp/E526-Hubble-after-review-freeze/cc67bc3157c26838ed54369ab8b1915031e442318e5695dc06a80430199fb5d4-access-admin.service.ts",
+    "sha256": "cc67bc3157c26838ed54369ab8b1915031e442318e5695dc06a80430199fb5d4"
+  },
+  "exactDelta": "Only object branch of validateSelected omits deletedAt:null for exact objects.restore. Other object actions keep active-only; user and all other resource branches unchanged. Count==ids.length still enforced. No grant effect, manageability, resolver or business restore authority added.",
+  "independentWholeFileComparison": "Current source equals executed f98 source with exactly the displayed conditional object existence predicate replacement. resources method bytes unchanged.",
+  "unchangedResourcesFragmentSHA256": "998b9970818ea02076f7f7a0f9b4687a93b3ab81ddb5d1f553123b6d629dc572",
+  "patch": {
+    "path": "/private/tmp/E526-Hubble-after-review-freeze/validateSelected-source-only-fix.patch",
+    "sha256": "8d86f7a3846607d01204d643fe220f6f06506afa2f29a69d9d5175e403b4d4e8"
+  },
+  "runtimeBoundary": "Original18 GET/54 do not invoke validateSelected or prove its new preview behavior. Main reports McClintock two new preview probes running; not read, executed or credited here."
+}

@@ -59,7 +59,8 @@ export function EquipmentMovementPanel({
       case 'writeoff': return unit.capabilities.canWriteoff;
     }
   });
-  const movementType = allowedTypes.find((value) => value === requestedMovementType) ?? allowedTypes[0] ?? '';
+  const movementType = allowedTypes.find((value) => value === requestedMovementType) ?? '';
+  const requestedOperationUnavailable = !!requestedMovementType && !movementType;
 
   return (
     <Stack gap="lg">
@@ -104,7 +105,8 @@ export function EquipmentMovementPanel({
               </div>
             </div>
           </div>
-          <SearchableSelect label="Операция" value={movementType} onChange={setMovementType} clearable={false} searchable={false} viewportAware disabled={isSaving} options={allowedTypes.map((type) => ({ value: type, label: getEquipmentMovementLabel(type) }))} />
+          {requestedOperationUnavailable ? <Alert tone="warning" role="status">Выбранная операция «{getEquipmentMovementLabel(requestedMovementType)}» недоступна. Черновик сохранён. Выберите другую разрешённую операцию или дождитесь возврата доступа.</Alert> : null}
+          <SearchableSelect label="Операция" value={movementType} onChange={setMovementType} placeholder="Выберите операцию" clearable={false} searchable={false} viewportAware disabled={isSaving} options={allowedTypes.map((type) => ({ value: type, label: getEquipmentMovementLabel(type) }))} />
           {movementType === 'issue_to_object' ? (
             <SearchableSelect label="Объект" value={toObjectId} onChange={setToObjectId} required viewportAware disabled={isSaving} placeholder="Выберите объект" options={objects.map((object) => ({ value: object.id, label: object.name }))} />
           ) : null}
@@ -135,7 +137,7 @@ export function EquipmentMovementPanel({
           </div>
           {submitError ? <Alert tone="warning" role="alert">{submitError}</Alert> : null}
           <div className="ui-inline">
-            <Button type="submit" variant="primary" pending={isSaving} disabled={(movementType === 'issue_to_object' && !toObjectId) || (movementType === 'issue_to_one_time_order' && !toOneTimeOrderId)}>
+            <Button type="submit" variant="primary" pending={isSaving} disabled={!movementType || (movementType === 'issue_to_object' && !toObjectId) || (movementType === 'issue_to_one_time_order' && !toOneTimeOrderId)}>
               {isSaving ? 'Сохраняем...' : 'Записать операцию'}
             </Button>
           </div>

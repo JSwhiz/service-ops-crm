@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { getAccessResources } from '@/entities/user-access/api/user-access-client';
 import type { AccessResource } from '@/entities/user-access/model/user-access.types';
 import { getApprovalStatusLabel, getApprovalTypeLabel } from '@/shared/lib/approval-presentation';
@@ -18,9 +18,13 @@ function resourceOption(resourceType: string, item: AccessResource): SearchableS
       : resourceType === 'task' ? undefined : item.description;
   return { value: item.id, label, description };
 }
-export function AccessEntityPicker({ resourceType, ids, onChange, disabled }: {
-  resourceType: string; ids: string[]; onChange: (ids: string[]) => void; disabled: boolean;
+export function AccessEntityPicker({ resourceType, actionCode, ids, onChange, disabled }: {
+  resourceType: string; actionCode?: string; ids: string[]; onChange: (ids: string[]) => void; disabled: boolean;
 }): React.JSX.Element {
+  const contextKey = `${resourceType}:${actionCode ?? ''}`;
+  const currentContext = useRef({ key: contextKey, mounted: true });
+  currentContext.current.key = contextKey;
+  useEffect(() => { currentContext.current.mounted = true; return () => { currentContext.current.mounted = false; }; }, []);
   const [names, setNames] = useState<Record<string, string>>({});
   const [resolveFailed, setResolveFailed] = useState(false);
   const [hasMore, setHasMore] = useState(false);
@@ -31,16 +35,17 @@ export function AccessEntityPicker({ resourceType, ids, onChange, disabled }: {
     let active = true;
     const controller = new AbortController();
     setResolveFailed(false);
-    void getAccessResources(resourceType, { ids: idsKey.split(',') }, controller.signal)
+    void getAccessResources(resourceType, { ids: idsKey.split(','), actionCode }, controller.signal)
       .then(({ items }) => {
         if (active) setNames(Object.fromEntries(items.map((item) => [item.id, resourceOption(resourceType, item).label])));
       })
       .catch(() => { if (active) setResolveFailed(true); });
     return () => { active = false; controller.abort(); };
-  }, [idsKey, resourceType, resolveKey]);
+  }, [idsKey, resourceType, actionCode, resolveKey]);
 
   const search = async (query: string): Promise<SearchableSelectOption[]> => {
-    const result = await getAccessResources(resourceType, { q: query });
+    const result = await getAccessResources(resourceType, { q: query, actionCode });
+    if (!currentContext.current.mounted || currentContext.current.key !== contextKey) return [];
     const items = result.items.map((item) => resourceOption(resourceType, item));
     setHasMore(result.hasMore);
     setNames((current) => ({ ...current, ...Object.fromEntries(items.map((item) => [item.value, item.label])) }));
@@ -48,6 +53,7 @@ export function AccessEntityPicker({ resourceType, ids, onChange, disabled }: {
   };
   return <div className={styles.stack}>
     <SearchableSelect
+      key={contextKey}
       label="Добавить запись в выбранную область"
       value="" options={[]} onChange={(id) => { if (id && !ids.includes(id)) onChange([...ids, id]); }}
       asyncSearch={search} minimumSearchLength={2} searchPromptText="Введите не меньше двух символов названия."

@@ -55,22 +55,31 @@ export function ObjectInventoryPanel({
   const [evidenceFiles, setEvidenceFiles] = useState<File[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [promptReason, reasonDialog] = useReasonPrompt();
-  const [correctionTarget, setCorrectionTarget] = useState<{ generation: number; id: string; itemId: string; objectId?: string; orderId?: string } | null>(null);
+  const [correctionTarget, setCorrectionTarget] = useState<{ id: string; itemId: string; objectId?: string; orderId?: string } | null>(null);
   const blocked = useContext(AccessSnapshotBlockedContext);
+  const correctionAllowed = !blocked && !!correctionTarget && movements.some(row =>
+    row.id === correctionTarget.id && row.inventoryItem.id === correctionTarget.itemId &&
+    row.relatedObject?.id === correctionTarget.objectId && row.relatedOneTimeOrder?.id === correctionTarget.orderId && row.projection.canCorrectMovement);
+  const [promptReason, reasonDialog] = useReasonPrompt({
+    confirmDisabled: !correctionAllowed,
+    confirmDisabledReason: correctionTarget && !correctionAllowed
+      ? 'Исправление выдачи недоступно. Причина сохранена в черновике. После возврата доступа подтвердите исправление вручную.' : undefined,
+  });
   const current = useRef({ movements, blocked, canIssueInventoryToObject, onRefresh });
   current.current = { movements, blocked, canIssueInventoryToObject, onRefresh };
   const issuing = useRef(false);
   const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const correct = async (movement: InventoryMovement): Promise<void> => {
-    const generation = getAccessGeneration();
-    const allowed = () => mounted.current && isAccessGenerationCurrent(generation) && !current.current.blocked &&
+    const available = () => mounted.current && !current.current.blocked &&
       current.current.movements.some(row => row.id === movement.id && row.inventoryItem.id === movement.inventoryItem.id &&
         row.relatedObject?.id === movement.relatedObject?.id && row.relatedOneTimeOrder?.id === movement.relatedOneTimeOrder?.id && row.projection.canCorrectMovement);
-    if (isSaving || !allowed()) return;
-    setCorrectionTarget({ generation, id: movement.id, itemId: movement.inventoryItem.id, objectId: movement.relatedObject?.id, orderId: movement.relatedOneTimeOrder?.id });
+    if (isSaving || !available()) return;
+    setCorrectionTarget({ id: movement.id, itemId: movement.inventoryItem.id, objectId: movement.relatedObject?.id, orderId: movement.relatedOneTimeOrder?.id });
     const reason = await promptReason({ title: 'Исправить выдачу?', description: 'Неподтверждённая выдача будет отменена. Для подтверждённой создаётся возврат с исходной стоимостью; история сохраняется.', confirmLabel: 'Исправить', reasonLabel: 'Причина', minLength: 2 });
+    setCorrectionTarget(null);
+    const generation = getAccessGeneration();
+    const allowed = () => isAccessGenerationCurrent(generation) && available();
     if (!reason || !allowed()) return;
     setIsSaving(true); setError(null);
     try { await correctInventoryMovement(movement.id, reason); if (allowed()) await current.current.onRefresh(); }
@@ -88,7 +97,7 @@ export function ObjectInventoryPanel({
 
   return (
     <Surface padding="md" className={`${styles.workPanel}`}>
-      <AccessSnapshotBoundary blocked={!correctionTarget || !isAccessGenerationCurrent(correctionTarget.generation) || !movements.some(row => row.id === correctionTarget.id && row.inventoryItem.id === correctionTarget.itemId && row.relatedObject?.id === correctionTarget.objectId && row.relatedOneTimeOrder?.id === correctionTarget.orderId && row.projection.canCorrectMovement)}>{reasonDialog}</AccessSnapshotBoundary>
+      {reasonDialog}
       <div className={styles.panelHeader}>
         <div className="ui-section-title">Списание расходников</div>
         <span className={styles.panelMeta}>{movements.length} операций</span>

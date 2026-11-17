@@ -128,6 +128,7 @@ export interface InventoryMovement {
     status: string;
   } | null;
   projection: {
+    canAttachStandalonePhoto?: boolean;
     canCorrectMovement: boolean;
     hasEvidence: boolean;
     requiresApprovalBridge: boolean;

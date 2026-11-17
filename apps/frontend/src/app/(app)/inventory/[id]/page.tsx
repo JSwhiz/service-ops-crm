@@ -1,14 +1,16 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useAccessRevision } from '@/shared/auth/use-access-revision';
+import { useAuth } from '@/shared/auth/use-auth';
+import { getAccessSessionGeneration } from '@/shared/auth/access-generation';
 import { ApiError } from '@/shared/api/fetcher';
 import { isSavedWithoutAccess } from '@/shared/api/saved-without-access';
 import { useOpenAccessRefresh } from '@/shared/auth/use-open-access-refresh';
 import { AccessSnapshotBoundary } from '@/shared/auth/access-snapshot-boundary';
 
-import { uploadFileToEntity } from '@/entities/file/api/file-client';
+import { uploadFileToEntity, uploadFileToEntityAcknowledged } from '@/entities/file/api/file-client';
 import {
   createInventoryMovement,
   deleteInventoryItem,
@@ -65,6 +67,17 @@ export default function InventoryItemDetailPage({
   params: Promise<{ id: string }>;
 }): React.JSX.Element {
   const accessRevision = useAccessRevision();
+  const { user } = useAuth();
+  const [photoAcknowledgement, setPhotoAcknowledgement] = useState<{ params: typeof params; actorId: string | undefined; session: number; terminal: boolean } | null>(null);
+  const photoContext = { params, actorId: user?.id, session: getAccessSessionGeneration() };
+  const latestPhotoContext = useRef(photoContext);
+  latestPhotoContext.current = photoContext;
+  const photoContextIsCurrent = (): boolean => !!photoContext.actorId && latestPhotoContext.current.params === params && latestPhotoContext.current.actorId === photoContext.actorId && latestPhotoContext.current.session === photoContext.session && getAccessSessionGeneration() === photoContext.session;
+  const acknowledgePhoto = (terminal: boolean): void => {
+    if (!photoContextIsCurrent()) return;
+    setPhotoAcknowledgement((previous) => previous?.params === params && previous.actorId === photoContext.actorId && previous.session === photoContext.session && previous.terminal
+      ? previous : { ...photoContext, terminal });
+  };
   const [loadedAccessRevision, setLoadedAccessRevision] = useState<string | null>(null);
   const [accessRetry, setAccessRetry] = useState(0);
   const router = useRouter();
@@ -331,6 +344,14 @@ export default function InventoryItemDetailPage({
     setIsEditing(false);
   }
 
+  const visiblePhotoAcknowledgement = photoAcknowledgement?.params === params && photoAcknowledgement.actorId === user?.id && photoAcknowledgement.session === getAccessSessionGeneration();
+  if (visiblePhotoAcknowledgement && photoAcknowledgement?.terminal) return (
+    <div className={`ui-page ${inventoryStyles.inventoryWorkspace}`}>
+      <BackLink href="/inventory">К списку расходников</BackLink>
+      <Alert tone="success" role="status" title="Фото прикреплено">Доступ к записи изменился. Повторная загрузка не требуется.</Alert>
+    </div>
+  );
+
   if (savedCatalogAction?.params === params) return (
     <div className={`ui-page ${inventoryStyles.inventoryWorkspace}`}>
       <BackLink href="/inventory">К списку расходников</BackLink>
@@ -353,6 +374,7 @@ export default function InventoryItemDetailPage({
   return (
     <div className={`ui-page ${inventoryStyles.inventoryWorkspace}`}>
       <BackLink href="/inventory">Расходники</BackLink>
+      {visiblePhotoAcknowledgement ? <Alert tone="success" role="status" title="Фото прикреплено">Повторная загрузка не требуется.</Alert> : null}
       {loadedAccessRevision !== accessRevision && !error ? <LoadingState label="Проверка доступа к расходнику…" /> : null}
       {error ? <Alert tone="danger" action={<Button onClick={() => setAccessRetry((value) => value + 1)}>Повторить проверку доступа</Button>}>{error}</Alert> : null}
       <AccessSnapshotBoundary blocked={Boolean(error) || loadedAccessRevision !== accessRevision}>
@@ -713,7 +735,17 @@ export default function InventoryItemDetailPage({
               ) : movementError ? (
                 <Alert tone="danger" role="alert">{movementError}</Alert>
               ) : (
-                <InventoryMovementList items={movements} />
+                <InventoryMovementList
+                  items={movements}
+                  onAttachStandalonePhoto={async (movementId, file) => {
+                    if (!photoContextIsCurrent()) throw new ApiError('Сессия или страница изменились. Обновите данные.', 409, 'ACCESS_VERSION_CHANGED');
+                    setPhotoAcknowledgement(null);
+                    const result = await uploadFileToEntityAcknowledged({ entityType: 'inventory_movement', entityId: movementId, file });
+                    if (isSavedWithoutAccess(result)) acknowledgePhoto(true);
+                  }}
+                  onPhotoAcknowledgedWithoutView={() => acknowledgePhoto(false)}
+                  onRefresh={async () => { setMovementReloadKey((value) => value + 1); }}
+                />
               )}
 
               {!isMovementsLoading && !movementError ? <TablePagination page={movementPage} totalPages={movementTotalPages} pending={isMovementsLoading} label="Страницы истории движений"

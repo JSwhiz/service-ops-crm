@@ -226,6 +226,8 @@ export interface ReasonDialogProps {
   reasonRequired?: boolean;
   confirmLabel?: string;
   pending?: boolean;
+  confirmDisabled?: boolean;
+  confirmDisabledReason?: React.ReactNode;
   error?: React.ReactNode;
   returnFocusRef?: React.RefObject<HTMLElement>;
 }
@@ -242,6 +244,8 @@ export function ReasonDialog({
   reasonRequired = true,
   confirmLabel = 'Подтвердить',
   pending = false,
+  confirmDisabled = false,
+  confirmDisabledReason,
   error,
   returnFocusRef,
 }: ReasonDialogProps): React.JSX.Element {
@@ -269,8 +273,8 @@ export function ReasonDialog({
             variant="danger"
             pending={pending}
             pendingLabel="Сохранение…"
-            disabled={!canConfirm}
-            onClick={() => onConfirm(reason)}
+            disabled={!canConfirm || confirmDisabled}
+            onClick={() => { if (!confirmDisabled && !accessBlocked) onConfirm(reason); }}
           >
             {confirmLabel}
           </Button>
@@ -278,6 +282,7 @@ export function ReasonDialog({
       }
     >
       <div className={styles.formStack}>
+        {confirmDisabledReason ? <Alert tone="warning" role="status">{confirmDisabledReason}</Alert> : null}
         {error ? (
           <Alert tone="danger" role="alert" title="Не удалось выполнить действие">
             {error}

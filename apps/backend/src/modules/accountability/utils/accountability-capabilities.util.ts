@@ -43,6 +43,7 @@ export function buildAccountabilityGlobalCapabilities(params: {
 export function buildAccountabilityExpenseCapabilities(params: {
   subject?: AccessSubject;
   ownerUserId?: string;
+  createdByUserId?: string;
   isOwnExpense: boolean;
   legacyOwnExpenseAllowed: boolean;
   accountStatus: string;
@@ -73,7 +74,9 @@ export function buildAccountabilityExpenseCapabilities(params: {
     canSubmit: ownDraft && (params.subject
       ? decideAccess(params.subject, 'accountability.expenses.submit', params.legacyOwnExpenseAllowed, ownContext)
       : params.legacyOwnExpenseAllowed),
-    canApprove: canReview && isSubmitted && !params.isOwnExpense && (!params.subject || decideAccess(params.subject, 'accountability.expenses.approve', true, { resourceType: 'user', resourceId: params.ownerUserId, ownerUserId: params.ownerUserId })),
-    canReject: canReview && isSubmitted && (!params.subject || decideAccess(params.subject, 'accountability.expenses.reject', true, { resourceType: 'user', resourceId: params.ownerUserId, ownerUserId: params.ownerUserId })),
+    canApprove: isSubmitted && !params.isOwnExpense && (!params.subject || params.subject.id !== params.createdByUserId) && (params.subject
+      ? decideAccess(params.subject, 'accountability.expenses.approve', canReview, ownContext) : canReview),
+    canReject: isSubmitted && (params.subject
+      ? decideAccess(params.subject, 'accountability.expenses.reject', canReview, ownContext) : canReview),
   };
 }

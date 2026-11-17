@@ -292,8 +292,17 @@ export class ObjectPlanningService implements OnModuleInit, OnModuleDestroy {
       !object.capabilities.canManageCompensationRates
     )
       throw new ForbiddenException("Изменение сезонов недоступно");
-    await this.prisma.$transaction(async (tx) => {
-      await tx.$queryRaw`SELECT "id" FROM "objects" WHERE "id" = ${objectId} FOR UPDATE`;
+    await this.objects.runObjectSourceWrite(user, objectId, 'objects.read', true, undefined, async (tx) => {
+      // Recheck after the object and authority locks: the request may have
+      // waited while the object was archived or the actor's access changed.
+      const currentObject = await this.context(user, objectId, true);
+      await this.assertAction(user, objectId, 'objects.budget.read', true);
+      if (payload.monthlyBudget !== undefined && !await this.allowedAction(user, objectId, 'objects.budget.edit', this.canEditBudget(user, objectId)))
+        throw new ForbiddenException("Изменение бюджета недоступно");
+      if (
+        (payload.automaticSeasons !== undefined || payload.summerStartsOn !== undefined || payload.winterStartsOn !== undefined) &&
+        !currentObject.capabilities.canManageCompensationRates
+      ) throw new ForbiddenException("Изменение сезонов недоступно");
       const old = await tx.objectPlanningSettings.findUnique({
         where: { objectId },
       });
@@ -365,7 +374,7 @@ export class ObjectPlanningService implements OnModuleInit, OnModuleDestroy {
         error instanceof Error ? error.stack : undefined,
       ),
     );
-    return this.getPlanning(user, objectId);
+    return this.objects.projectCommittedObjectResult(user, objectId, () => this.getPlanning(user, objectId));
   }
   private async allowedAction(user: PlanningActor, objectId: string, actionCode: string, legacy: boolean): Promise<boolean> {
     const object = await this.prisma.object.findUniqueOrThrow({ where: { id: objectId }, select: {

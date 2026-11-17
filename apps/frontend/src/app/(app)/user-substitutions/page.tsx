@@ -80,7 +80,9 @@ export default function UserSubstitutionsPage(): React.JSX.Element {
   const [loadedScope, setLoadedScope] = useState<string | null>(null);
   const [loadedOptionsScope, setLoadedOptionsScope] = useState<string | null>(null);
   const [optionsCanCreate, setOptionsCanCreate] = useState(false);
-  const optionsScope = JSON.stringify([scope, principal, objectSearch]);
+  const [eligibleSelectedObjectIds, setEligibleSelectedObjectIds] = useState<string[]>([]);
+  const selectedIdsKey = selected.map(item => item.id).sort().join(',');
+  const optionsScope = JSON.stringify([scope, principal, objectSearch, selectedIdsKey]);
   const currentOptionsScope = useRef(optionsScope);
   currentOptionsScope.current = optionsScope;
   const accessCurrent = loadedScope === scope && !loading && !error;
@@ -88,7 +90,8 @@ export default function UserSubstitutionsPage(): React.JSX.Element {
   const canCreate = canCreateOwn || (accessCurrent && list?.capabilities?.canCreateForOthers === true);
   const optionsLoaded = loadedOptionsScope === optionsScope && !optionsLoading;
   const optionsCurrent = loadedOptionsScope === optionsScope && !optionsLoading && optionsCanCreate;
-  const canSubmit = canCreate && optionsCurrent && !!principal;
+  const selectedObjectsAllowed = selected.every(item => eligibleSelectedObjectIds.includes(item.id));
+  const canSubmit = canCreate && optionsCurrent && !!principal && selectedObjectsAllowed;
   const currentRevokeTarget = accessCurrent ? list?.items.find((item) => item.id === revokeTarget?.id && item.canRevoke) : undefined;
   const actionState = useRef({ scope, canCreate, canSubmit, currentRevokeTarget });
   actionState.current = { scope, canCreate, canSubmit, currentRevokeTarget };
@@ -112,9 +115,10 @@ export default function UserSubstitutionsPage(): React.JSX.Element {
     setLoadedOptionsScope(null);
     setOptionsLoading(true);
     const timeout = window.setTimeout(() => {
-      void getSubstitutionOptions({ principalUserId: principal || undefined, objectSearch }).then((response) => {
+      void getSubstitutionOptions({ principalUserId: principal || undefined, objectSearch, selectedObjectIds: selectedIdsKey ? selectedIdsKey.split(',') : [] }).then((response) => {
         if (!cancelled && currentOptionsScope.current === optionsScope) {
           setObjects(response.objects);
+          setEligibleSelectedObjectIds(response.eligibleSelectedObjectIds ?? []);
           const options = response.users.map((user) => ({ value: user.id, label: user.fullName, description: `@${user.login}` }));
           for (const option of options) userOptions.current.set(option.value, option);
           setUsers(options);
@@ -129,7 +133,7 @@ export default function UserSubstitutionsPage(): React.JSX.Element {
         .finally(() => { if (!cancelled && currentOptionsScope.current === optionsScope) setOptionsLoading(false); });
     }, 250);
     return () => { cancelled = true; window.clearTimeout(timeout); };
-  }, [open, principal, objectSearch, canCreate, canCreateOwn, user, optionsScope]);
+  }, [open, principal, objectSearch, selectedIdsKey, canCreate, canCreateOwn, user, optionsScope]);
 
   const changePrincipal = (value: string): void => {
     if (!actionState.current.canCreate || currentScope.current !== scope || currentOptionsScope.current !== optionsScope || value === principal) return;
@@ -212,6 +216,7 @@ export default function UserSubstitutionsPage(): React.JSX.Element {
       <form id="substitution-form" className={styles.form} onSubmit={(event) => { void save(event); }}>
         {formError ? <Alert tone="danger" role="alert" action={<Button disabled={pending} onClick={() => setReloadKey((key) => key + 1)}>Повторить загрузку</Button>}>{formError}</Alert> : null}
         {!canCreate ? <Alert action={<Button disabled={pending || loading} onClick={() => setReloadKey((key) => key + 1)}>Обновить доступ</Button>}>Доступ к созданию обновляется или недоступен. Черновик сохранён.</Alert> : null}
+        {optionsLoaded && !selectedObjectsAllowed ? <Alert tone="warning" role="status">Доступ к части выбранных объектов изменился. Черновик сохранён; создание замещения заблокировано. Уберите недоступные объекты или обновите доступ после его возврата.</Alert> : null}
         <SearchableSelect key={`principal:${scope}`} label="Чей доступ передаётся" value={principal} selectedOption={draft.value.principalOption}
           options={optionsLoaded && canCreate ? principals : []} onChange={changePrincipal} required clearable={false}
           disabled={pending || !canCreate || !optionsLoaded} viewportAware placeholder="Выберите пользователя"

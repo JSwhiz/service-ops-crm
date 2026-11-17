@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { getAccessCatalog, listAccessUsers } from '@/entities/user-access/api/user-access-client';
-import type { AccessCatalog, AccessPage, AccessUser } from '@/entities/user-access/model/user-access.types';
+import type { AccessCatalog, AccessPage, AccessUser, AccessSaveNoticeContext } from '@/entities/user-access/model/user-access.types';
+import { getAccessSessionGeneration } from '@/shared/auth/access-generation';
 import { useAuth } from '@/shared/auth/use-auth';
 import { useAccessRevision } from '@/shared/auth/use-access-revision';
 import { getUserRoleLabel } from '@/shared/lib/display-name';
@@ -17,16 +18,33 @@ import styles from './user-access.module.css';
 /** Guard precedes every admin consumer, including catalog loading. */
 export function UserAccessAdmin(): React.JSX.Element {
   const { user, isLoading } = useAuth();
+  const [savedNotice, setSavedNotice] = useState<AccessSaveNoticeContext | null>(null);
+  const currentActor = useRef(user?.id);
+  currentActor.current = user?.id;
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  const onSavedWithoutAccess = useCallback((context: AccessSaveNoticeContext): void => {
+    if (!mounted.current || context.actorId !== currentActor.current || context.sessionGeneration !== getAccessSessionGeneration()) return;
+    setSavedNotice(context);
+    const params = new URLSearchParams(window.location.search);
+    params.delete('user'); params.delete('accessTab');
+    window.history.replaceState(window.history.state, '', `${window.location.pathname}${params.size ? `?${params}` : ''}${window.location.hash}`);
+  }, []);
+  if (savedNotice?.actorId === user?.id && savedNotice?.sessionGeneration === getAccessSessionGeneration()) return <div className="ui-page">
+    <PageHeader title="Пользователи и доступы" />
+    <Alert tone="success" role="status">Изменение сохранено. Подробности прав сейчас недоступны. Повторно сохранять изменение не нужно.</Alert>
+    <ButtonLink href="/dashboard">На рабочий стол</ButtonLink>
+  </div>;
   if (isLoading) return <LoadingState label="Проверка доступа…" />;
   const founder = user?.roleCode === 'founder' || user?.roleCodes.includes('founder');
   if (!founder || !user?.capabilities?.canManageUserAccess) return <div className="ui-page">
     <PageHeader title="Пользователи и доступы" />
     <EmptyState title="Доступ закрыт" description="Управление доступами разрешено только учредителю с действующим правом администрирования." action={<ButtonLink href="/dashboard">На рабочий стол</ButtonLink>} />
   </div>;
-  return <AccessRegistry />;
+  return <AccessRegistry onSavedWithoutAccess={onSavedWithoutAccess} />;
 }
 
-function AccessRegistry(): React.JSX.Element {
+function AccessRegistry({ onSavedWithoutAccess }: { onSavedWithoutAccess: (context: AccessSaveNoticeContext) => void }): React.JSX.Element {
   const accessRevision = useAccessRevision();
   const [query, setQuery] = useState('');
   const [page, setPage] = useState(1);
@@ -103,6 +121,6 @@ function AccessRegistry(): React.JSX.Element {
       </DataTable> : <EmptyState title={query ? 'Пользователи не найдены' : 'Пользователей нет'} description={query ? 'Проверьте ФИО или логин.' : 'Доступные пользователи появятся в этом списке.'} action={query ? <Button onClick={() => { setQuery(''); setPage(1); }}>Сбросить поиск</Button> : undefined} />}
       <TablePagination page={page} totalPages={Math.ceil(data.total / 30)} onPageChange={setPage} pending={busy} label="Страницы пользователей" summary={`Пользователей: ${data.total}`} />
     </Surface> : null}
-    {selectedId && catalog ? <UserAccessDialog key={selectedId} userId={selectedId} catalog={catalog} onClose={close} onSaved={saved} /> : null}
+    {selectedId && catalog ? <UserAccessDialog key={selectedId} userId={selectedId} catalog={catalog} onClose={close} onSaved={saved} onSavedWithoutAccess={onSavedWithoutAccess} /> : null}
   </div>;
 }

@@ -1,0 +1,100 @@
+{
+  "claimId": "E527",
+  "claimSha256": "de2f2d6d808dc52a7899695eece516b16d1f65cdd3a38cf4b69c0b8cecbd1227",
+  "reviewer": "Codex/Terra independent documentary reviewer",
+  "independent": true,
+  "verdict": "accepted_dependency_addendum",
+  "decisions": [
+    {
+      "code": "inventory.movement.photos.create",
+      "status": "partial",
+      "wholeSupported": false,
+      "scope": "Nine controlled component observations in historical frozen source; six guard lines remain equal in current source; no whole-source epoch reassignment."
+    }
+  ],
+  "artifactManifest": [
+    {
+      "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/controlled-ui.cjs",
+      "sha256": "0e1339ef49a6982917d22a1409786a72e481283bb77d939b93ff6c658a5c67d4"
+    },
+    {
+      "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/actual-behavior-proof.json",
+      "sha256": "ffec596d9b581b00772451e5a3370557f04fb995921dace2a27027a1ba71e3ee"
+    },
+    {
+      "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/actual-assertions.json",
+      "sha256": "adb383a1590b80c9a9d7e86cd80b75fe61f71cbb0bc4a5119fa7f8c76a189d8e"
+    },
+    {
+      "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/source-manifest.json",
+      "sha256": "4e15aaeb88d01fbf6602f54f141716094a4e4e8d191a99b49b8f1b9773e48acb"
+    },
+    {
+      "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/source-compatibility.json",
+      "sha256": "e1ad8363c3f8e964252462b339d6b3af69bc48a19a51bf9513867f6c993452b1"
+    },
+    {
+      "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/README.md",
+      "sha256": "f01963695362a3eecdb568582fb3ac73bae35cbe6c12acac5ee560a879747454"
+    },
+    {
+      "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/E527-claim.json",
+      "sha256": "de2f2d6d808dc52a7899695eece516b16d1f65cdd3a38cf4b69c0b8cecbd1227"
+    },
+    {
+      "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/Terra-independent-review-request.json",
+      "sha256": "f903bcf8b6b30dff9c994b3a1b1dde562ec9776900cf1beec9bfd4981aab2002"
+    },
+    {
+      "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/source-frozen/db5cefc67b7066cb3a0460e31b4b8cefd10ef2909b9e78fb2761faafcab63040/inventory-movement-list.tsx",
+      "sha256": "db5cefc67b7066cb3a0460e31b4b8cefd10ef2909b9e78fb2761faafcab63040"
+    },
+    {
+      "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/source-frozen/9345eb24c168f73c9059207cbd6b9955e73f32adbf428550aa951b06ebba35f3/access-generation.ts",
+      "sha256": "9345eb24c168f73c9059207cbd6b9955e73f32adbf428550aa951b06ebba35f3"
+    },
+    {
+      "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/executed-js/inventory-movement-list.tsx.cjs",
+      "sha256": "d4730a16954d93f1e27184af08d2fe512ce26084b78f826920895975e63befa5"
+    },
+    {
+      "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/executed-js/access-generation.ts.cjs",
+      "sha256": "c41370cc08c197efc7380d301f765d5e71c3ac7741a5bf6cba142a291591ef35"
+    },
+    {
+      "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/frozen/de2f2d6d808dc52a7899695eece516b16d1f65cdd3a38cf4b69c0b8cecbd1227/E527-claim.json",
+      "sha256": "de2f2d6d808dc52a7899695eece516b16d1f65cdd3a38cf4b69c0b8cecbd1227"
+    },
+    {
+      "path": "/private/tmp/E527-Terra/E527-guard-fragment-bridge.json",
+      "sha256": "ff66459f0a1511c1429262b8cfb402f468dcb79deb0de1a4676e5bcdffbec42d"
+    }
+  ],
+  "reviewEvidence": {
+    "proof": {
+      "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/actual-behavior-proof.json",
+      "sha256": "ffec596d9b581b00772451e5a3370557f04fb995921dace2a27027a1ba71e3ee",
+      "pointer": "/observations"
+    },
+    "assertions": {
+      "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/actual-assertions.json",
+      "sha256": "adb383a1590b80c9a9d7e86cd80b75fe61f71cbb0bc4a5119fa7f8c76a189d8e",
+      "count": 72,
+      "matched": 72
+    },
+    "guardBridge": {
+      "path": "/private/tmp/E527-Terra/E527-guard-fragment-bridge.json",
+      "sha256": "ff66459f0a1511c1429262b8cfb402f468dcb79deb0de1a4676e5bcdffbec42d"
+    },
+    "controlledObservations": 9,
+    "failures": 0
+  },
+  "limits": [
+    "Virtual JSX and controlled hooks and draft adapter; no native browser, provider, API, or storage execution.",
+    "The executed component SHA db5cefc67b7066cb3a0460e31b4b8cefd10ef2909b9e78fb2761faafcab63040 differs from current source; the later acknowledgement callback was not executed in E527.",
+    "No new whole admission and no conclusion on unobserved default, late, or revocation cases."
+  ],
+  "newWholeAdmissions": 0,
+  "canonicalWritten": false,
+  "newRuntime": false
+}

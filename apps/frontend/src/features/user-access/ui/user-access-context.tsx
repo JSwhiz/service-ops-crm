@@ -88,7 +88,7 @@ export function AccessHistoryTab({ userId, version, actions }: { userId: string;
         actor: `${entry.actor.fullName || entry.actor.login} · версия ${entry.versionBefore} → ${entry.versionAfter}`,
         children: <div className={styles.stack}><p className={styles.reason}>Причина: {entry.reason}</p><ul className={styles.changes}>{entry.changes.map((change) => <li key={change.actionCode}>
           <strong>{actions.find((action) => action.code === change.actionCode)?.name ?? 'Действие вне текущего каталога'}</strong>
-          <span>{ruleLabel(entry.before.find((rule) => rule.actionCode === change.actionCode))} → {ruleLabel(entry.after.find((rule) => rule.actionCode === change.actionCode))}</span>
+          <span>{change.operation === 'remove_legacy_user_permission' ? 'Прежний персональный запрет снят учредителем; другие источники доступа сохранены.' : <>{ruleLabel(entry.before.find((rule) => rule.actionCode === change.actionCode))} → {ruleLabel(entry.after.find((rule) => rule.actionCode === change.actionCode))}</>}</span>
           <details><summary>Технические сведения точного изменения</summary><pre className={styles.technical}>{JSON.stringify({ actionCode: change.actionCode, before: entry.before.find((rule) => rule.actionCode === change.actionCode) ?? null, after: entry.after.find((rule) => rule.actionCode === change.actionCode) ?? null }, null, 2)}</pre></details>
         </li>)}</ul></div>,
       }))} />}

@@ -3,6 +3,7 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
@@ -206,6 +207,7 @@ function resolveActiveScheduleProfile(
 
 @Injectable()
 export class ObjectsService {
+  private readonly logger = new Logger(ObjectsService.name);
   constructor(
     private readonly prisma: PrismaService,
     private readonly auditService: AuditService,
@@ -466,7 +468,7 @@ export class ObjectsService {
   async createObject(
     currentUser: CurrentAuthUser,
     payload: CreateObjectDto,
-  ): Promise<ObjectResponseDto> {
+  ): Promise<ObjectResponseDto | SavedWithoutAccess> {
     const roleCodes = this.getRoleCodes(currentUser);
 
     if (!decideAccess(currentUser, 'objects.create', canCreateObject(roleCodes))) {
@@ -583,6 +585,7 @@ export class ObjectsService {
     );
 
     const created = await this.prisma.$transaction(async (tx) => {
+      await lockActorAccessRevision(tx, currentUser);
       const object = await tx.object.create({
         data: {
           name: payload.name,
@@ -809,26 +812,20 @@ export class ObjectsService {
 
 
 
-    await this.chatsService.createSystemMessage(
-      'objects',
-      `Создан объект: ${created.name}`,
-      {
-        objectId: created.id,
-        status: created.status,
-      },
-      currentUser.id,
-    );
-    await this.chatsService.createSystemMessage(
-      'leadership',
-      `Создан объект: ${created.name}`,
-      {
-        objectId: created.id,
-        status: created.status,
-      },
-      currentUser.id,
-    );
+    // The object, assignments, audit and notifications are already committed.
+    // A chat publication fault must not invite the caller to create it again.
+    for (const roomCode of ['objects', 'leadership'] as const) {
+      try {
+        await this.chatsService.createSystemMessage(roomCode, `Создан объект: ${created.name}`,
+          { objectId: created.id, status: created.status }, currentUser.id,
+          `object-created:${created.id}:${roomCode}`);
+      } catch (error) {
+        this.logger.error(`Committed object ${created.id}: chat publication failed in ${roomCode}`,
+          error instanceof Error ? error.stack : undefined);
+      }
+    }
 
-    return this.mapObject(created as ObjectView, currentUser);
+    return this.projectCommittedObjectResult(currentUser, created.id, (object) => object);
   }
 
   async updateObject(

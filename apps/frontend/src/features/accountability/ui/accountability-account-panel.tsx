@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useContext, useMemo, useRef, useState } from 'react';
+import { AccessSnapshotBlockedContext } from '@/shared/auth/access-snapshot-boundary';
 import Link from 'next/link';
 
 import type {
@@ -23,7 +24,7 @@ import { WorkspaceTabs } from '@/shared/ui/workspace-tabs/workspace-tabs';
 
 import { AccountabilityExpenseForm } from './accountability-expense-form';
 import { DatePicker } from '@/shared/ui/date-picker/date-picker';
-import { Button, EmptyState, Stack, StatusBadge, Surface } from '@/shared/ui/foundation';
+import { Alert, Button, EmptyState, Stack, StatusBadge, Surface } from '@/shared/ui/foundation';
 import accountabilityStyles from '@/features/accountability/ui/accountability-ui.module.css';
 
 function formatMoney(value: number): string {
@@ -74,6 +75,9 @@ export function AccountabilityAccountPanel({
     null,
   );
   const [expenseRejectComment, setExpenseRejectComment] = useState('');
+  const [rejectPending, setRejectPending] = useState(false);
+  const rejectionLock = useRef(false);
+  const accessBlocked = useContext(AccessSnapshotBlockedContext);
   const [reversingFundingId, setReversingFundingId] = useState<string | null>(null);
   const [fundingReversalReason, setFundingReversalReason] = useState('');
   const [orderFilter, setOrderFilter] = useState('');
@@ -499,8 +503,9 @@ export function AccountabilityAccountPanel({
                     </Button>
                   ) : null}
 
-                  {expense.capabilities.canReject ? (
+                  {expense.capabilities.canReject && rejectingExpenseId !== expense.id ? (
                     <Button
+                      disabled={rejectPending || rejectingExpenseId !== null}
                       onClick={() => {
                         setRejectingExpenseId(expense.id);
                         setExpenseRejectComment('');
@@ -513,9 +518,11 @@ export function AccountabilityAccountPanel({
 
                 {rejectingExpenseId === expense.id ? (
                   <Stack gap="sm">
+                    {!expense.capabilities.canReject ? <Alert tone="warning" role="status">Отклонение расхода недоступно. Причина сохранена в черновике. Проверьте доступ и состояние расхода перед повторным действием.</Alert> : null}
                     <textarea
                       rows={3}
                       value={expenseRejectComment}
+                      disabled={rejectPending}
                       onChange={(event) =>
                         setExpenseRejectComment(event.target.value)
                       }
@@ -523,18 +530,23 @@ export function AccountabilityAccountPanel({
                     />
                     <div className="ui-inline">
                       <Button
+                        disabled={rejectPending || accessBlocked || !expense.capabilities.canReject || !expenseRejectComment.trim()}
                         onClick={() => {
-                          void onRejectExpense(expense.id, expenseRejectComment).finally(
+                          if (rejectionLock.current || accessBlocked || !expense.capabilities.canReject || !expenseRejectComment.trim()) return;
+                          rejectionLock.current = true;
+                          setRejectPending(true);
+                          void onRejectExpense(expense.id, expenseRejectComment).then(
                             () => {
                               setRejectingExpenseId(null);
                               setExpenseRejectComment('');
                             },
-                          );
+                          ).catch(() => undefined).finally(() => { rejectionLock.current = false; setRejectPending(false); });
                         }}
                       >
                         Подтвердить отклонение
                       </Button>
                       <Button
+                        disabled={rejectPending}
                         onClick={() => {
                           setRejectingExpenseId(null);
                           setExpenseRejectComment('');

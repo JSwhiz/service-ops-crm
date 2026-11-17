@@ -2,6 +2,7 @@ import { fetcher, postCommittedWrite } from '@/shared/api/fetcher';
 import { appConfig } from '@/shared/config/app-config';
 
 import type { AttachedFile, FileView } from '../model/file.types';
+import type { SavedWithoutAccess } from '@/shared/api/saved-without-access';
 const uploadIds = new WeakMap<File, Map<string, string>>();
 
 export async function listFilesByEntity(
@@ -13,13 +14,15 @@ export async function listFilesByEntity(
   });
 }
 
-export async function uploadFileToEntity(params: {
+type FileUploadInput = {
   entityType: string;
   entityId: string;
   file: File;
   originalName?: string;
   fieldCode?: string;
-}): Promise<AttachedFile> {
+};
+
+function fileUploadBody(params: FileUploadInput): FormData {
   const formData = new FormData();
   formData.set('entityType', params.entityType);
   formData.set('entityId', params.entityId);
@@ -38,10 +41,19 @@ export async function uploadFileToEntity(params: {
 
   formData.set('file', params.file);
 
+  return formData;
+}
+
+export async function uploadFileToEntity(params: FileUploadInput): Promise<AttachedFile> {
   return fetcher<AttachedFile>('/files/upload', {
     method: 'POST',
-    body: formData,
+    body: fileUploadBody(params),
   });
+}
+
+/** A known successful upload stays successful if access changes before delivery. */
+export async function uploadFileToEntityAcknowledged(params: FileUploadInput): Promise<AttachedFile | SavedWithoutAccess> {
+  return postCommittedWrite<AttachedFile>('/files/upload', { body: fileUploadBody(params) });
 }
 
 export async function getFileView(fileId: string): Promise<FileView> {

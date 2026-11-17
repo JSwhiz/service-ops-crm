@@ -3,7 +3,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getUserAccess, previewUserAccess, saveUserAccess } from '@/entities/user-access/api/user-access-client';
-import type { AccessAction, AccessCatalog, AccessChange, AccessDetail, AccessPayload, AccessPreview } from '@/entities/user-access/model/user-access.types';
+import type { AccessAction, AccessCatalog, AccessChange, AccessDetail, AccessPayload, AccessPreview, AccessSaveNoticeContext } from '@/entities/user-access/model/user-access.types';
+import { isSavedWithoutAccess } from '@/shared/api/saved-without-access';
+import { getAccessSessionGeneration } from '@/shared/auth/access-generation';
 import { useAuth } from '@/shared/auth/use-auth';
 import { useAccessRevision } from '@/shared/auth/use-access-revision';
 import { AccessSnapshotBoundary } from '@/shared/auth/access-snapshot-boundary';
@@ -19,17 +21,19 @@ import { AccessRuleEditor } from './access-rule-editor';
 import { changeAccessMode, initialAccessDraft, isValidManagementChange, managementScopes, updateAccessChanges } from '../model/access-management-scopes';
 import { accessError, accessLabel, effectiveLabel, ruleLabel, scopeLabels } from './access-presentation';
 import { AccessAssignmentsTab, AccessHistoryTab } from './user-access-context';
+import { LegacyCandidateDenyRemoval } from './legacy-candidate-deny-removal';
 import styles from './user-access.module.css';
 
 const tabs = [{ value: 'rights', label: 'Права' }, { value: 'assignments', label: 'Назначения' }, { value: 'history', label: 'История' }];
 const approvalReadExplanation = 'Персональное разрешение может открыть выбранные или все чужие согласования только для просмотра. Оно не даёт права подтвердить, отклонить или отменить чужую заявку. Персональные запреты данных источника сохраняются.';
 type Review = { payload: AccessPayload; result: AccessPreview };
 
-export function UserAccessDialog({ userId, catalog, onClose, onSaved }: {
+export function UserAccessDialog({ userId, catalog, onClose, onSaved, onSavedWithoutAccess }: {
   userId: string; catalog: AccessCatalog; onClose: () => void; onSaved: () => void;
+  onSavedWithoutAccess: (context: AccessSaveNoticeContext) => void;
 }): React.JSX.Element {
   const router = useRouter();
-  const { refreshUser, capabilitiesRefreshError } = useAuth();
+  const { user, refreshUser, capabilitiesRefreshError } = useAuth();
   const accessRevision = useAccessRevision();
   const [loadedAccessRevision, setLoadedAccessRevision] = useState<string | null>(null);
   const [detail, setDetail] = useState<AccessDetail | null>(null);
@@ -47,6 +51,7 @@ export function UserAccessDialog({ userId, catalog, onClose, onSaved }: {
   const [notice, setNotice] = useState('');
   const [conflict, setConflict] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [legacyDraft, setLegacyDraft] = useState(false);
   const reasonRef = useRef<HTMLTextAreaElement>(null);
   const errorRef = useRef<HTMLDivElement>(null);
   const previewRef = useRef<HTMLElement>(null);
@@ -54,7 +59,7 @@ export function UserAccessDialog({ userId, catalog, onClose, onSaved }: {
   const mounted = useRef(true);
   const operation = useRef(false);
   const [confirm, confirmation] = useConfirm();
-  const dirty = Object.keys(changes).length > 0 || Boolean(reason.trim());
+  const dirty = Object.keys(changes).length > 0 || Boolean(reason.trim()) || legacyDraft;
   const tabPrefix = React.useId();
 
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
@@ -186,15 +191,22 @@ export function UserAccessDialog({ userId, catalog, onClose, onSaved }: {
     if (!review || !detail || loading || operation.current || loadedAccessRevision !== accessRevision) return;
     if (review.result.expectedVersion !== detail.accessVersion || !Number.isFinite(Date.parse(review.result.expiresAt)) || Date.parse(review.result.expiresAt) <= Date.now()) { setReview(null); setError('Результат проверки устарел. Повторите просмотр изменений.'); return; }
     operation.current = true; setBusy(true); setError('');
+    const saveActorId = user?.id, saveSession = getAccessSessionGeneration();
     try {
       const result = await saveUserAccess(userId, review.payload, review.result);
+      if (saveSession !== getAccessSessionGeneration()) return;
+      if (isSavedWithoutAccess(result)) {
+        if (saveActorId) onSavedWithoutAccess({ actorId: saveActorId, sessionGeneration: saveSession });
+        void refreshUser({ force: true }).catch(() => undefined);
+        return;
+      }
       if (!mounted.current) return;
       setDetail((current) => current ? { ...current, ...result, user: { ...current.user, accessVersion: result.accessVersion }, sources: { ...current.sources, rules: result.rules } } : null);
       setChanges({}); setReason(''); setReview(null); setConflict(false);
       setNotice('Права сохранены. Серверный результат и история изменений доступны в этом окне.'); onSaved();
       try { await refreshUser({ force: true }); }
       catch { if (mounted.current) setNotice('Права сохранены на сервере, но обновить права текущей сессии не удалось. Повторите обновление сессии; сохранять изменения повторно не требуется.'); }
-    } catch (cause) { if (mounted.current) { setReview(null); showError(cause); } }
+    } catch (cause) { if (mounted.current && saveSession === getAccessSessionGeneration()) { setReview(null); showError(cause); } }
     finally { operation.current = false; if (mounted.current) setBusy(false); }
   };
 
@@ -207,7 +219,7 @@ export function UserAccessDialog({ userId, catalog, onClose, onSaved }: {
       footer={<div className={styles.footer}>
         <span className="ui-text-muted">{Object.keys(changes).length ? `Правил в черновике: ${Object.keys(changes).length}` : 'Несохранённых правил нет'}</span>
         <Button variant="ghost" disabled={busy} onClick={() => { void allowExit().then((allowed) => { if (allowed) onClose(); }); }}>Закрыть</Button>
-        {review ? <Button variant="primary" pending={busy} disabled={loading} pendingLabel="Сохранение…" onClick={() => void save()}>Сохранить права</Button> : <Button variant="primary" pending={busy} pendingLabel="Проверка изменений…" disabled={loading || !detail || !catalog.actions.length} onClick={() => void requestPreview()}>Проверить изменения</Button>}
+        {review ? <Button variant="primary" pending={busy} disabled={loading || legacyDraft} pendingLabel="Сохранение…" onClick={() => void save()}>Сохранить права</Button> : <Button variant="primary" pending={busy} pendingLabel="Проверка изменений…" disabled={loading || legacyDraft || !detail || !catalog.actions.length} onClick={() => void requestPreview()}>Проверить изменения</Button>}
       </div>}
     >
       <div className={`${styles.stack} ${styles.dialogBody}`} ref={bodyRef}>
@@ -223,6 +235,16 @@ export function UserAccessDialog({ userId, catalog, onClose, onSaved }: {
             window.history.replaceState(window.history.state, '', `${window.location.pathname}?${params}${window.location.hash}`);
           }} label="Разделы доступа пользователя" idPrefix={tabPrefix} />
           <div role="tabpanel" hidden={tab !== 'rights'} id={`${tabPrefix}-panel-rights`} aria-labelledby={`${tabPrefix}-tab-rights`} className={styles.stack}>
+            {detail.canRemoveLegacyCandidateDeny ? <LegacyCandidateDenyRemoval userId={userId} version={detail.accessVersion}
+              onSavedWithoutAccess={onSavedWithoutAccess}
+              disabled={busy || loading || Object.keys(changes).length > 0 || Boolean(reason.trim()) || loadedAccessRevision !== accessRevision}
+              onDraftChange={setLegacyDraft} onBusyChange={(value) => { operation.current = value; setBusy(value); }}
+              onSaved={async () => {
+                setReview(null); setLegacyDraft(false); setRefreshKey((value) => value + 1); onSaved();
+                setNotice('Прежний персональный запрет снят. Изменение сохранено в истории.');
+                try { await refreshUser({ force: true }); }
+                catch { setNotice('Запрет снят на сервере. Повторите обновление прав сессии; снимать запрет повторно не требуется.'); }
+              }} /> : null}
             <Alert tone="info">Каталог зарегистрирован в серверной политике. Это не подтверждает подключение всех действий и каналов. Персональное правило не отменяет согласования, ограничения статуса и денежные правила.</Alert>
             <div className={styles.filters}>
               <SearchField label="Поиск права в полном каталоге" placeholder="Название права или действия…" value={query} onChange={setQuery} />
@@ -267,7 +289,7 @@ export function UserAccessDialog({ userId, catalog, onClose, onSaved }: {
                     legacyScopeUnchanged={Boolean(legacyScope && !changes[action.code])}
                     onModeChange={(effect) => changeRule(action, changeAccessMode(action, draft, effect, original))}
                     onScopeChange={(scope) => changeRule(action, { ...draft, scope, selectedIds: scope === 'selected' ? draft.selectedIds : [] })}
-                    selectedEntitiesControl={<AccessEntityPicker resourceType={action.resourceType} ids={draft.selectedIds} onChange={(selectedIds) => changeRule(action, { ...draft, selectedIds })} disabled={busy || loading} />}
+                    selectedEntitiesControl={<AccessEntityPicker resourceType={action.resourceType} actionCode={action.code} ids={draft.selectedIds} onChange={(selectedIds) => changeRule(action, { ...draft, selectedIds })} disabled={busy || loading} />}
                     error={invalidAction === action.code ? 'Проверьте поддержку области и выберите хотя бы одну запись для режима «Выбранные».' : undefined}
                   />
                   <details><summary>Технические сведения права</summary><p>{action.code} · зарегистрировано в policy-контракте</p><p>{(row?.warnings ?? []).join(', ')}</p>{row?.baseline ? <pre className={styles.technical}>{JSON.stringify(row.baseline, null, 2)}</pre> : null}</details>

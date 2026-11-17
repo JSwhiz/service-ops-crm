@@ -17,6 +17,11 @@ const json = (value: unknown) => JSON.parse(JSON.stringify(value)) as Prisma.Inp
 const roles = (user: SchedulingUser) => user.roleCodes?.length ? user.roleCodes : [user.roleCode];
 import { decideAccess, hasModuleDeny } from '../users-access/utils/access-policy.util';
 import { objectPolicyContext } from '../users-access/utils/object-policy-context.util';
+import { lockActorAccessRevision } from '../../common/access/lock-actor-access-revision';
+import { projectCommittedWrite } from '../../common/access/project-committed-write';
+import { loadAccessSubject } from '../../common/access/notification-access';
+import { objectDelegationContext } from '../user-substitutions/object-delegation.context';
+import { resolveObjectDelegationGrants } from '../user-substitutions/resolve-object-delegation-grants.util';
 export const COMPENSATION_APPROVAL_TYPE = 'object_compensation_confirmation';
 function conflict(code: string, message: string): never { throw new ConflictException({code, message}); }
 
@@ -46,6 +51,7 @@ export class ObjectCompensationService {
   }
   private async lock(tx: Prisma.TransactionClient, user: SchedulingUser, objectId: string,actionCode='objects.compensation.manage', legacyOverride?: boolean) {
     await tx.$queryRaw`SELECT "id" FROM "objects" WHERE "id" = ${objectId} FOR UPDATE`;
+    await lockActorAccessRevision(tx, user);
     return this.access(tx, user, objectId, true,actionCode, legacyOverride);
   }
   private assertAdjustmentReadable(user: SchedulingUser, object: {id: string; createdByUserId: string; assignments: Array<{userId: string}>}) {
@@ -102,7 +108,7 @@ export class ObjectCompensationService {
   }
   async version(user: SchedulingUser, objectId: string, input: CreateCompensationVersionDto) {
     await this.rateAccess(user,objectId); dateOnly(input.effectiveFrom);
-    return this.prisma.$transaction(async tx => {
+    const saved = await this.prisma.$transaction(async tx => {
       const object = await this.lock(tx, user, objectId, 'objects.read');
       await this.rateAccess(user, objectId, tx);
       const scopeId = input.scope === 'defaults' ? objectId : input.scopeId;
@@ -131,6 +137,18 @@ export class ObjectCompensationService {
       const version = await tx.objectCompensationVersion.create({data: {objectId, scope: input.scope, scopeId, version: input.expectedVersion + 1, requestKey: input.requestKey, effectiveFrom: dateOnly(input.effectiveFrom), terms, createdByUserId: user.id}});
       await this.audit(tx, user.id, objectId, 'compensation.version.created', version);
       return {status: 'applied' as const, version: {...version, effectiveFrom: version.effectiveFrom.toISOString().slice(0, 10)}};
+    });
+    return projectCommittedWrite(this.prisma, user, async () => {
+      const subject = await loadAccessSubject(this.prisma, user.id);
+      if (!subject?.isActive) throw new ForbiddenException('Доступ к условиям изменился');
+      const actor: SchedulingUser = { ...user, ...subject, roleCode: subject.roleCodes?.[0] ?? '',
+        roleCodes: [...(subject.roleCodes ?? [])], permissionCodes: [...(subject.permissionCodes ?? [])] };
+      const grants = (await resolveObjectDelegationGrants(this.prisma, actor.id)).filter(grant => grant.objectId === objectId);
+      return objectDelegationContext.run({ actorUserId: actor.id, grants, used: new Map() }, async () => {
+        await this.access(this.prisma, actor, objectId, false, 'objects.read');
+        await this.access(this.prisma, actor, objectId, false, 'objects.rates.read', true);
+        return saved;
+      });
     });
   }
   async cancelVersion(user: SchedulingUser, objectId: string, id: string, input: CancelCompensationVersionDto) {

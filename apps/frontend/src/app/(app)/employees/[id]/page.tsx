@@ -106,6 +106,7 @@ export default function EmployeeDetailPage({
   const [lifecycleError, setLifecycleError] = useState<string | null>(null);
   const [deleteReason, setDeleteReason] = useState('');
   const [notice, setNotice] = useState<string | null>(null);
+  const [savedWithoutAccessFor, setSavedWithoutAccessFor] = useState<typeof params | null>(null);
   const [loadedRevision, setLoadedRevision] = useState<string | null>(null);
   const [loadedParams, setLoadedParams] = useState<typeof params | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
@@ -222,6 +223,12 @@ export default function EmployeeDetailPage({
       setLifecyclePending(false);
     }
   };
+
+  if (savedWithoutAccessFor === params) {
+    return <div className={styles.page}><BackLink href="/employees">Сотрудники</BackLink>
+      <Alert tone="success" role="status">Назначение удалено. Доступ к карточке изменился, поэтому она закрыта. Повторять действие не нужно.</Alert>
+    </div>;
+  }
 
   if (!canAccessEmployeesHr && !item) {
     return <div className={styles.page}><Alert tone="warning">У вас нет доступа к разделу сотрудников.</Alert></div>;
@@ -454,7 +461,9 @@ export default function EmployeeDetailPage({
       </section>
 
       <section role="tabpanel" id="workspace-panel-assignments" aria-labelledby="workspace-tab-assignments" hidden={activeSection !== 'assignments'}>
-        <EmployeeAssignmentsSection item={item} onItemChange={setItem} assignOpen={assignOpen} onAssignOpenChange={setAssignOpen} />
+        <EmployeeAssignmentsSection item={item} onItemChange={setItem} onSavedWithoutAccess={() => {
+          setSavedWithoutAccessFor(params); setItem(null); setEditForm(null); setIsEditing(false); setAssignOpen(false); setLifecycleDialog(null);
+        }} assignOpen={assignOpen} onAssignOpenChange={setAssignOpen} />
       </section>
 
       <section role="tabpanel" id="workspace-panel-schedule" aria-labelledby="workspace-tab-schedule" hidden={activeSection !== 'schedule'}>

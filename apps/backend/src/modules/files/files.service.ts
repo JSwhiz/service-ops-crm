@@ -15,7 +15,7 @@ import type { ObjectPlanningService } from '../objects/object-planning.service';
 import { ModuleRef } from '@nestjs/core';
 import { loadAccessSubject } from '../../common/access/notification-access';
 import { lockActorAccessRevision } from '../../common/access/lock-actor-access-revision';
-import { isInventoryPhotoDay } from '../inventory/utils/inventory-photo.util';
+import { canAttachStandaloneInventoryPhoto, canUseLegacyStandaloneInventoryAttachments, isInventoryPhotoDay } from '../inventory/utils/inventory-photo.util';
 import { inventoryTransaction } from '../inventory/utils/inventory-transaction.util';
 
 import { AuditService } from '../audit/audit.service';
@@ -150,6 +150,7 @@ export class FilesService {
       .slice(0, 255) || 'file';
 
     const verifiedMimeType = this.detectMimeType(file.buffer, file.mimetype);
+    await this.assertStandalonePhotoType(currentUser, entityType, body.entityId, verifiedMimeType);
     const objectKey = this.buildObjectKey(entityType, originalName);
     const storageResult = await this.storageService.uploadObject({
       objectKey,
@@ -184,7 +185,8 @@ export class FilesService {
         await tx.$queryRaw`SELECT "id" FROM "inventory_movements" WHERE "id" = ${body.entityId} FOR UPDATE`;
         // Recheck after storage I/O and the movement lock: a correction or the
         // Moscow date boundary may have made this target unwritable.
-        await this.assertEntityWritable(currentUser, entityType, body.entityId);
+        await this.assertEntityWritable(subject, entityType, body.entityId, tx);
+        await this.assertStandalonePhotoType(subject, entityType, body.entityId, verifiedMimeType, tx);
       }
       if (entityType === 'one_time_order_specification_item') {
         const target = await tx.oneTimeOrderSpecificationItem.findFirst({
@@ -487,7 +489,21 @@ export class FilesService {
         this.assertFileReadable({ ...currentUser, ...subject, roleCode: subject.roleCodes?.[0] ?? '', roleCodes: [...(subject.roleCodes ?? [])], permissionCodes: [...(subject.permissionCodes ?? [])] }, attachments, freshFile, 'files.preview.retry'));
     });
 
-    return projectCommittedWrite(this.prisma, currentUser, () => this.getViewById(currentUser, id));
+    return projectCommittedWrite(this.prisma, currentUser, async () => {
+      // A substitution can disappear without advancing this actor's revision.
+      // Do not project committed results using the request's old delegation.
+      const subject = await loadAccessSubject(this.prisma, currentUser.id);
+      if (!subject?.isActive) throw new ForbiddenException('Файл больше недоступен.');
+      const grants = await resolveObjectDelegationGrants(this.prisma, currentUser.id);
+      return objectDelegationContext.run({ actorUserId: currentUser.id, grants, used: new Map() }, () =>
+        this.getViewById({
+          ...currentUser,
+          ...subject,
+          roleCode: subject.roleCodes?.[0] ?? '',
+          roleCodes: [...(subject.roleCodes ?? [])],
+          permissionCodes: [...(subject.permissionCodes ?? [])],
+        }, id));
+    });
   }
 
   private async lockPreviewRetrySources(
@@ -1011,6 +1027,28 @@ export class FilesService {
     })) throw new ForbiddenException('Загрузка файлов недоступна');
   }
 
+  private async assertStandalonePhotoType(
+    currentUser: CurrentAuthUser,
+    entityType: FileAttachmentEntityType,
+    entityId: string,
+    verifiedMimeType: string,
+    database: Prisma.TransactionClient = this.prisma,
+  ): Promise<void> {
+    // Preserve pre-existing generic warehouse uploads. The new personal grant
+    // adds photos only; a picker filter or client Content-Type is not authority.
+    if (entityType !== 'inventory_movement' || verifiedMimeType.startsWith('image/')) return;
+    const movement = await database.inventoryMovement.findUnique({
+      where: { id: entityId },
+      select: { inventoryItemId: true, createdByUserId: true, movementType: true, relatedObjectId: true, relatedOneTimeOrderId: true },
+    });
+    if (movement?.createdByUserId === currentUser.id && !movement.relatedObjectId && !movement.relatedOneTimeOrderId &&
+        ['receipt', 'adjustment'].includes(movement.movementType)) {
+      if (!canUseLegacyStandaloneInventoryAttachments(currentUser, movement, canCreateInventoryMovement(this.getRoleCodes(currentUser)))) {
+        throw new BadRequestException('Это право разрешает только фото. Выберите файл изображения.');
+      }
+    }
+  }
+
   private async lockUploadSource(
     tx: Prisma.TransactionClient, entityType: FileAttachmentEntityType, entityId: string,
   ): Promise<boolean> {
@@ -1244,7 +1282,7 @@ export class FilesService {
       case 'one_time_order':
         return this.canAccessOneTimeOrder(currentUser, entityId, 'write');
       case 'inventory_movement':
-        return this.canAccessInventoryMovement(currentUser, entityId, 'write');
+        return this.canAccessInventoryMovement(currentUser, entityId, 'write', database);
       case 'equipment_movement':
         return this.canAccessEquipmentMovement(currentUser, entityId, 'write');
       case 'accountability_expense':
@@ -1484,13 +1522,16 @@ export class FilesService {
     currentUser: CurrentAuthUser,
     movementId: string,
     mode: 'read' | 'write',
+    database: Prisma.TransactionClient = this.prisma,
   ): Promise<boolean> {
-    const movement = await this.prisma.inventoryMovement.findFirst({
+    const movement = await database.inventoryMovement.findFirst({
       where: {
         id: movementId,
       },
       select: {
         id: true,
+        inventoryItemId: true,
+        movementType: true,
         createdByUserId: true,
         createdAt: true,
         status: true,
@@ -1535,6 +1576,9 @@ export class FilesService {
 
     if (mode === 'write') {
       if (['cancelled', 'rejected'].includes(movement.status) || !isInventoryPhotoDay(movement.createdAt)) return false;
+      if (!movement.relatedObject && !movement.relatedOneTimeOrder && ['receipt', 'adjustment'].includes(movement.movementType)) {
+        return canAttachStandaloneInventoryPhoto(currentUser, movement, canCreateInventoryMovement(roleCodes));
+      }
       return (
         canCreateInventoryMovement(roleCodes) ||
         (movement.createdByUserId === currentUser.id &&

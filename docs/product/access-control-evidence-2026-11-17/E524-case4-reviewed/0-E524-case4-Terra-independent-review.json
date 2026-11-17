@@ -1,0 +1,107 @@
+{
+  "id": "E524-case4",
+  "reviewer": "Codex/Terra independent documentary review",
+  "verdict": "passed_bounded_native_case",
+  "independent": true,
+  "scope": "Single item-detail normal 201 held after real upload commit, row removed by filter before delivery, same session; not whole criterion or entire E524.",
+  "authorRaw": {
+    "path": "/private/tmp/E524-case4-20261117T000030Z/native-post.json",
+    "sha256": "59cb58e6265865557498d85a2a014e3fd433a514268fcac2734e6645f21131d3",
+    "pointer": "/cases/0"
+  },
+  "checks": {
+    "caseStatus": "passed",
+    "exitCode": 0,
+    "assertionsActualEqualExpected": 148,
+    "assertionsTotal": 148,
+    "actor": "cf32f6d6-998f-48cb-92b0-10967aff922b",
+    "itemId": "af03eaaf-4428-4918-9111-4136d0a92bb9",
+    "movementId": "f4be13e7-ce49-49a3-affe-a41e34d2f99e",
+    "fileId": "4ffacf9a-7393-42d2-ac93-f6cc0a8a6780",
+    "result": "Actual PNG 201 committed and held; filter returned empty, row disconnected, same original response delivered; one nonterminal root notice and no repeat; after remount one notice, no sendable old file and one file link.",
+    "rawPointers": [
+      "/cases/0/assertions/6",
+      "/cases/0/assertions/9",
+      "/cases/0/assertions/10",
+      "/cases/0/assertions/118",
+      "/cases/0/assertions/119",
+      "/cases/0/assertions/120",
+      "/cases/0/assertions/122",
+      "/cases/0/assertions/123",
+      "/cases/0/assertions/125",
+      "/cases/0/assertions/127",
+      "/cases/0/assertions/128",
+      "/cases/0/assertions/130",
+      "/cases/0/assertions/131",
+      "/cases/0/assertions/139",
+      "/cases/0/assertions/141",
+      "/cases/0/assertions/143",
+      "/cases/0/assertions/145",
+      "/cases/0/assertions/146",
+      "/cases/0/network",
+      "/cases/0/graphs",
+      "/cases/0/dom"
+    ]
+  },
+  "sourceEpoch": {
+    "preflightHash": "aaf4fc53e942de3ba9e45c55f03d5cb956225d7dcc27e2354d2e272d9e70f753",
+    "fourR4HashesMatchReviewedSnapshot": true,
+    "preflightFrozenAndCurrentSevenMatch": true,
+    "relevantLoadedSourceSnapshotsMatch": true,
+    "limit": "Frontend mirror frozen/source-manifest and preflight agree for four R4 files; do not relabel other epochs."
+  },
+  "limits": [
+    "Unchanged access generation is inferred from same actor/accessVersion, no browser auth or access mutation in held interval, and observed nonterminal branch; internal browser counter was not directly instrumented.",
+    "Only this actor, item-detail page, receipt, filter-unmount and one browser run; movements root, revoke paths, case1/case2 and E527 not established by this case.",
+    "No test or runtime run by reviewer; no whole criterion admission."
+  ],
+  "artifactManifest": [
+    {
+      "path": "/private/tmp/E524-case4-20261117T000030Z/native-post.json",
+      "sha256": "59cb58e6265865557498d85a2a014e3fd433a514268fcac2734e6645f21131d3"
+    },
+    {
+      "path": "/private/tmp/E524-case4-20261117T000030Z/native-exit.json",
+      "sha256": "ff8ae5796bcef71911ff9c5c3eaea341819c471f669549e252b830106edd4305"
+    },
+    {
+      "path": "/private/tmp/E524-case4-20261117T000030Z/preflight-source.json",
+      "sha256": "aaf4fc53e942de3ba9e45c55f03d5cb956225d7dcc27e2354d2e272d9e70f753"
+    },
+    {
+      "path": "/private/tmp/E524-case4-20261117T000030Z/native-inventory-standalone-photo-closeout.cjs",
+      "sha256": "78c1fbd4edc4c930fc7941e9c918a44950af3800ac62eb0160e36449fca89721"
+    },
+    {
+      "path": "/private/tmp/E524-case4-20261117T000030Z/normal201-row-unmount-case4-normal201-root-success-without-row.png",
+      "sha256": "20c5af4fdf0bc51736a89fe813d6f860c8101d4cab3cdef52fb4f6e2a9636932"
+    },
+    {
+      "path": "/private/tmp/E524-case4-20261117T000030Z/normal201-row-unmount-case4-remounted-row-one-root-notice-no-replay.png",
+      "sha256": "86e483b57cd6db88f40e3d32885e8100b997fca259f9ec230ab38ba201cdd46b"
+    },
+    {
+      "path": "/private/tmp/E524-case4-20261117T000030Z/normal201-row-unmount-case4-actual-committed-while-normal201-held-graph.json",
+      "sha256": "1a3e3e3e3930a32ecf0523ecc61a79fcb412224d579376ea5899e02bbae0fcb1"
+    },
+    {
+      "path": "/private/tmp/E524-case4-20261117T000030Z/normal201-row-unmount-case4-after-native-remount-no-duplicate-ACK-graph.json",
+      "sha256": "1a3e3e3e3930a32ecf0523ecc61a79fcb412224d579376ea5899e02bbae0fcb1"
+    },
+    {
+      "path": "/private/tmp/E524-case4-20261117T000030Z/normal201-row-unmount-case4-after-ordinary-normal201-root-ACK-graph.json",
+      "sha256": "1a3e3e3e3930a32ecf0523ecc61a79fcb412224d579376ea5899e02bbae0fcb1"
+    },
+    {
+      "path": "/private/tmp/E524-case4-20261117T000030Z/normal201-row-unmount-case4-before-real-upload-commit-graph.json",
+      "sha256": "835e28295b8bb95197ba10dd1e1b94aa2afa7b813bafea87d79b48af0624d7dc"
+    },
+    {
+      "path": "/private/tmp/E524-case4-20261117T000030Z/normal201-row-unmount-case4-filter-unmounted-before-delivery-graph.json",
+      "sha256": "1a3e3e3e3930a32ecf0523ecc61a79fcb412224d579376ea5899e02bbae0fcb1"
+    }
+  ],
+  "newWholeAdmissions": 0,
+  "canonicalWritten": false,
+  "newRuntime": false
+}

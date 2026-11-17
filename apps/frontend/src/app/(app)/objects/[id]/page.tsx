@@ -4,6 +4,7 @@ import Link from 'next/link';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useAccessRevision } from '@/shared/auth/use-access-revision';
 import { useAuth } from '@/shared/auth/use-auth';
+import { getAccessSessionGeneration } from '@/shared/auth/access-generation';
 import { AccessSnapshotBoundary } from '@/shared/auth/access-snapshot-boundary';
 import { isSavedWithoutAccess, type SavedWithoutAccess } from '@/shared/api/saved-without-access';
 import { captureObjectWriteFence, objectSavedWithoutAccess } from '@/features/object-shared-ui/object-write-fence';
@@ -160,6 +161,8 @@ export default function ObjectDetailPage({
   const activeObjectId = useRef('');
   const coreSequence = useRef(0);
   const [financialRevision, setFinancialRevision] = useState(0);
+  const [financialAcknowledgement, setFinancialAcknowledgement] = useState<{ params: typeof params; actorId: string | undefined; sessionGeneration: number } | null>(null);
+  const financialAcknowledgementSession = getAccessSessionGeneration();
 
   useEffect(() => {
     // Sections arrive after the initial document; resolve a deep link only
@@ -414,7 +417,7 @@ export default function ObjectDetailPage({
             loadLinkedOrders(resolved.id, isCancelled), loadObjectInventory(resolved.id, isCancelled),
             loadObjectEquipment(resolved.id, isCancelled),
             loadTasks(resolved.id, isCancelled),
-            ...(core.capabilities.canOperateAttendance === false ? [] : [loadAttendance(resolved.id, isCancelled)]),
+            ...(core.capabilities.canViewOperationalSections ? [loadAttendance(resolved.id, isCancelled)] : []),
           ]
         : core.capabilities.canViewReportsHistory ? [loadReport(resolved.id, isCancelled)] : [];
       const materialLoads = (core.capabilities.canReadMaterials ?? core.capabilities.canViewOperationalSections) ? [loadObjectFiles(resolved.id, isCancelled)] : [];
@@ -455,6 +458,10 @@ export default function ObjectDetailPage({
     const timeout = window.setTimeout(() => void loadDirectory(objectId, employeeSearch, () => cancelled), 250);
     return () => { cancelled = true; window.clearTimeout(timeout); };
   }, [objectId, employeeSearch, item?.capabilities.canManageEmployees, accessRevision]);
+
+  if (financialAcknowledgement?.params === params && financialAcknowledgement.actorId === user?.id && financialAcknowledgement.sessionGeneration === getAccessSessionGeneration()) {
+    return <div className="ui-page"><Alert tone="success" role="status">Изменение сохранено. Подробности сейчас недоступны.</Alert><Link href="/objects">К объектам</Link></div>;
+  }
 
   return (
     <div className={`ui-page object-detail-page ${styles.fullWidth}`}>
@@ -595,20 +602,21 @@ export default function ObjectDetailPage({
 
           {item.capabilities.canViewOperationalSections ? (
             <WorkspaceSection id="today" title="Сегодня">
-              {item.capabilities.canOperateAttendance === false ? null : <TodayShiftsPanel key={objectId} objectId={objectId} employees={assignedEmployees} onDayStateChange={onShiftDayStateChange} onChanged={async () => { setFinancialRevision((value) => value + 1); await Promise.all([loadAttendance(objectId), loadAssignedEmployees(objectId)]); }} />}
-              {item.capabilities.canOperateAttendance === false ? null : <>
+              <TodayShiftsPanel key={objectId} objectId={objectId} employees={assignedEmployees} onDayStateChange={onShiftDayStateChange} onSavedWithoutAccess={() => setFinancialAcknowledgement({ params, actorId: user?.id, sessionGeneration: financialAcknowledgementSession })} onChanged={async () => { setFinancialRevision((value) => value + 1); await Promise.all([loadAttendance(objectId), loadAssignedEmployees(objectId)]); }} />
+              <>
               {attendanceLoading ? <ObjectPanelLoading title="Кто был сегодня на объекте" /> : null}
               {attendanceError ? (
                 <ObjectPanelError title="Кто был сегодня на объекте" message={attendanceError} />
               ) : null}
               <AccessSnapshotBoundary blocked={attendanceLoading || !!attendanceError}>
                 <ObjectAttendancePanel
+                  key={objectId}
                   objectId={objectId}
                   onSubstitutionSaved={async () => { await Promise.all([loadAttendance(objectId), loadAssignedEmployees(objectId)]); }}
                   employees={attendanceEmployees}
                   initialEmployeeIds={currentShiftDay?.owned ? [...new Set([...attendanceEmployeeFacts.map((fact) => fact.employeeId), ...currentShiftDay.confirmedEmployeeIds])] : attendanceEmployeeIds}
                   initialEmployeeFacts={attendanceEmployeeFacts}
-                  readOnlyReason={legacyAttendanceReadOnlyReason}
+                  readOnlyReason={item.capabilities.canOperateAttendance === false ? 'Право отмечать выходы недоступно. Черновик сохранён; отправка заблокирована до возврата права.' : legacyAttendanceReadOnlyReason}
                   canEditRates={item.capabilities.canEditDailyRate}
                   canAddExtraShift={item.capabilities.canAddExtraShift ?? false}
                   operationDate={todayAsBusinessDate()}
@@ -619,7 +627,7 @@ export default function ObjectDetailPage({
                   }}
                 />
               </AccessSnapshotBoundary>
-              </>}
+              </>
               <div className={styles.todayGrid}>
               {arrivalLoading ? <ObjectPanelLoading title="Фото прибытия сегодня" /> : null}
               {arrivalError ? (
@@ -709,7 +717,7 @@ export default function ObjectDetailPage({
           ) : null}
 
           <WorkspaceSection id="team" title="Команда">
-            {item.capabilities.canViewOperationalSections ? <ObjectSchedulingPanel key={objectId} objectId={objectId} canSelectEmployees={item.capabilities.canManageEmployees} employees={assignedEmployees} onChanged={() => { void loadAssignedEmployees(objectId); }} /> : null}
+            {item.capabilities.canViewOperationalSections ? <ObjectSchedulingPanel key={objectId} objectId={objectId} canSelectEmployees={item.capabilities.canManageEmployees} employees={assignedEmployees} onSavedWithoutAccess={() => setFinancialAcknowledgement({ params, actorId: user?.id, sessionGeneration: financialAcknowledgementSession })} onChanged={() => { void loadAssignedEmployees(objectId); }} /> : null}
             {item.capabilities.canViewEmployees === false ? null : <>
             {assignedEmployeesLoading ? <ObjectPanelLoading title="Состав сотрудников объекта" /> : null}
             {assignedEmployeesError ? (
@@ -763,7 +771,7 @@ export default function ObjectDetailPage({
             </WorkspaceSection>
           </> : null}
           <WorkspaceSection id="planning" title="Бюджет и сезоны">
-            <ObjectPlanningPanel objectId={objectId} item={item} financialRevision={financialRevision} onChanged={() => { void loadCore(objectId); }} />
+            <ObjectPlanningPanel objectId={objectId} item={item} financialRevision={financialRevision} onChanged={() => { void loadCore(objectId); }} onSavedWithoutAccess={() => setFinancialAcknowledgement({ params, actorId: user?.id, sessionGeneration: financialAcknowledgementSession })} />
           </WorkspaceSection>
           {item.capabilities.canViewOperationalSections ? <>
             <WorkspaceSection id="tasks" title="Задачи">

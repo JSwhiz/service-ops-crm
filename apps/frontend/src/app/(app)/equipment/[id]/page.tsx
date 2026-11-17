@@ -223,6 +223,9 @@ export default function EquipmentDetailPage({
             ) : null}
           </Surface>
 
+          {isDeleteConfirmationOpen && !unit.capabilities.canDelete ? (
+            <Alert tone="warning" role="status">Удаление оборудования недоступно. Карточка не удалена. После возврата доступа подтвердите удаление вручную.</Alert>
+          ) : null}
           {unit.capabilities.canDelete ? (
             <Surface padding="md" style={{ display: 'grid', gap: 12 }}>
               <div className="ui-section-header">

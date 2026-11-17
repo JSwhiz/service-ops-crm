@@ -993,8 +993,10 @@ export class ApprovalsService {
       true,
       policyContext,
     );
+    const financialSourceAllowed = request.approvalType !== 'object_compensation_confirmation' || await this.scheduling.canApplyFinancialDecision(currentUser, request.sourceEntityId);
     const canApprove =
       canRead &&
+      financialSourceAllowed &&
       decideAccess(currentUser, actionCode, legacyCanApprove, {
         ...this.resolutionContext(actionCode, policyContext),
         invariantAllowed: legacyCanApprove,
@@ -1016,6 +1018,7 @@ export class ApprovalsService {
       request.createdByUserId === currentUser.id;
     const canCancel =
       canRead &&
+      financialSourceAllowed &&
       decideAccess(currentUser, "approvals.cancel", legacyCanCancel, {
         ...policyContext,
         invariantAllowed: legacyCanCancel,

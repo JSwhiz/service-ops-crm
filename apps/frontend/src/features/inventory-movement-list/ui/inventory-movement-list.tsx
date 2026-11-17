@@ -1,7 +1,13 @@
 'use client';
 
 import Link from 'next/link';
-import React from 'react';
+import React, { useContext, useEffect, useRef } from 'react';
+
+import { ApiError } from '@/shared/api/fetcher';
+import { getAccessGeneration, getAccessSessionGeneration, isAccessGenerationCurrent } from '@/shared/auth/access-generation';
+import { AccessSnapshotBlockedContext } from '@/shared/auth/access-snapshot-boundary';
+import { useAuth } from '@/shared/auth/use-auth';
+import { useCreateDraft } from '@/shared/drafts';
 
 import type { InventoryMovement } from '@/entities/inventory/model/inventory.types';
 import { getUserDisplayName } from '@/shared/lib/display-name';
@@ -10,13 +16,134 @@ import {
   getInventoryMovementTypeLabel,
 } from '@/shared/lib/inventory-presentation';
 import { AttachmentPreviewList } from '@/shared/ui/media-entry/attachment-preview-list';
-import { Surface } from '@/shared/ui/foundation';
+import { PendingMediaList } from '@/shared/ui/media-entry/pending-media-list';
+import { Alert, Button, Surface } from '@/shared/ui/foundation';
+
+
+type StandalonePhotoDraft = {
+  file: File | null;
+  acknowledgedFile: File | null;
+  uncertain: boolean;
+  message: string | null;
+};
+const emptyPhotoDraft: StandalonePhotoDraft = { file: null, acknowledgedFile: null, uncertain: false, message: null };
+type StandalonePhotoCallbacks = {
+  onAttachStandalonePhoto?: (movementId: string, file: File) => Promise<void>;
+  onPhotoAcknowledgedWithoutView?: () => void;
+  onRefresh?: () => Promise<void>;
+};
+
+function StandaloneMovementPhoto({ item, onAttachStandalonePhoto, onPhotoAcknowledgedWithoutView, onRefresh }: { item: InventoryMovement } & StandalonePhotoCallbacks): React.JSX.Element | null {
+  const { user, capabilitiesRefreshError } = useAuth();
+  const renderSession = getAccessSessionGeneration();
+  const renderGeneration = getAccessGeneration();
+  const blocked = useContext(AccessSnapshotBlockedContext);
+  // The existing provider retains the actual File and the submission lock when
+  // a history reload temporarily unmounts this row. It is scoped to user/route/query.
+  const sourceKey = JSON.stringify([item.id, item.inventoryItem.id, item.relatedObject?.id, item.relatedOneTimeOrder?.id]);
+  const draft = useCreateDraft(`inventory-standalone-photo:${sourceKey}`, emptyPhotoDraft);
+  const allowed = item.projection.canAttachStandalonePhoto === true && user?.capabilities?.canUploadFile === true && !capabilitiesRefreshError && !blocked && !!onAttachStandalonePhoto;
+  const current = useRef({ sourceKey, allowed, onAttachStandalonePhoto, onPhotoAcknowledgedWithoutView, onRefresh });
+  current.current = { sourceKey, allowed, onAttachStandalonePhoto, onPhotoAcknowledgedWithoutView, onRefresh };
+  const mounted = useRef(false);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  const picker = useRef<HTMLInputElement>(null);
+  const pickerSession = useRef<number | null>(null);
+  const { file, acknowledgedFile, uncertain, message } = draft.value;
+  const acknowledged = acknowledgedFile !== null;
+
+  const upload = async (): Promise<void> => {
+    if (!file || acknowledged || uncertain || draft.submitting || !current.current.allowed || renderSession !== getAccessSessionGeneration() || !isAccessGenerationCurrent(renderGeneration)) return;
+    const submittedFile = file;
+    const session = getAccessSessionGeneration();
+    const generation = getAccessGeneration();
+    const available = (): boolean => mounted.current && current.current.sourceKey === sourceKey && current.current.allowed && isAccessGenerationCurrent(generation) && getAccessSessionGeneration() === session;
+    try {
+      await draft.submit(async () => {
+        const attach = current.current.onAttachStandalonePhoto;
+        if (!attach || !available()) return;
+        try {
+          await attach(item.id, submittedFile);
+        } catch (error: unknown) {
+          if (getAccessSessionGeneration() !== session) return;
+          const apiError = error instanceof ApiError ? error : null;
+          const unknownOutcome = !apiError || apiError.statusCode === 0 || apiError.statusCode >= 500 || apiError.code === 'ACCESS_VERSION_CHANGED';
+          draft.setValue((value) => value.file === submittedFile && !value.acknowledgedFile ? {
+            ...value,
+            uncertain: unknownOutcome,
+            message: unknownOutcome
+              ? 'Результат загрузки нужно проверить в истории. Выбранное фото сохранено; повторная загрузка не запущена.'
+              : apiError?.statusCode === 403 || apiError?.statusCode === 404
+                ? 'Добавление фото недоступно. Выбранное фото сохранено в черновике.'
+                : apiError?.message ?? 'Не удалось добавить фото. Черновик сохранён.',
+          } : value);
+          return;
+        }
+        if (getAccessSessionGeneration() !== session) return;
+        // Store the real acknowledgement BEFORE any access/target check or read
+        // refresh. A private/erroring history must never turn this into a retry.
+        const lostView = !available();
+        const parentAcknowledgement = lostView && !!current.current.onPhotoAcknowledgedWithoutView;
+        draft.setValue((value) => value.file === submittedFile ? { ...value, file: null, acknowledgedFile: submittedFile, uncertain: false, message: parentAcknowledgement ? null : 'Фото прикреплено.' } : value);
+        draft.setDirty(false);
+        if (lostView) { current.current.onPhotoAcknowledgedWithoutView?.(); return; }
+        try {
+          await current.current.onRefresh?.();
+        } catch {
+          if (getAccessSessionGeneration() !== session) return;
+          draft.setValue((value) => value.acknowledgedFile === submittedFile
+            ? { ...value, message: 'Фото прикреплено. История сейчас недоступна; повторять загрузку не нужно.' }
+            : value);
+          draft.setDirty(false);
+        }
+      });
+    } catch {
+      // The provider's synchronous lock can reject a second click before React
+      // paints pending state. It must not alter the first request or its ACK.
+    }
+  };
+
+  if (!onAttachStandalonePhoto || (!allowed && !file && !acknowledged)) return null;
+  return <div className="ui-stack ui-stack--sm">
+    <input
+      ref={picker}
+      type="file"
+      accept="image/*"
+      aria-label="Фото движения"
+      hidden
+      disabled={!allowed || draft.submitting}
+      onChange={(event) => {
+        const selected = event.currentTarget.files?.[0];
+        event.currentTarget.value = '';
+        // A same-session file selected in an already open picker remains an
+        // own draft on deny; it does not cause an upload. Never cross accounts.
+        if (!selected || draft.submitting || pickerSession.current !== getAccessSessionGeneration() || renderSession !== getAccessSessionGeneration() || current.current.sourceKey !== sourceKey) return;
+        draft.setValue({ file: selected, acknowledgedFile: null, uncertain: false, message: null });
+      }}
+    />
+    <div className="ui-inline">
+      <Button type="button" disabled={!allowed || draft.submitting} onClick={() => {
+        if (!current.current.allowed || draft.submitting || renderSession !== getAccessSessionGeneration() || !isAccessGenerationCurrent(renderGeneration)) return;
+        pickerSession.current = getAccessSessionGeneration();
+        picker.current?.click();
+      }}>{file ? 'Выбрать другое фото' : acknowledged ? 'Добавить ещё фото' : 'Добавить фото'}</Button>
+      {file && !acknowledged ? <Button type="button" pending={draft.submitting} disabled={!allowed || uncertain} onClick={() => { void upload(); }}>Загрузить фото</Button> : null}
+      {uncertain && onRefresh ? <Button type="button" disabled={draft.submitting || blocked} onClick={() => { void onRefresh().catch(() => undefined); }}>Обновить историю</Button> : null}
+    </div>
+    {file && !acknowledged ? <PendingMediaList files={[file]} onRemove={draft.submitting ? undefined : () => draft.clear()} /> : null}
+    {!allowed && file && !acknowledged ? <Alert tone="warning" role="status">Добавление фото недоступно. Черновик сохранён. После возврата доступа загрузите фото вручную.</Alert> : null}
+    {message ? <Alert tone={acknowledged ? 'success' : 'warning'} role="status">{message}</Alert> : null}
+  </div>;
+}
 
 export function InventoryMovementList({
   items,
+  onAttachStandalonePhoto,
+  onPhotoAcknowledgedWithoutView,
+  onRefresh,
 }: {
   items: InventoryMovement[];
-}): React.JSX.Element {
+} & StandalonePhotoCallbacks): React.JSX.Element {
   if (items.length === 0) {
     return <Surface padding="md">Движений по текущему фильтру пока нет.</Surface>;
   }
@@ -170,6 +297,8 @@ export function InventoryMovementList({
               Открыть согласование
             </Link>
           ) : null}
+
+          <StandaloneMovementPhoto key={item.id} item={item} onAttachStandalonePhoto={onAttachStandalonePhoto} onPhotoAcknowledgedWithoutView={onPhotoAcknowledgedWithoutView} onRefresh={onRefresh} />
 
           <AttachmentPreviewList
             files={item.attachments}

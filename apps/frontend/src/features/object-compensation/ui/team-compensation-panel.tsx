@@ -24,7 +24,7 @@ export const compensationMoney = (value: number): string => `${value.toLocaleStr
 export const adjustmentLabels: Record<string, string> = { extra_work: 'Допработа', extra_work_correction: 'Исправление допработы', shift_override: 'Изменение цены выхода', replacement: 'Оплата сменщику вместо основного', holiday_exception: 'Исключение оплаты праздника', confirm_shift: 'Подтверждение прошлого выхода', cancel_shift: 'Отмена прошлого выхода' };
 const states: Record<string, string> = { pending: 'Ожидает согласования', applied: 'Применено', rejected: 'Отклонено', cancelled: 'Отменено' };
 
-export function TeamCompensationPanel({ objectId, writable, financialRevision = 0 }: { objectId: string; writable: boolean; financialRevision?: number }): React.JSX.Element {
+export function TeamCompensationPanel({ objectId, writable, financialRevision = 0, onSavedWithoutAccess }: { objectId: string; writable: boolean; financialRevision?: number; onSavedWithoutAccess?: () => void }): React.JSX.Element {
   const accessRevision = useAccessRevision();
   const [loadedAccessRevision, setLoadedAccessRevision] = useState<string | null>(null);
   const [snapshot, setSnapshot] = useState<{ objectId: string; value: ObjectCompensation } | null>(null);
@@ -100,6 +100,8 @@ export function TeamCompensationPanel({ objectId, writable, financialRevision = 
     {success ? <Alert tone="success" role="status">{success}</Alert> : null}
     {correctionResult ? <Alert tone={correctionResult.status === 'applied' ? 'success' : 'info'} role="status">{correctionResult.status === 'pending' ? 'Исправление допработы ожидает согласования. Прежняя сумма остаётся действующей.' : correctionResult.status === 'applied' ? 'Исправление допработы применено. Основная оплата выхода не изменена.' : correctionResult.status === 'rejected' ? 'Исправление допработы отклонено.' : 'Запрос исправления допработы отменён.'} {correctionResult.approvalRequestId ? <a href={`/approvals?${new URLSearchParams({ sourceEntityType: 'object_compensation_adjustment', sourceEntityId: correctionResult.adjustmentId })}`}>Открыть согласование</a> : null}</Alert> : null}
     <AccessSnapshotBoundary blocked={loadedAccessRevision !== accessRevision || !!error}>
+    {!loading && !referenceError && editing === 'fund' && !canEditFund ? <Alert tone="warning" role="status">Изменение фонда команды недоступно. Черновик сохранён; отправка заблокирована. Проверьте доступ перед повторным действием.</Alert> : null}
+    {!loading && !referenceError && editing && editing !== 'fund' && !canEdit ? <Alert tone="warning" role="status">Изменение условий оплаты недоступно. Черновик сохранён; отправка заблокирована. Проверьте доступ перед повторным действием.</Alert> : null}
     {data ? <>
       {canReadFund ? <>
       <FactStrip items={[{ label: 'Фонд команды за месяц', value: currentFund ? compensationMoney(currentFund.monthlyAmount) : 'Не задан' }, { label: 'Действует с', value: currentFund ? formatUiDate(currentFund.effectiveFrom) : '—' }]} />
@@ -148,7 +150,7 @@ export function TeamCompensationPanel({ objectId, writable, financialRevision = 
         </div>; })}
       </details> : <Alert tone="info">История изменений и расшифровка начислений недоступны: требуется чтение ставок и бюджета. Отсутствие доступа не означает отсутствие начислений.</Alert>}
     </> : null}
-    {editing === 'fund' && data ? <AccessSnapshotBoundary blocked={!canEditFund}><TeamFundDialog objectId={objectId} funds={data.teamFunds} versions={data.versions} positions={positions} contours={contours} onClose={() => setEditing(null)} onSaved={saved} /></AccessSnapshotBoundary> : editing && editing !== 'fund' && data ? <AccessSnapshotBoundary blocked={!canEdit}><CompensationVersionDialog objectId={objectId} line={editing} versions={data.versions} onClose={() => setEditing(null)} onSaved={saved} /></AccessSnapshotBoundary> : null}
+    {editing === 'fund' && data ? <AccessSnapshotBoundary blocked={!canEditFund}><TeamFundDialog objectId={objectId} funds={data.teamFunds} versions={data.versions} positions={positions} contours={contours} onClose={() => setEditing(null)} onSaved={saved} /></AccessSnapshotBoundary> : editing && editing !== 'fund' && data ? <AccessSnapshotBoundary blocked={!canEdit}><CompensationVersionDialog objectId={objectId} line={editing} versions={data.versions} onClose={() => setEditing(null)} onSaved={saved} onSavedWithoutAccess={onSavedWithoutAccess} /></AccessSnapshotBoundary> : null}
     {correction && data ? <AccessSnapshotBoundary blocked={!canReadAdjustments || !writable || !data.capabilities.requestExtraWork}><ExtraWorkCorrectionDialog key={`${objectId}:${correction.adjustment.id}:${correction.cancel}`} objectId={objectId} adjustment={correction.adjustment} cancel={correction.cancel} returnFocusRef={correctionTrigger(correction.adjustment.id)} onClose={() => setCorrection(null)} onSaved={(result) => {
       setCorrection(null); setCorrectionResult(result); setRefresh((value) => value + 1);
       queueMicrotask(() => titleRef.current?.focus({ preventScroll: true }));

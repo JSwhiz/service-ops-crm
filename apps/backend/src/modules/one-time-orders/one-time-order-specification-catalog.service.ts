@@ -5,7 +5,10 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
-import { decideAccess } from '../users-access/utils/access-policy.util';
+import { decideAccess, type AccessSubject } from '../users-access/utils/access-policy.util';
+import { lockActorAccessRevision } from '../../common/access/lock-actor-access-revision';
+import { projectCommittedWrite } from '../../common/access/project-committed-write';
+import { loadAccessSubject } from '../../common/access/notification-access';
 
 import { PrismaService } from "../prisma/prisma.service";
 import {
@@ -17,7 +20,7 @@ import {
   UpdateSpecificationTemplateDto,
 } from "./dto/specification-catalog.dto";
 
-interface CurrentAuthUser {
+interface CurrentAuthUser extends AccessSubject {
   id: string;
   roleCode: string;
   roleCodes?: string[];
@@ -54,6 +57,8 @@ export class OneTimeOrderSpecificationCatalogService {
     this.assertLeadership(user);
     this.assertLeaf(user, 'specification_catalog.create');
     const created = await this.prisma.$transaction(async (tx) => {
+      await this.lockCatalogWrite(tx, user);
+      this.assertLeaf(user, 'specification_catalog.create');
       const row = await tx.oneTimeOrderSpecificationCatalogItem.create({
         data: {
           title: payload.title.trim(),
@@ -73,7 +78,7 @@ export class OneTimeOrderSpecificationCatalogService {
       );
       return row;
     });
-    return this.mapItem(created);
+    return this.projectCatalogResult(user, this.mapItem(created));
   }
 
   async updateItem(
@@ -83,13 +88,11 @@ export class OneTimeOrderSpecificationCatalogService {
   ) {
     this.assertLeadership(user);
     this.assertMutation(user, payload);
-    const existing =
-      await this.prisma.oneTimeOrderSpecificationCatalogItem.findUnique({
-        where: { id },
-      });
-    if (!existing)
-      throw new NotFoundException("Specification catalog item not found");
     const updated = await this.prisma.$transaction(async (tx) => {
+      await this.lockCatalogWrite(tx, user, 'item', id);
+      this.assertMutation(user, payload);
+      const existing = await tx.oneTimeOrderSpecificationCatalogItem.findUnique({ where: { id } });
+      if (!existing) throw new NotFoundException("Specification catalog item not found");
       const row = await tx.oneTimeOrderSpecificationCatalogItem.update({
         where: { id },
         data: {
@@ -117,19 +120,17 @@ export class OneTimeOrderSpecificationCatalogService {
       await this.audit(tx, user.id, id, action, existing, row);
       return row;
     });
-    return this.mapItem(updated);
+    return this.projectCatalogResult(user, this.mapItem(updated));
   }
 
   async archiveItem(user: CurrentAuthUser, id: string) {
     this.assertLeadership(user);
     this.assertLeaf(user, 'specification_catalog.archive');
-    const existing =
-      await this.prisma.oneTimeOrderSpecificationCatalogItem.findUnique({
-        where: { id },
-      });
-    if (!existing)
-      throw new NotFoundException("Specification catalog item not found");
     const updated = await this.prisma.$transaction(async (tx) => {
+      await this.lockCatalogWrite(tx, user, 'item', id);
+      this.assertLeaf(user, 'specification_catalog.archive');
+      const existing = await tx.oneTimeOrderSpecificationCatalogItem.findUnique({ where: { id } });
+      if (!existing) throw new NotFoundException("Specification catalog item not found");
       const row = await tx.oneTimeOrderSpecificationCatalogItem.update({
         where: { id },
         data: { isArchived: true, updatedByUserId: user.id },
@@ -144,7 +145,7 @@ export class OneTimeOrderSpecificationCatalogService {
       );
       return row;
     });
-    return this.mapItem(updated);
+    return this.projectCatalogResult(user, this.mapItem(updated));
   }
 
   async listTemplates(
@@ -171,6 +172,8 @@ export class OneTimeOrderSpecificationCatalogService {
     this.assertLeadership(user);
     this.assertLeaf(user, 'specification_catalog.create');
     const created = await this.prisma.$transaction(async (tx) => {
+      await this.lockCatalogWrite(tx, user);
+      this.assertLeaf(user, 'specification_catalog.create');
       await this.assertCatalogItemIds(
         tx,
         payload.items.map((item) => item.catalogItemId),
@@ -204,7 +207,7 @@ export class OneTimeOrderSpecificationCatalogService {
       );
       return row;
     }).catch((error: unknown) => this.rethrowTemplateNameConflict(error));
-    return this.mapTemplate(created);
+    return this.projectCatalogResult(user, this.mapTemplate(created));
   }
 
   async updateTemplate(
@@ -214,19 +217,13 @@ export class OneTimeOrderSpecificationCatalogService {
   ) {
     this.assertLeadership(user);
     this.assertMutation(user, payload);
-    const existing =
-      await this.prisma.oneTimeOrderSpecificationTemplate.findUnique({
-        where: { id },
-        include: {
-          items: {
-            include: { catalogItem: true },
-            orderBy: { sortOrder: "asc" },
-          },
-        },
-      });
-    if (!existing)
-      throw new NotFoundException("Specification template not found");
     const updated = await this.prisma.$transaction(async (tx) => {
+      await this.lockCatalogWrite(tx, user, 'template', id);
+      this.assertMutation(user, payload);
+      const existing = await tx.oneTimeOrderSpecificationTemplate.findUnique({
+        where: { id }, include: { items: { include: { catalogItem: true }, orderBy: { sortOrder: "asc" } } },
+      });
+      if (!existing) throw new NotFoundException("Specification template not found");
       if (payload.items)
         await this.assertCatalogItemIds(
           tx,
@@ -284,7 +281,7 @@ export class OneTimeOrderSpecificationCatalogService {
       );
       return row;
     }).catch((error: unknown) => this.rethrowTemplateNameConflict(error));
-    return this.mapTemplate(updated);
+    return this.projectCatalogResult(user, this.mapTemplate(updated));
   }
 
   async archiveTemplate(
@@ -310,6 +307,23 @@ export class OneTimeOrderSpecificationCatalogService {
       });
     }
     throw error;
+  }
+
+  private async lockCatalogWrite(tx: Prisma.TransactionClient, user: CurrentAuthUser, kind?: 'item' | 'template', id?: string): Promise<void> {
+    if (id && kind === 'item') await tx.$queryRaw`SELECT "id" FROM "one_time_order_specification_catalog_items" WHERE "id" = ${id} FOR UPDATE`;
+    if (id && kind === 'template') await tx.$queryRaw`SELECT "id" FROM "one_time_order_specification_templates" WHERE "id" = ${id} FOR UPDATE`;
+    await lockActorAccessRevision(tx, user);
+    this.assertLeadership(user);
+  }
+
+  private projectCatalogResult<T>(user: CurrentAuthUser, value: T) {
+    return projectCommittedWrite(this.prisma, user, async () => {
+      const subject = await loadAccessSubject(this.prisma, user.id);
+      if (!subject?.isActive) throw new ForbiddenException('Доступ к каталогу изменился');
+      this.assertCanRead({ ...user, ...subject, roleCode: subject.roleCodes?.[0] ?? '',
+        roleCodes: [...(subject.roleCodes ?? [])], permissionCodes: [...(subject.permissionCodes ?? [])] });
+      return value;
+    });
   }
 
   private assertCanRead(user: CurrentAuthUser) {

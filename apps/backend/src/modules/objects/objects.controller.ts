@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import type { SavedWithoutAccess } from '../../common/access/project-committed-write';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ApprovalRequestResponseDto } from '../approvals/dto/approval-request-response.dto';
 
@@ -86,7 +87,7 @@ export class ObjectsController {
   createObject(
     @CurrentUser() user: CurrentAuthUser,
     @Body() payload: CreateObjectDto,
-  ): Promise<ObjectResponseDto> {
+  ): Promise<ObjectResponseDto | SavedWithoutAccess> {
     return this.objectsService.createObject(user, payload);
   }
 

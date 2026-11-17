@@ -1061,7 +1061,6 @@ export class AccountabilityService {
     currentUser: CurrentAuthUser,
     expenseId: string,
   ): Promise<AccountabilityExpenseResponseDto | SavedWithoutAccess> {
-    this.assertCanApproveExpense(currentUser);
     const approvedExpense = await this.resolveExpense(currentUser, expenseId, {
       decision: 'approve',
     });
@@ -1087,7 +1086,6 @@ export class AccountabilityService {
     expenseId: string,
     payload: RejectAccountabilityExpenseDto,
   ): Promise<AccountabilityExpenseResponseDto | SavedWithoutAccess> {
-    this.assertCanApproveExpense(currentUser);
     const rejectionComment = payload.comment.trim();
 
     if (!rejectionComment) {
@@ -1740,10 +1738,10 @@ export class AccountabilityService {
           roleCodes: this.getRoleCodes(params.currentUser),
           permissionCodes: this.getPermissionCodes(params.currentUser),
         }), { resourceType: 'user', resourceId: params.subjectUserId, ownerUserId: params.subjectUserId }),
-        canReviewExpenses: decideAccess(params.currentUser, 'accountability.expenses.approve', canApproveAccountabilityExpense({
+        canReviewExpenses: ['accountability.expenses.approve', 'accountability.expenses.reject'].some(action => decideAccess(params.currentUser, action, canApproveAccountabilityExpense({
           roleCodes: this.getRoleCodes(params.currentUser),
           permissionCodes: this.getPermissionCodes(params.currentUser),
-        }), { resourceType: 'user', resourceId: params.subjectUserId, ownerUserId: params.subjectUserId }),
+        }), { resourceType: 'user', resourceId: params.subjectUserId, ownerUserId: params.subjectUserId, parents: [{ actionCode: 'accountability.read' }] })),
         canApproveAccountabilityClosure: decideAccess(params.currentUser, 'accountability.closure.approve', canApproveAccountabilityClosure({
           roleCodes: this.getRoleCodes(params.currentUser),
           permissionCodes: this.getPermissionCodes(params.currentUser),
@@ -2177,6 +2175,7 @@ export class AccountabilityService {
       capabilities: buildAccountabilityExpenseCapabilities({
         subject: params.currentUser,
         ownerUserId: params.expense.accountabilityAccount.userId,
+        createdByUserId: params.expense.createdBy.id,
         legacyOwnExpenseAllowed: params.legacyOwnExpenseAllowed,
         accountStatus: params.expense.accountabilityAccount.status,
         isOwnExpense:
@@ -2662,17 +2661,6 @@ export class AccountabilityService {
         parents: [{ actionCode: 'accountability.read' }] })
     ) {
       throw new ForbiddenException('Нет доступа к выдаче средств этому пользователю. Черновик не отправлен.');
-    }
-  }
-
-  private assertCanApproveExpense(currentUser: CurrentAuthUser): void {
-    if (
-      !canApproveAccountabilityExpense({
-        roleCodes: this.getRoleCodes(currentUser),
-        permissionCodes: this.getPermissionCodes(currentUser),
-      })
-    ) {
-      throw new ForbiddenException('Expense review access denied');
     }
   }
 

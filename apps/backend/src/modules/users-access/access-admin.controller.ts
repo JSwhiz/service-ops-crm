@@ -16,6 +16,8 @@ import {
   AccessResourceQueryDto,
   PreviewAccessDto,
   SaveAccessDto,
+  PreviewLegacyCandidateDenyRemovalDto,
+  SaveLegacyCandidateDenyRemovalDto,
 } from "./dto/access-admin.dto";
 import { AccessSubject } from "./types/access-policy.type";
 
@@ -23,6 +25,18 @@ import { AccessSubject } from "./types/access-policy.type";
 @Controller("users-access/admin")
 export class AccessAdminController {
   constructor(private readonly service: AccessAdminService) {}
+  @Post("users/:id/legacy-candidate-deny/preview")
+  previewLegacyCandidateDenyRemoval(
+    @CurrentUser() actor: AccessSubject,
+    @Param("id", ParseUUIDPipe) id: string,
+    @Body() input: PreviewLegacyCandidateDenyRemovalDto,
+  ) { return this.service.previewLegacyCandidateDenyRemoval(actor, id, input); }
+  @Post("users/:id/legacy-candidate-deny/save")
+  saveLegacyCandidateDenyRemoval(
+    @CurrentUser() actor: AccessSubject,
+    @Param("id", ParseUUIDPipe) id: string,
+    @Body() input: SaveLegacyCandidateDenyRemovalDto,
+  ) { return this.service.saveLegacyCandidateDenyRemoval(actor, id, input); }
   @Get("catalog") catalog(@CurrentUser() actor: AccessSubject) {
     return this.service.catalog(actor);
   }

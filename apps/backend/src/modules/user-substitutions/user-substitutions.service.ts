@@ -79,7 +79,7 @@ export class UserSubstitutionsService {
       try { this.assertCanCreate(actor, principalUserId); }
       catch (error) {
         if (!(error instanceof ForbiddenException)) throw error;
-        return { users: [], objects: [], principals, resultLimit: 100, capabilities: { canCreate: false, canCreateForOthers } };
+        return { users: [], objects: [], eligibleSelectedObjectIds: [], principals, resultLimit: 100, capabilities: { canCreate: false, canCreateForOthers } };
       }
     }
     const principal = await this.prisma.user.findFirst({ where: { id: principalUserId, isActive: true, deletedAt: null }, include: principalInclude });
@@ -87,8 +87,8 @@ export class UserSubstitutionsService {
     const objectSearch = query.objectSearch?.trim(), userSearch = query.userSearch?.trim();
     const eligibleWhere = this.eligibleCreateObjectsWhere(actor, principal);
     const eligible = await this.prisma.object.findFirst({ where: eligibleWhere, select: { id: true } });
-    if (!eligible) return { users: [], objects: [], principals, resultLimit: 100, capabilities: { canCreate: false, canCreateForOthers } };
-    const [objects, users] = await Promise.all([
+    if (!eligible) return { users: [], objects: [], eligibleSelectedObjectIds: [], principals, resultLimit: 100, capabilities: { canCreate: false, canCreateForOthers } };
+    const [objects, users, eligibleSelected] = await Promise.all([
       this.prisma.object.findMany({
         where: { AND: [
           eligibleWhere,
@@ -100,8 +100,11 @@ export class UserSubstitutionsService {
         where: { isActive: true, deletedAt: null, id: { not: principalUserId }, ...(userSearch ? { OR: [{ fullName: { contains: userSearch, mode: 'insensitive' as const } }, { login: { contains: userSearch, mode: 'insensitive' as const } }] } : {}) },
         select: userSelect, orderBy: [{ fullName: 'asc' }, { id: 'asc' }], take: 100,
       }),
+      query.selectedObjectIds?.length ? this.prisma.object.findMany({
+        where: { AND: [eligibleWhere, { id: { in: query.selectedObjectIds } }] }, select: { id: true },
+      }) : Promise.resolve([]),
     ]);
-    return { users, objects, principals, resultLimit: 100, capabilities: { canCreate: true, canCreateForOthers } };
+    return { users, objects, eligibleSelectedObjectIds: eligibleSelected.map(object => object.id), principals, resultLimit: 100, capabilities: { canCreate: true, canCreateForOthers } };
   }
 
   private eligibleCreateObjectsWhere(actor: Actor, principal: Principal): Prisma.ObjectWhereInput {

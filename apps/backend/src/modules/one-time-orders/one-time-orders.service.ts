@@ -1697,6 +1697,10 @@ export class OneTimeOrdersService {
           : [];
       }
 
+      // A known request above replays an order snapshot. New selections must
+      // pass the catalog gate before even checking current catalog revisions.
+      await this.assertLiveSpecificationCatalogReadable(tx, currentUser);
+
       if (
         payload.expectedTemplateVersions.length !== payload.templateIds.length ||
         payload.expectedCatalogItems.length !== payload.catalogItemIds.length
@@ -3795,6 +3799,14 @@ export class OneTimeOrdersService {
     }
   }
 
+  private async assertLiveSpecificationCatalogReadable(tx: Prisma.TransactionClient, currentUser: CurrentAuthUser): Promise<void> {
+    await lockActorAccessRevision(tx, currentUser);
+    if (!decideAccess(currentUser, 'specification_catalog.access', true) ||
+        !decideAccess(currentUser, 'specification_catalog.read', true)) {
+      throw new ForbiddenException('Нет доступа к текущему каталогу ТЗ. Выбранные пункты не применены.');
+    }
+  }
+
   private async resolveSpecificationSnapshot(
     tx: Prisma.TransactionClient,
     currentUser: CurrentAuthUser,
@@ -3809,6 +3821,11 @@ export class OneTimeOrdersService {
     },
   ) {
     this.assertSpecificationComposerIfRequested(currentUser, payload);
+    if (payload.specificationCatalogItemIds?.length || payload.specificationTemplateIds?.length) {
+      // Live catalog content has its own source gate. Saved order snapshots
+      // and manually entered items do not read this catalog.
+      await this.assertLiveSpecificationCatalogReadable(tx, currentUser);
+    }
     const result: Array<{
       title: string;
       description: string | null;

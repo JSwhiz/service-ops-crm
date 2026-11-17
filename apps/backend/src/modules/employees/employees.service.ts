@@ -7,6 +7,8 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { lockActorAccessRevision } from '../../common/access/lock-actor-access-revision';
+import { projectCommittedWrite, type SavedWithoutAccess } from '../../common/access/project-committed-write';
+import { loadAccessSubject } from '../../common/access/notification-access';
 import type { AccessSubject } from '../users-access/types/access-policy.type';
 import { decideAccess, hasModuleDeny } from '../users-access/utils/access-policy.util';
 import { employeeAction, employeeObjectDenyWhere, employeePolicyWhere } from './utils/employee-policy.util';
@@ -1132,7 +1134,7 @@ export class EmployeesService {
     employeeId: string,
     historyId: string,
     payload: DeleteEmployeeAssignmentAsErrorDto,
-  ): Promise<EmployeeResponseDto> {
+  ): Promise<EmployeeResponseDto | SavedWithoutAccess> {
     this.assertDeleteAssignmentAsErrorAccess(currentUser, employeeId);
 
     await this.prisma.$transaction(async (tx) => {
@@ -1254,7 +1256,13 @@ export class EmployeesService {
       );
     });
 
-    return this.getEmployeeById(currentUser, employeeId);
+    return projectCommittedWrite(this.prisma, currentUser, async () => {
+      const subject = await loadAccessSubject(this.prisma, currentUser.id);
+      if (!subject?.isActive) throw new ForbiddenException('Доступ к сотруднику изменился');
+      return this.getEmployeeById({ ...currentUser, ...subject, isActive: true,
+        roleCode: subject.roleCodes?.[0] ?? currentUser.roleCode,
+        roleCodes: [...(subject.roleCodes ?? [])], permissionCodes: [...(subject.permissionCodes ?? [])] }, employeeId);
+    });
   }
 
   async deleteEmployeePermanently(

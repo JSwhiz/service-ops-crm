@@ -120,6 +120,11 @@ export function buildLegacyAccessProjection(
   };
   for (const [code, allowed] of Object.entries(inventoryMap))
     set(`inventory.${code}`, allowed, "buildInventoryGlobalCapabilities");
+  set("inventory.movement.photos.create", inventory.canCreateInventoryMovement,
+    "buildInventoryGlobalCapabilities", ["own"], [
+      "Собственный приход или корректировка без привязки к объекту и заказу.",
+      "Текущие сутки по Москве; право загрузки файлов проверяется отдельно.",
+    ]);
   if (!inventory.canIssueInventoryToObject)
     set(
       "inventory.issue_to_object",

@@ -18,6 +18,7 @@ import { AuditService } from '../audit/audit.service';
 import { ObjectPlanningService } from '../objects/object-planning.service';
 import { inventoryTransaction } from './utils/inventory-transaction.util';
 import { authorizeInventoryCorrection, canCorrectInventoryMovement } from './utils/inventory-correction-access.util';
+import { canAttachStandaloneInventoryPhoto } from './utils/inventory-photo.util';
 import { canReadInventoryObjectTarget, canUseInventoryObjectIssueTarget, inventoryObjectFormCapabilities, inventoryOrderFormCapabilities } from './utils/inventory-form-target-access.util';
 import { InventoryObjectReferenceResponseDto, InventoryOrderReferenceResponseDto } from './dto/inventory-reference-response.dto';
 import {
@@ -67,6 +68,7 @@ import {
   canAdjustInventory,
   canDeleteInventoryItem,
   canCreateInventoryReceipt,
+  canCreateInventoryMovement,
   canIssueInventoryToObject,
   canIssueInventoryToOneTimeOrder,
   canManageInventoryCatalog,
@@ -3389,6 +3391,11 @@ export class InventoryService {
       attachments,
       approvalRequest,
       projection: {
+        canAttachStandalonePhoto: canAttachStandaloneInventoryPhoto(currentUser, {
+          ...movement, inventoryItemId: movement.inventoryItem.id, createdByUserId: movement.createdBy.id,
+        }, canCreateInventoryMovement(roleCodes)) && decideAccess(currentUser, 'files.upload', true, {
+          resourceType: 'file', ownerUserId: currentUser.id,
+        }),
         canCorrectMovement: canCorrectInventoryMovement(currentUser, movement),
         hasEvidence,
         requiresApprovalBridge:

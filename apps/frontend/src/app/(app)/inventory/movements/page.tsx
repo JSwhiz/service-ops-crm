@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useCallback, useDeferredValue, useEffect, useState } from 'react';
+import React, { useCallback, useDeferredValue, useEffect, useRef, useState } from 'react';
+import { ApiError } from '@/shared/api/fetcher';
 
 import {
   createInventoryMovement,
@@ -17,7 +18,9 @@ import type {
   InventoryOneTimeOrderReference,
   InventoryItemListResponse,
 } from '@/entities/inventory/model/inventory.types';
-import { uploadFileToEntity } from '@/entities/file/api/file-client';
+import { uploadFileToEntity, uploadFileToEntityAcknowledged } from '@/entities/file/api/file-client';
+import { isSavedWithoutAccess } from '@/shared/api/saved-without-access';
+import { getAccessSessionGeneration } from '@/shared/auth/access-generation';
 import { InventoryMovementForm } from '@/features/inventory-movement-form/ui/inventory-movement-form';
 import { InventoryMovementList } from '@/features/inventory-movement-list/ui/inventory-movement-list';
 import { INVENTORY_MOVEMENT_TYPE_OPTIONS } from '@/shared/lib/inventory-presentation';
@@ -46,6 +49,16 @@ type ReadSnapshot<T> = { key: string; data: T | null; error: string | null };
 
 export default function InventoryMovementsPage(): React.JSX.Element {
   const { user } = useAuth();
+  const [photoAcknowledgement, setPhotoAcknowledgement] = useState<{ actorId: string | undefined; session: number; terminal: boolean } | null>(null);
+  const photoContext = { actorId: user?.id, session: getAccessSessionGeneration() };
+  const latestPhotoContext = useRef(photoContext);
+  latestPhotoContext.current = photoContext;
+  const photoContextIsCurrent = (): boolean => !!photoContext.actorId && latestPhotoContext.current.actorId === photoContext.actorId && latestPhotoContext.current.session === photoContext.session && getAccessSessionGeneration() === photoContext.session;
+  const acknowledgePhoto = (terminal: boolean): void => {
+    if (!photoContextIsCurrent()) return;
+    setPhotoAcknowledgement((previous) => previous && previous.actorId === photoContext.actorId && previous.session === photoContext.session && previous.terminal
+      ? previous : { ...photoContext, terminal });
+  };
   const capabilities = user?.capabilities;
   const canAccessInventory = capabilities?.canAccessInventory ?? false;
   const canReadMovements = capabilities?.canViewInventoryMovements === true;
@@ -235,12 +248,21 @@ export default function InventoryMovementsPage(): React.JSX.Element {
     !approvalBridgeOnly ? { id: 'bridge', label: 'Фото', options: [{ value: 'true', label: 'Только без фото / bridge' }], onAdd: () => { setApprovalBridgeOnly(true); setPage(1); } } : null,
   ].filter((filter): filter is NonNullable<typeof filter> => filter !== null);
 
+  const visiblePhotoAcknowledgement = photoAcknowledgement?.actorId === user?.id && photoAcknowledgement?.session === getAccessSessionGeneration();
+  if (visiblePhotoAcknowledgement && photoAcknowledgement?.terminal) return (
+    <div className={`ui-page ${inventoryStyles.inventoryWorkspace}`}>
+      <BackLink href="/inventory">К списку расходников</BackLink>
+      <Alert tone="success" role="status" title="Фото прикреплено">Доступ к записи изменился. Повторная загрузка не требуется.</Alert>
+    </div>
+  );
+
   return (
     <div className={`ui-page ${inventoryStyles.inventoryWorkspace}`}>
       <BackLink href="/inventory">Расходники</BackLink>
+      {visiblePhotoAcknowledgement ? <Alert tone="success" role="status" title="Фото прикреплено">Повторная загрузка не требуется.</Alert> : null}
 
       {!canAccessInventory ? (
-        <Surface padding="md">У вас нет доступа к inventory-модулю.</Surface>
+        <Surface padding="md">У вас нет доступа к складу.</Surface>
       ) : null}
       <AccessSnapshotBoundary blocked={!canAccessInventory}>
         <div className="ui-stack ui-stack--lg">
@@ -316,7 +338,17 @@ export default function InventoryMovementsPage(): React.JSX.Element {
               {error}
             </Alert>
           ) : (
-            <InventoryMovementList items={loadedHistoryKey === historyKey ? movements : []} />
+            <InventoryMovementList
+                  items={loadedHistoryKey === historyKey ? movements : []}
+                  onAttachStandalonePhoto={async (movementId, file) => {
+                    if (!photoContextIsCurrent()) throw new ApiError('Сессия или страница изменились. Обновите данные.', 409, 'ACCESS_VERSION_CHANGED');
+                    setPhotoAcknowledgement(null);
+                    const result = await uploadFileToEntityAcknowledged({ entityType: 'inventory_movement', entityId: movementId, file });
+                    if (isSavedWithoutAccess(result)) acknowledgePhoto(true);
+                  }}
+                  onPhotoAcknowledgedWithoutView={() => acknowledgePhoto(false)}
+                  onRefresh={async () => { setReload((value) => value + 1); }}
+                />
           )}
 
           {canReadMovements && loadedHistoryKey === historyKey && !isLoading && !error ? <TablePagination page={page} totalPages={totalPages} pending={isLoading} label="Страницы движений расходников"

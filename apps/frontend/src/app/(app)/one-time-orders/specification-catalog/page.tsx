@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import Link from 'next/link';
+import { isSavedWithoutAccess } from '@/shared/api/saved-without-access';
 import {
   createSpecificationCatalogItem,
   createSpecificationTemplate,
@@ -67,6 +69,14 @@ export default function SpecificationCatalogPage(): React.JSX.Element {
   const templateInputRef = useRef<HTMLInputElement>(null);
   const loadRequest = useRef(0);
   const mutationBusy = useRef(false);
+  const terminal = useRef(false);
+  const [savedWithoutAccess, setSavedWithoutAccess] = useState(false);
+  const acknowledge = (): void => {
+    terminal.current = true;
+    loadRequest.current += 1;
+    setItems([]); setTemplates([]); setArchiveTarget(null);
+    setSavedWithoutAccess(true);
+  };
   const latest = useRef({ canRead, canCreate, canUpdate, canArchive, accessRevision, loadedRevision, templates });
   latest.current = { canRead, canCreate, canUpdate, canArchive, accessRevision, loadedRevision, templates };
   type Mutation = "canCreate" | "canUpdate" | "canArchive";
@@ -77,10 +87,10 @@ export default function SpecificationCatalogPage(): React.JSX.Element {
 
   const load = useCallback(async (): Promise<boolean> => {
     const revision = latest.current.accessRevision;
-    if (!latest.current.canRead) return false;
+    if (terminal.current || !latest.current.canRead) return false;
     const requestId = ++loadRequest.current;
     const isCurrent = (): boolean => requestId === loadRequest.current &&
-      latest.current.canRead && latest.current.accessRevision === revision;
+      !terminal.current && latest.current.canRead && latest.current.accessRevision === revision;
     setLoading(true);
     setLoadedRevision(null);
     try {
@@ -118,10 +128,13 @@ export default function SpecificationCatalogPage(): React.JSX.Element {
     setBusy(true);
     setError(null);
     try {
-      await operation();
+      const result = await operation();
+      if (result !== null && typeof result === 'object' && isSavedWithoutAccess(result)) { acknowledge(); return; }
       await load();
     } catch (cause) {
-      if (
+      if (cause instanceof ApiError && cause.code === "ACCESS_VERSION_CHANGED") {
+        setError("Доступ изменился во время действия. Черновик сохранён. Перед повторной отправкой проверьте доступ и историю.");
+      } else if (
         cause instanceof ApiError &&
         cause.code === "SPECIFICATION_TEMPLATE_NAME_CONFLICT"
       ) {
@@ -141,10 +154,12 @@ export default function SpecificationCatalogPage(): React.JSX.Element {
     }
   };
 
+  if (savedWithoutAccess) return <div className={`ui-page ${styles.page}`}><Alert tone="success" role="status">Изменение сохранено. Подробности сейчас недоступны.</Alert><Link href="/one-time-orders">К разовым заказам</Link></div>;
+
   return (
     <div className={`ui-page ${styles.page}`}>
       <PageTitle title="Каталог технических заданий" />
-      {!canRead ? <Surface padding="md">У вас нет доступа к каталогу ТЗ.</Surface> : null}
+      {!canRead ? <Surface padding="md">У вас нет доступа к каталогу ТЗ.{title || templateName || templateItemIds.length ? ' Введённые данные сохранены в черновике.' : ''}</Surface> : null}
       {canRead && error ? (
         <Alert
           tone="danger"
@@ -187,14 +202,14 @@ export default function SpecificationCatalogPage(): React.JSX.Element {
                 if (!title.trim() || !canMutate(permission) || mutationBusy.current) return;
                 const revision = latest.current.accessRevision;
                 void run(permission, async () => {
-                  if (editingItemId)
-                    await updateSpecificationCatalogItem(editingItemId, {
+                  const result = editingItemId
+                    ? await updateSpecificationCatalogItem(editingItemId, {
+                      title: title.trim(),
+                    })
+                    : await createSpecificationCatalogItem({
                       title: title.trim(),
                     });
-                  else
-                    await createSpecificationCatalogItem({
-                      title: title.trim(),
-                    });
+                  if (isSavedWithoutAccess(result)) return result;
                   if (latest.current.accessRevision !== revision) return;
                   setTitle("");
                   setEditingItemId(null);
@@ -328,12 +343,13 @@ export default function SpecificationCatalogPage(): React.JSX.Element {
                       sortOrder,
                     })),
                   };
-                  if (editingTemplateId && editingTemplateVersion !== null)
-                    await updateSpecificationTemplate(editingTemplateId, {
+                  const result = editingTemplateId && editingTemplateVersion !== null
+                    ? await updateSpecificationTemplate(editingTemplateId, {
                       ...payload,
                       expectedVersion: editingTemplateVersion,
-                    });
-                  else await createSpecificationTemplate(payload);
+                    })
+                    : await createSpecificationTemplate(payload);
+                  if (isSavedWithoutAccess(result)) return result;
                   if (latest.current.accessRevision !== revision) return;
                   setEditingTemplateId(null);
                   setEditingTemplateVersion(null);
@@ -531,21 +547,22 @@ export default function SpecificationCatalogPage(): React.JSX.Element {
           setArchiveError(null);
           void (async () => {
             try {
-              if (target.kind === "item") {
-                await updateSpecificationCatalogItem(target.item.id, {
+              const result = target.kind === "item"
+                ? await updateSpecificationCatalogItem(target.item.id, {
                   isArchived: !target.item.isArchived,
-                });
-              } else {
-                await updateSpecificationTemplate(target.item.id, {
+                })
+                : await updateSpecificationTemplate(target.item.id, {
                   expectedVersion: target.item.version,
                   isArchived: !target.item.isArchived,
                 });
-              }
+              if (isSavedWithoutAccess(result)) { acknowledge(); return; }
               await load();
               if (latest.current.accessRevision === revision) setArchiveTarget(null);
             } catch (cause) {
               setArchiveError(
-                cause instanceof ApiError && cause.statusCode === 409
+                cause instanceof ApiError && cause.code === "ACCESS_VERSION_CHANGED"
+                  ? "Доступ изменился. Повторная запись не отправлялась. Проверьте доступ и историю."
+                  : cause instanceof ApiError && cause.statusCode === 409
                   ? "Шаблон уже изменён. Закройте окно, обновите каталог и повторите действие."
                   : "Не удалось сохранить. Повторите попытку.",
               );

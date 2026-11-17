@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import type { SavedWithoutAccess } from '../../common/access/project-committed-write';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 import { CreateEmployeeAvailabilityDto } from './dto/create-employee-availability.dto';
@@ -245,7 +246,7 @@ export class EmployeesController {
     @Param('id') employeeId: string,
     @Param('historyId') historyId: string,
     @Body() payload: DeleteEmployeeAssignmentAsErrorDto,
-  ): Promise<EmployeeResponseDto> {
+  ): Promise<EmployeeResponseDto | SavedWithoutAccess> {
     return this.employeesService.deleteObjectAssignmentAsError(
       user,
       employeeId,

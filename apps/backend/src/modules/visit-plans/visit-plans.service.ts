@@ -69,11 +69,13 @@ export class VisitPlansService {
     private readonly audit: AuditService,
   ) {}
 
-  private planInclude(user: VisitPlanUser) {
-    const visibleObject = buildAccessWhere<Prisma.ObjectWhereInput>({ subject: user, actionCode: 'objects.read', legacyWhere: {}, invariantWhere: {},
+  private visibleObjectWhere(user: VisitPlanUser): Prisma.ObjectWhereInput {
+    return buildAccessWhere<Prisma.ObjectWhereInput>({ subject: user, actionCode: 'objects.read', legacyWhere: {}, invariantWhere: {},
       scopeWhere: rule => rule.scope === 'all' ? {} : rule.scope === 'selected' ? { id: { in: [...rule.selectedIds] } } : rule.scope === 'own' ? { createdByUserId: user.id } : { assignments: { some: { userId: user.id, isActive: true } } },
     }) as Prisma.ObjectWhereInput;
-    return { ...include, entries: { ...include.entries, where: { OR: [{ objectId: null }, { object: visibleObject }] } } };
+  }
+  private planInclude(user: VisitPlanUser) {
+    return { ...include, entries: { ...include.entries, where: { OR: [{ objectId: null }, { object: this.visibleObjectWhere(user) }] } } };
   }
 
   canManage(user: VisitPlanUser, managerUserId?: string): boolean {
@@ -509,7 +511,34 @@ export class VisitPlansService {
     if (!plan) throw new NotFoundException("Visit plan not found");
     await this.assertRead(user, plan.managerUserId);
     if (!decideAccess(user, 'visit_plans.history', true, this.planContext(plan.managerUserId))) throw new ForbiddenException('Visit plan history denied');
-    return this.audit.listAuditEvents("manager_visit_plan", id);
+    const [events, entries] = await Promise.all([
+      this.audit.listAuditEvents("manager_visit_plan", id),
+      this.prisma.managerVisitPlanEntry.findMany({ where: { planId: id }, select: { id: true, objectId: true } }),
+    ]);
+    const entryObjects = new Map<string, Set<string>>();
+    const payloads = (event: typeof events[number]): Prisma.JsonObject[] =>
+      [event.oldValues, event.newValues, event.metadata].filter((value): value is Prisma.JsonObject =>
+        value !== null && typeof value === 'object' && !Array.isArray(value));
+    for (const entry of entries) entryObjects.set(entry.id, new Set(entry.objectId ? [entry.objectId] : []));
+    // Deleted entries are resolved from their immutable add/remove payloads.
+    for (const event of events) for (const value of payloads(event)) {
+      if (typeof value.entryId !== 'string' || (value.objectId !== null && typeof value.objectId !== 'string')) continue;
+      const objects = entryObjects.get(value.entryId) ?? new Set<string>();
+      if (typeof value.objectId === 'string') objects.add(value.objectId);
+      entryObjects.set(value.entryId, objects);
+    }
+    const referencedObjects = new Set([...entryObjects.values()].flatMap((objects) => [...objects]));
+    for (const event of events) for (const value of payloads(event)) if (typeof value.objectId === 'string') referencedObjects.add(value.objectId);
+    const visible = new Set((await this.prisma.object.findMany({
+      where: { AND: [{ id: { in: [...referencedObjects] } }, this.visibleObjectWhere(user)] }, select: { id: true },
+    })).map((object) => object.id));
+    return events.filter((event) => payloads(event).every((value) => {
+      if (typeof value.objectId === 'string' && !visible.has(value.objectId)) return false;
+      if (typeof value.entryId !== 'string') return true;
+      const objects = entryObjects.get(value.entryId);
+      // A legacy orphan without a resolvable source cannot disclose visit text.
+      return !!objects && [...objects].every((objectId) => visible.has(objectId));
+    }));
   }
 
   async saveDeadline(user: VisitPlanUser, id: string, input: SaveVisitPlanDeadlineDto) {

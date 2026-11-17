@@ -16,6 +16,11 @@ import { ObjectCompensationService } from './object-compensation.service';
 import { CreateCompensationAdjustmentDto } from './compensation.dto';
 import { decideAccess } from '../users-access/utils/access-policy.util';
 import { objectPolicyContext } from '../users-access/utils/object-policy-context.util';
+import { projectCommittedWrite } from '../../common/access/project-committed-write';
+import { loadAccessSubject } from '../../common/access/notification-access';
+import { objectDelegationContext } from '../user-substitutions/object-delegation.context';
+import { resolveObjectDelegationGrants } from '../user-substitutions/resolve-object-delegation-grants.util';
+import { lockActorAccessRevision } from '../../common/access/lock-actor-access-revision';
 
 const json = (value: unknown) => JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
 const roles = (user: SchedulingUser) => user.roleCodes?.length ? user.roleCodes : [user.roleCode];
@@ -38,7 +43,22 @@ export class ObjectSchedulingService {
   }
   private async lock(tx: Prisma.TransactionClient, user: SchedulingUser, objectId: string, actionCode = 'objects.schedules.manage') {
     await tx.$queryRaw`SELECT "id" FROM "objects" WHERE "id" = ${objectId} FOR UPDATE`;
+    await lockActorAccessRevision(tx, user);
     return this.access(tx, user, objectId, true, actionCode);
+  }
+  private projectSaved<T>(user: SchedulingUser, objectId: string, saved: T, readAction: string) {
+    // Only project after the transaction commits; a refused write stays refused.
+    return projectCommittedWrite(this.prisma, user, async () => {
+      const subject = await loadAccessSubject(this.prisma, user.id);
+      if (!subject?.isActive) throw new ForbiddenException('Доступ к объекту изменился');
+      const actor: SchedulingUser = { ...user, ...subject, roleCode: subject.roleCodes?.[0] ?? '',
+        roleCodes: [...(subject.roleCodes ?? [])], permissionCodes: [...(subject.permissionCodes ?? [])] };
+      const grants = (await resolveObjectDelegationGrants(this.prisma, actor.id)).filter(grant => grant.objectId === objectId);
+      return objectDelegationContext.run({ actorUserId: actor.id, grants, used: new Map() }, async () => {
+        await this.access(this.prisma, actor, objectId, false, readAction);
+        return saved;
+      });
+    });
   }
   private async rateAccess(user: SchedulingUser, objectId: string, tx: Prisma.TransactionClient = this.prisma) {
     await this.access(tx,user,objectId,true,'objects.rates.manage',canEditObjectDailyRate(roles(user)));
@@ -130,7 +150,7 @@ export class ObjectSchedulingService {
     return this.prisma.$transaction(async tx => (await this.createPositionsInTransaction(tx, user, objectId, [input]))[0]);
   }
   async save(user: SchedulingUser, objectId: string, id: string, input: SavePositionDto | ArchivePositionDto) {
-    return this.prisma.$transaction(async tx => {
+    const saved = await this.prisma.$transaction(async tx => {
       await this.lock(tx, user, objectId);
       const existing = await this.position(tx, objectId, id);
       const prior = [...this.view(existing).revisions].reverse().find(revision => revision.effectiveFrom <= input.effectiveFrom);
@@ -146,6 +166,7 @@ export class ObjectSchedulingService {
       await this.audit(tx, user, objectId, archived ? 'scheduling_position_archived' : 'scheduling_position_versioned', {positionId: id, version, effectiveFrom: input.effectiveFrom, reason: archived ? input.reason.trim() : undefined});
       return this.view(await this.position(tx, objectId, id));
     });
+    return this.projectSaved(user, objectId, saved, 'objects.schedules.read');
   }
   async contours(user: SchedulingUser, objectId: string) {
     await this.access(this.prisma, user, objectId, false, 'objects.rates.read');
@@ -251,7 +272,8 @@ export class ObjectSchedulingService {
     return {attendance: items.map(({revision, ...item}) => this.attendanceView(item, revision.positionId))};
   }
   async confirm(user: SchedulingUser, objectId: string, input: ConfirmShiftDto) {
-    return this.prisma.$transaction(tx => this.confirmInTransaction(tx, user, objectId, input));
+    const saved = await this.prisma.$transaction(tx => this.confirmInTransaction(tx, user, objectId, input));
+    return this.projectSaved(user, objectId, saved, 'objects.attendance.read');
   }
   private async confirmInTransaction(tx: Prisma.TransactionClient, user: SchedulingUser, objectId: string, input: ConfirmShiftDto, approved = false) {
       const object = await this.lock(tx, user, objectId, 'objects.attendance.edit'); await this.writableDay(tx, objectId, input.operationDate);
@@ -400,6 +422,17 @@ export class ObjectSchedulingService {
     const before = adjustment.beforeSnapshot as unknown as {employeeId?: string};
     if (before.employeeId && before.employeeId !== shift.employeeId) await this.aggregate(tx, user, shift.objectId, before.employeeId, date);
     await this.aggregate(tx, user, shift.objectId, shift.employeeId, date);
+  }
+  async canApplyFinancialDecision(user: SchedulingUser, id: string): Promise<boolean> {
+    const item = await this.prisma.objectCompensationAdjustment.findUnique({ where: { id }, select: { objectId: true, status: true } });
+    if (!item || item.status !== 'pending') return false;
+    try {
+      const object = await this.access(this.prisma, user, item.objectId, true, 'objects.compensation.correct_past');
+      return decideAccess(user, 'objects.compensation.manage', true, objectPolicyContext(object));
+    } catch (error) {
+      if (error instanceof ForbiddenException || error instanceof NotFoundException || error instanceof ConflictException) return false;
+      throw error;
+    }
   }
   async applyFinancialDecision(tx: Prisma.TransactionClient, user: SchedulingUser, id: string, decision: 'approve' | 'reject' | 'cancel') {
     const item = await tx.objectCompensationAdjustment.findUniqueOrThrow({where: {id}});
