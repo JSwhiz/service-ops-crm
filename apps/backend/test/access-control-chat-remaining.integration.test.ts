@@ -110,7 +110,7 @@ test('remaining chat leaves preserve source/target membership, history boundarie
     canDeliver(userId: string, event: ChatRealtimeEvent): Promise<boolean>;
   };
   const eligible = (roomId: string, messageId: string) => eligibility.canDeliver(actor.id, {
-    type: 'chat.message_created', roomId, recipientUserIds: [actor.id], payload: { id: messageId },
+    type: 'chat.message_created', roomId, recipientUserIds: [actor.id], payload: { messageId },
   });
 
   await t.test('room child capabilities match independent scoped API gates, default/revoke and active membership', async () => {
