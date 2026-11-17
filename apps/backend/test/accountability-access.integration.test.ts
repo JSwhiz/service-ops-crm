@@ -228,7 +228,9 @@ test('own accountability access follows manager assignment and receipt eligibili
       body: JSON.stringify({ amount: 100, description: 'Недоступный расход' }),
     },
   );
-  assert.equal(unrelatedExpenseResponse.status, 403);
+  assert.equal(unrelatedExpenseResponse.status, 400);
+  const missingAccountError = await unrelatedExpenseResponse.json() as { error: { message: string } };
+  assert.match(missingAccountError.error.message, /No accountability account exists/);
   assert.equal(
     await prisma.accountabilityAccount.count({ where: { userId: unrelated.id } }),
     0,
@@ -299,7 +301,7 @@ test('own accountability access follows manager assignment and receipt eligibili
   assert.equal(unrelatedLedgerPayload.summary.currentBalance, 0);
   assert.ok(unrelatedLedgerPayload.fundings.some((item) => item.fundingType === 'external_receipt'));
   assert.ok(unrelatedLedgerPayload.fundings.some((item) => item.fundingType === 'external_receipt_reversal'));
-  assert.equal(unrelatedLedgerPayload.capabilities.canCreateExpense, false);
+  assert.equal(unrelatedLedgerPayload.capabilities.canCreateExpense, true);
 
   const reviewPermission = await prisma.permission.findUniqueOrThrow({
     where: { code: 'accountability.review' },
