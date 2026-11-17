@@ -101,12 +101,6 @@
   background: var(--ui-surface);
 }
 
-.accountabilityAccountPanel :global(.stat-grid) {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 9px;
-}
-
 .accountabilityAccountPanel :global(.stat-card) {
   min-width: 0;
   border: 1px solid var(--ui-border);
@@ -245,9 +239,6 @@
     align-items: flex-start;
   }
 
-  .accountabilityAccountPanel :global(.stat-grid) {
-    grid-template-columns: minmax(0, 1fr);
-  }
 }
 
 .accountabilityWorkspace .accountabilityFileInput {

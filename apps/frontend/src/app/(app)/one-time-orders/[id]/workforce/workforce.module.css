@@ -11,7 +11,6 @@
 .toolbar,
 .orderContext,
 .sectionNav,
-.employeeButtons,
 .exportControls,
 .formActions {
   display: flex;
@@ -224,8 +223,6 @@
   box-shadow: var(--ui-focus-ring);
 }
 
-.employeeButtons { justify-content: flex-start; flex-wrap: wrap; gap: 8px; }
-
 .dateField {
   display: grid;
   gap: 6px;
@@ -302,7 +299,6 @@
   .addRow > :last-child { width: 100%; }
   .row { grid-template-columns: minmax(0, 1fr); gap: 12px; }
   .employeeActions { width: 100%; }
-  .employeeButtons > * { flex: 1 1 auto; }
   .head { align-items: flex-start; flex-direction: column; }
   .head > :last-child { align-self: flex-start; }
   .exportControls { justify-content: flex-start; }

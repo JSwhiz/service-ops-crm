@@ -385,12 +385,6 @@ a:hover {
   color: var(--ui-text-tertiary);
 }
 
-.stat-grid {
-  display: grid;
-  gap: 14px;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-}
-
 .stat-card {
   border: 1px solid var(--ui-border);
   border-radius: 16px;
