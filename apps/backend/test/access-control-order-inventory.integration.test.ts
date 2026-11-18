@@ -5,6 +5,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 
 import { PrismaClient } from '@prisma/client';
 import { InventoryService } from '../src/modules/inventory/inventory.service';
+import { PrismaService } from '../src/modules/prisma/prisma.service';
 
 import { loginAndGetCookieHeader } from './helpers/auth';
 import { createTestApp } from './helpers/create-test-app';
@@ -24,7 +25,14 @@ async function dispatchFixture(t: TestContext, options: { grant?: boolean; roleC
   const prisma = new PrismaClient();
   t.after(() => prisma.$disconnect());
   const { app, baseUrl } = await createTestApp();
-  t.after(() => app.close());
+  const appPrisma = app.get(PrismaService);
+  t.after(async () => {
+    try {
+      await app.close();
+    } finally {
+      await appPrisma.$disconnect();
+    }
+  });
   const founder = await prisma.user.findUniqueOrThrow({ where: { login: 'founder' } });
   const template = await prisma.user.findUniqueOrThrow({ where: { login: 'manager1' } });
   const role = await prisma.role.findUniqueOrThrow({ where: { code: options.roleCode ?? 'operation_manager' } });

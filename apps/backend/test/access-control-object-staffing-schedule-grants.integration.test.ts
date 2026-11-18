@@ -150,6 +150,20 @@ test('six object staffing/schedule leaves enforce real HTTP scopes, independent 
     assert.deepEqual(await capture(), before, `${method} ${path}: denied/invalid operation must have zero persisted effects`);
     assert.equal(response.status, status, text);
   };
+  // A write-only actor receives ACK; verify persisted DTOs via an existing
+  // authorized reader, without widening the writer's independent read rights.
+  const positionAsFounder = async (objectId: string, positionId: string): Promise<PositionView> => {
+    const payload = await json<{ positions: PositionView[] }>(await request(`${root(objectId)}/positions`, 'GET', undefined, true));
+    const saved = payload.positions.find(entry => entry.id === positionId);
+    assert.ok(saved, 'Committed position must exist for the authorized reader');
+    return saved;
+  };
+  const attendanceAsFounder = async (objectId: string, requestKey: string): Promise<Attendance> => {
+    const payload = await json<{ attendance: Array<Attendance & { requestKey: string }> }>(await request(`${root(objectId)}/attendance?from=${today}&to=${today}`, 'GET', undefined, true));
+    const saved = payload.attendance.find(entry => entry.requestKey === requestKey);
+    assert.ok(saved, 'Committed attendance must exist under its exact requestKey');
+    return saved;
+  };
   const audit = async (objectId: string, actionCode: string) => assert.ok(await prisma.objectAuditLog.findFirst({ where: { objectId, actorUserId: actor.id, actionCode } }), `Missing actual ${actionCode} actor audit`);
   const parentDenials = async (objectId: string, send: () => Promise<void>) => {
     for (const action of ['objects.read', 'objects.access']) {
@@ -233,7 +247,9 @@ test('six object staffing/schedule leaves enforce real HTTP scopes, independent 
     await audit(foreignA.object.id, 'scheduling_position_created');
     await denied(`${root(foreignB.object.id)}/positions`, 'POST', plan(foreignB.person.id));
     const body = { ...fields(input), expectedVersion: 1, name: 'Updated schedule, not attendance' };
-    const updated = await json<PositionView>(await request(`${path}/${created.id}`, 'PUT', body));
+    assert.deepEqual(await json(await request(`${path}/${created.id}`, 'PUT', body)), { outcome: 'saved_without_access' });
+    await denied(path); // A write grant does not fabricate actor read access.
+    const updated = await positionAsFounder(foreignA.object.id, created.id);
     assert.equal(updated.version, 2);
     assert.equal(updated.revisions.length, 2);
     assert.deepEqual(updated.revisions[0], created.revisions[0]);
@@ -244,7 +260,8 @@ test('six object staffing/schedule leaves enforce real HTTP scopes, independent 
     await revoke('objects.schedules.manage');
     await denied(`${path}/${created.id}`, 'PUT', { ...body, expectedVersion: 2 });
     await rule('objects.schedules.manage', 'allow', 'all');
-    const archived = await json<PositionView>(await request(`${path}/${created.id}`, 'DELETE', { expectedVersion: 2, effectiveFrom: today, reason: 'Archive only the plan' }));
+    assert.deepEqual(await json(await request(`${path}/${created.id}`, 'DELETE', { expectedVersion: 2, effectiveFrom: today, reason: 'Archive only the plan' })), { outcome: 'saved_without_access' });
+    const archived = await positionAsFounder(foreignA.object.id, created.id);
     assert.equal(archived.version, 3);
     assert.equal(archived.revisions.at(-1)!.archived, true);
     await audit(foreignA.object.id, 'scheduling_position_archived');
@@ -306,7 +323,9 @@ test('six object staffing/schedule leaves enforce real HTTP scopes, independent 
     await rule('objects.pay_conditions.select', 'allow', 'selected', [f.object.id]);
     await parentDenials(f.object.id, () => denied(path, 'PUT', body));
     const before = await capture();
-    const changed = await json<PositionView>(await request(path, 'PUT', body));
+    assert.deepEqual(await json(await request(path, 'PUT', body)), { outcome: 'saved_without_access' });
+    await denied(`${root(f.object.id)}/positions`);
+    const changed = await positionAsFounder(f.object.id, f.position.id);
     assert.equal(changed.revisions.at(-1)!.groups[0].timeRanges[0].contourId, ready.id);
     assert.deepEqual(changed.revisions[0], f.position.revisions[0]);
     noActualChange(before, await capture());
@@ -320,7 +339,7 @@ test('six object staffing/schedule leaves enforce real HTTP scopes, independent 
     await denied(path, 'PUT', next);
     await rule('objects.pay_conditions.select', 'allow', 'all');
     await denied(path, 'PUT', { ...fields(plan(f.person.id, foreignB.contour.id)), expectedVersion: changed.version }, 400);
-    await json(await request(path, 'PUT', next));
+    assert.deepEqual(await json(await request(path, 'PUT', next)), { outcome: 'saved_without_access' });
     await audit(f.object.id, 'scheduling_position_versioned');
     noActualChange(before, await capture());
   });
@@ -336,7 +355,9 @@ test('six object staffing/schedule leaves enforce real HTTP scopes, independent 
     await parentDenials(a.object.id, () => denied(path, 'POST', body));
     await denied(`${root(b.object.id)}/attendance/confirm`, 'POST', confirmation(b));
     const before = await capture();
-    const confirmed = await json<Attendance>(await request(path, 'POST', body), 201);
+    assert.deepEqual(await json(await request(path, 'POST', body), 201), { outcome: 'saved_without_access' });
+    await denied(`${root(a.object.id)}/attendance?from=${today}&to=${today}`);
+    const confirmed = await attendanceAsFounder(a.object.id, body.requestKey);
     const after = await capture();
     assert.equal(confirmed.employeeId, a.person.id);
     assert.equal(confirmed.status, 'confirmed');
@@ -350,7 +371,7 @@ test('six object staffing/schedule leaves enforce real HTTP scopes, independent 
     assert.deepEqual(after.positions, before.positions);
     await audit(a.object.id, 'scheduling_shift_confirmed');
     const beforeReplay = await capture();
-    assert.equal((await json<Attendance>(await request(path, 'POST', body), 201)).id, confirmed.id);
+    assert.deepEqual(await json(await request(path, 'POST', body), 201), { outcome: 'saved_without_access' });
     assert.deepEqual(await capture(), beforeReplay);
     const cancel = `${root(a.object.id)}/attendance/${confirmed.id}/cancel`;
     const cancelBody = { expectedVersion: confirmed.version, reason: 'Actual attendance cancellation' };

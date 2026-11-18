@@ -1,7 +1,7 @@
 const test=require('node:test'),assert=require('node:assert/strict'),{randomUUID,createHash}=require('node:crypto'),{createRequire}=require('node:module'),{join,dirname}=require('node:path'),fs=require('node:fs');
 const backend=process.cwd(),req=createRequire(join(backend,'package.json')),{PrismaClient}=req('@prisma/client'),{createTestApp}=req('./test/helpers/create-test-app.ts'),{FilePreviewService}=req('./src/modules/files/file-preview.service.ts'),{FilesService}=req('./src/modules/files/files.service.ts'),{RedisService}=req('./src/modules/redis/redis.service.ts'),{loadAccessSubject}=req('./src/common/access/notification-access.ts');
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
-test('own expense preview retry preserves actual legacy eligibility witnesses across source revoke',async t=>{
+test('own expense preview retry retains active-owner draft baseline across assignment revoke and honors explicit source restrictions',async t=>{
  assert.equal(process.env.TEST_ISOLATED_DATABASE,'true');const url=new URL(process.env.DATABASE_URL);assert.equal(url.hostname,'127.0.0.1');assert.match(url.searchParams.get('schema'),/^integration_\d+_\d+$/);const output=process.env.P08_RETRY_ACCOUNTABILITY_OUTPUT;assert(output);const proof={schema:url.searchParams.get('schema'),status:'running',sourceManifest:[],cases:[],limit:'Real private PostgreSQL/Redis and production FilesService call; source fixture deactivation/delete, not a new financial HTTP or upload/conversion claim.'};const persist=()=>{fs.mkdirSync(dirname(output),{recursive:true});fs.writeFileSync(output,JSON.stringify(proof,null,2)+'\n');};
  for(const relative of ['src/modules/files/files.service.ts','src/modules/files/file-preview.service.ts','src/modules/accountability/utils/accountability-access.util.ts','test/helpers/file-preview-retry-accountability-source.cjs']){const p=join(backend,relative),raw=fs.readFileSync(p),sha256=createHash('sha256').update(raw).digest('hex'),path=join(dirname(output),'source-freeze',sha256,relative);fs.mkdirSync(dirname(path),{recursive:true});fs.writeFileSync(path,raw);proof.sourceManifest.push({source:p,path,sha256});}
  const db=new PrismaClient(),{app}=await createTestApp(),preview=app.get(FilePreviewService),files=app.get(FilesService),redis=app.get(RedisService).getClient();await preview.onModuleDestroy();const originalRetry=preview.retryPreview.bind(preview),lookup=preview.getOrCreateDerivative.bind(preview);let release=()=>{};t.after(async()=>{release();preview.retryPreview=originalRetry;preview.getOrCreateDerivative=lookup;await app.close();await db.$disconnect();});
@@ -16,7 +16,38 @@ test('own expense preview retry preserves actual legacy eligibility witnesses ac
   const request=files.retryPreview(user,file.id).then(dto=>({ok:true,dto}),e=>({ok:false,status:e.getStatus?.(),message:e.message}));await Promise.race([ready,sleep(10000).then(()=>{throw Error('Source barrier missing')})]);const revoke=()=>assignment?db.oneTimeOrderAssignment.update({where:{id:assignment.id},data:{isActive:false}}):db.accountabilityFunding.delete({where:{id:funding.id}});
   let revocation;if(winner==='revoke-first'){await revoke();release();}else{let done=false;revocation=revoke().then(r=>{done=true;return r;});const until=Date.now()+10000;let blocked=[];while(Date.now()<until){blocked=await db.$queryRawUnsafe(`SELECT a.pid FROM pg_stat_activity a WHERE a.wait_event_type='Lock' AND EXISTS (SELECT 1 FROM pg_locks l JOIN pg_class c ON c.oid=l.relation JOIN pg_namespace n ON n.oid=c.relnamespace WHERE l.pid = ANY(pg_blocking_pids(a.pid)) AND n.nspname=$1)`,url.searchParams.get('schema'));if(blocked.length)break;await sleep(20);}c.actualBlocking=blocked;check('actual source revoke waits',blocked.length>0,true);check('revocation not committed while retry owns witness',done,false);release();}
   const result=await request;if(revocation)await revocation;preview.retryPreview=originalRetry;preview.getOrCreateDerivative=lookup;c.result=result;const after=await db.fileDerivative.findUniqueOrThrow({where:{id:deriv.id}}),jobs=(await redis.lRange(preview.queueName,0,-1)).map(JSON.parse).filter(j=>j.fileId===file.id);c.after=after;c.queuedJobs=jobs;
-  if(winner==='revoke-first'){check('revoked source denies old retry',result.status,403);check('derivative exactly unchanged',after,deriv);check('no queued work',jobs.length,0);}else{check('write-first retry succeeds',result.ok,true);check('one pending retry',after.status,'pending');check('one queued work',jobs.length,1);}await assert.rejects(files.getById(user,file.id),e=>e.getStatus?.()===403);c.status='passed';
+  // An unrelated assignment is no longer required for the active owner's own
+  // created draft. Preserve both real lock-order schedules without inventing a
+  // source revoke from removing this obsolete eligibility witness.
+  check('assignment removal committed',(await db.oneTimeOrderAssignment.findUniqueOrThrow({where:{id:assignment.id}})).isActive,false);
+  check('active own HR draft retains retry after assignment removal',result.ok,true);
+  check('one pending retry',after.status,'pending');
+  check('one queued work',jobs.length,1);
+  check('same own draft remains readable',(await files.getById(user,file.id)).id,file.id);
+  const denyWithoutEffects=async(label,currentUser=user)=>{
+    const before=await db.fileDerivative.findUniqueOrThrow({where:{id:deriv.id}});
+    const queuedBefore=(await redis.lRange(preview.queueName,0,-1)).map(JSON.parse).filter(j=>j.fileId===file.id);
+    await assert.rejects(files.getById(currentUser,file.id),e=>e.getStatus?.()===403,label+' read denial');
+    await assert.rejects(files.retryPreview(currentUser,file.id),e=>e.getStatus?.()===403,label+' retry denial');
+    check(label+' derivative unchanged',await db.fileDerivative.findUniqueOrThrow({where:{id:deriv.id}}),before);
+    check(label+' queue unchanged',(await redis.lRange(preview.queueName,0,-1)).map(JSON.parse).filter(j=>j.fileId===file.id),queuedBefore);
+  };
+  const sourceDeny=await db.userAccessRule.create({data:{userId:actor.id,actionCode:'accountability.read',effect:'deny',scope:'selected',selectedIds:[actor.id]}});
+  try{
+    const deniedSubject=await loadAccessSubject(db,actor.id);
+    await denyWithoutEffects('explicit own-account read deny',{...user,...deniedSubject});
+  }finally{await db.userAccessRule.delete({where:{id:sourceDeny.id}});}
+  await db.accountabilityExpense.update({where:{id:expense.id},data:{createdByUserId:founder.id}});
+  try{await denyWithoutEffects('own account but different draft author');}
+  finally{await db.accountabilityExpense.update({where:{id:expense.id},data:{createdByUserId:actor.id}});}
+  const foreignAccount=await db.accountabilityAccount.findUnique({where:{userId:founder.id}})??await db.accountabilityAccount.create({data:{userId:founder.id,status:'active'}});
+  await db.accountabilityExpense.update({where:{id:expense.id},data:{accountabilityAccountId:foreignAccount.id}});
+  try{await denyWithoutEffects('created draft in a foreign account');}
+  finally{await db.accountabilityExpense.update({where:{id:expense.id},data:{accountabilityAccountId:account.id}});}
+  check('manual source restore keeps the same own file',(await files.getById(user,file.id)).id,file.id);
+  await db.accountabilityExpense.update({where:{id:expense.id},data:{status:'submitted',submittedAt:new Date()}});
+  await denyWithoutEffects('submitted expense does not inherit own-created-draft baseline');
+  c.status='passed';
   }catch(e){c.status='failed';c.error=String(e.stack||e);throw e;}finally{release();preview.retryPreview=originalRetry;preview.getOrCreateDerivative=lookup;persist();}
  });proof.status=proof.cases.every(c=>c.status==='passed')?'passed':'failed';persist();
 });

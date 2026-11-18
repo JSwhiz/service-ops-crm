@@ -225,12 +225,21 @@ test('correction-only grants authorize a nonissuer without opening issuance or p
     for (const actionCode of ['inventory.read', 'inventory.access']) {
       await rule(actionCode, 'deny', [a.itemId]);
       try {
-        assert.equal((await view(a)).projection.canCorrectMovement, false);
+        const beforeRead = await snapshot();
+        const hidden = await json<ObjectInventory>(await request(`/objects/${a.objectId}/inventory`), 200);
+        assert.equal(hidden.capabilities.canIssueInventoryToObject, false);
+        assert.equal(hidden.movements.some(({ id }) => id === a.issueId), false,
+          'An item/root read deny hides the movement, not merely its correction action');
+        assert.equal((await view(b)).projection.canCorrectMovement, false,
+          'The selected deny must retain the readable control movement');
+        assert.deepEqual(await snapshot(), beforeRead, 'Denied-row and control reads must not create side effects');
         await denied(correctPath(a.issueId));
       } finally {
         await revoke(actionCode);
         if (actionCode === 'inventory.read') await rule('inventory.read', 'allow', itemIds);
       }
+      assert.equal((await view(a)).projection.canCorrectMovement, true,
+        'Revoking the read deny restores the original correction-only grant');
     }
     for (const actionCode of ['objects.read', 'objects.access']) {
       await rule(actionCode, 'deny', [a.objectId]);

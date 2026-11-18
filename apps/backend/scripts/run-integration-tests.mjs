@@ -24,12 +24,13 @@ const admin = new PrismaClient({ datasourceUrl: adminDatabaseUrl });
 let totalTests = 0;
 const failedFiles = [];
 
-function run(command, args, env, printOutput = true) {
+function run(command, args, env, printOutput = true, testTimeoutMs) {
   const result = spawnSync(command, args, {
     cwd: backendDirectory,
     env,
     encoding: 'utf8',
     maxBuffer: 50 * 1024 * 1024,
+    ...(testTimeoutMs === undefined ? {} : { timeout: testTimeoutMs, killSignal: 'SIGKILL' }),
   });
 
   if (printOutput || result.status !== 0) {
@@ -37,11 +38,14 @@ function run(command, args, env, printOutput = true) {
     process.stderr.write(result.stderr ?? '');
   }
 
+  if (result.error?.code === 'ETIMEDOUT') {
+    throw new Error(`Integration test watchdog expired after ${testTimeoutMs}ms: ${args.at(-1)}; killSignal=SIGKILL, signal=${result.signal ?? 'none'}; aborting suite`, { cause: result.error });
+  }
   if (result.error) {
     throw result.error;
   }
   if (result.signal) {
-    throw new Error(`${command} stopped by ${result.signal}`);
+    throw new Error(`${command} ${args.join(' ')} stopped by ${result.signal}; aborting suite`);
   }
 
   return result;
@@ -81,6 +85,8 @@ try {
         'node',
         ['-r', 'ts-node/register', '--test', testFile],
         env,
+        true,
+        600_000,
       );
       const match = testResult.stdout?.match(/^(?:ℹ|#) tests (\d+)\r?$/mu);
       totalTests += match ? Number(match[1]) : 0;

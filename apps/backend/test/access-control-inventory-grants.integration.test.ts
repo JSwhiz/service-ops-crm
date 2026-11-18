@@ -13,8 +13,9 @@ import { usesIsolatedIntegrationDatabase } from './helpers/isolated-database';
 type Scope = 'own' | 'assigned' | 'selected' | 'all';
 type Movement = { id: string; status: string };
 
-// Deliberately bounded: movement.correct, resolve_missing_photo and references.read
-// need separate lifecycle fixtures. No websocket, concurrency or delivery claims.
+// Deliberately bounded: movement.correct, movement.photos.create,
+// resolve_missing_photo and references.read need separate lifecycle/photo fixtures.
+// No websocket, concurrency or delivery claims.
 test('inventory grants preserve ledger, source boundaries and approval invariants over real HTTP', async (t) => {
   assert.equal(usesIsolatedIntegrationDatabase(), true);
   const database = new URL(process.env.DATABASE_URL!);
@@ -24,8 +25,12 @@ test('inventory grants preserve ledger, source boundaries and approval invariant
   assert.deepEqual(ACCESS_ACTION_CATALOG.filter((action) => action.module === 'inventory').map((action) => action.code).sort(), [
     'access', 'read', 'catalog.create', 'catalog.update', 'catalog.delete', 'catalog.restore',
     'movements.read', 'reports', 'receipt', 'issue_to_object', 'issue_to_one_time_order',
-    'return', 'writeoff', 'adjustment', 'movement.correct', 'resolve_missing_photo', 'references.read',
+    'return', 'writeoff', 'adjustment', 'movement.correct', 'movement.photos.create', 'resolve_missing_photo', 'references.read',
   ].map((suffix) => `inventory.${suffix}`).sort());
+  const ownPhoto = ACCESS_ACTION_CATALOG.find(action => action.code === 'inventory.movement.photos.create');
+  assert.ok(ownPhoto);
+  assert.equal(ownPhoto.manageable, true);
+  assert.deepEqual(ownPhoto.allowedScopes, ['own']);
 
   const prisma = new PrismaClient();
   let closeApp: (() => Promise<void>) | undefined = undefined;
