@@ -16,9 +16,13 @@ export interface ChatRoom {
   participantCount: number;
   capabilities: {
     canWrite: boolean;
+    canSearch: boolean;
+    canReadReceipts: boolean;
+    canForwardToRoom: boolean;
     canManage: boolean;
     canManageMembers: boolean;
     canHide: boolean;
+    canUnhide?: boolean;
     canLeave: boolean;
     canCloseGlobally: boolean;
   };
@@ -37,6 +41,10 @@ export interface ChatRoomParticipant {
   lastReadAt: string | null;
   leftAt: string | null;
   user: ChatUserSummary;
+  membershipSource?: 'automatic' | 'manual' | 'excluded';
+  automaticEligible?: boolean;
+  canRemove?: boolean;
+  canRestoreAutomatic?: boolean;
 }
 
 export interface ChatMessage {
@@ -113,3 +121,8 @@ export interface ChatMessageWindow {
   unreadMessageId: string | null;
   isLatestWindow: boolean;
 }
+
+export type ChatMembershipMutationResponse = ChatRoom | import('@/shared/api/saved-without-access').SavedWithoutAccess;
+export type ChatManagementRoom = Pick<ChatRoom, 'id' | 'title' | 'roomType' | 'visibilityType'>;
+
+export type ChatManagementRoomsPage = { items: ChatManagementRoom[]; nextCursor: string | null };

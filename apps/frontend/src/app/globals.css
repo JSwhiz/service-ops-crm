@@ -18,6 +18,13 @@ body {
   line-height: var(--ui-leading-normal);
 }
 
+/* Native modal dialogs make the background inert, but do not lock its scroll.
+   CSS follows the actual top layer, including nested and suspended dialogs. */
+html:has(dialog:modal),
+body:has(dialog:modal) {
+  overflow: hidden;
+}
+
 a {
   text-decoration: none;
 }
@@ -376,12 +383,6 @@ a:hover {
 .hero-meta {
   margin-top: 6px;
   color: var(--ui-text-tertiary);
-}
-
-.stat-grid {
-  display: grid;
-  gap: 14px;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
 }
 
 .stat-card {

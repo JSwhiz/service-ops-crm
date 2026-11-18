@@ -1,6 +1,8 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useContext, useEffect, useRef, useState } from 'react';
+import { useAccessRevision } from '@/shared/auth/use-access-revision';
+import { AccessSnapshotBlockedContext } from '@/shared/auth/access-snapshot-boundary';
 import { cancelScheduledShift, confirmScheduledShift, getShiftAttendance, getStaffingPositions, previewSchedule } from '@/entities/object/api/object-scheduling-client';
 import type { ExpectedShift, SchedulePreview, ShiftAttendance } from '@/entities/object/model/object-scheduling.types';
 import { Alert, Button, EmptyState, Field, LoadingState, Surface } from '@/shared/ui/foundation';
@@ -15,6 +17,8 @@ import type { AdjustmentKind, CompensationMutationResult, ObjectCompensation } f
 import type { ObjectEmployeeOption } from '@/entities/object/model/object.types';
 import { CompensationAdjustmentDialog } from '@/features/object-compensation/ui/compensation-adjustment-dialog';
 import { OverflowMenu } from '@/shared/ui/overflow-menu/overflow-menu';
+import { getAccessGeneration, getAccessSessionGeneration, isAccessGenerationCurrent } from '@/shared/auth/access-generation';
+import { isSavedWithoutAccess } from '@/shared/api/saved-without-access';
 
 function eventKey(shift: ExpectedShift): string {
   return [shift.positionId, shift.revisionId, shift.groupKey, shift.timeRangeKey, shift.employeeId, shift.operationDate].join(':');
@@ -22,9 +26,13 @@ function eventKey(shift: ExpectedShift): string {
 const ignoreDayState = (): void => {};
 const ignoreChange = async (): Promise<void> => {};
 
-export function TodayShiftsPanel({ objectId, employees, onChanged = ignoreChange, onDayStateChange = ignoreDayState }: {
+export function TodayShiftsPanel({ objectId, employees, onChanged = ignoreChange, onDayStateChange = ignoreDayState, onSavedWithoutAccess }: {
   objectId: string; employees: ObjectEmployeeOption[]; onChanged?: () => Promise<void>; onDayStateChange?: (state: ShiftDayState) => void;
+  onSavedWithoutAccess?: () => void;
 }): React.JSX.Element {
+  const accessRevision = useAccessRevision();
+  const ancestorBlocked = useContext(AccessSnapshotBlockedContext);
+  const [loadedAccessRevision, setLoadedAccessRevision] = useState<string | null>(null);
   const [preview, setPreview] = useState<SchedulePreview | null>(null);
   const [facts, setFacts] = useState<ShiftAttendance[]>([]);
   const [canConfirm, setCanConfirm] = useState(false);
@@ -44,6 +52,8 @@ export function TodayShiftsPanel({ objectId, employees, onChanged = ignoreChange
   const [substitutionId, setSubstitutionId] = useState('');
   const [confirmDiscard, discardDialog] = useConfirm();
   const requests = useRef(new Map<string, string>());
+  const mounted = useRef(false);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const names = new Map(employees.map((employee) => [employee.id, employee.fullName]));
   const closeReplacement = async (): Promise<void> => {
     if (pending) return;
@@ -70,9 +80,14 @@ export function TodayShiftsPanel({ objectId, employees, onChanged = ignoreChange
       const failed = [positions, planned, confirmed].find((item) => item.status === 'rejected');
       if (failed?.status === 'rejected') setError(getErrorMessage(failed.reason, 'Не удалось загрузить смены.'));
       setLoading(false);
+      setLoadedAccessRevision(accessRevision);
     });
     return () => { active = false; };
-  }, [objectId, refresh]);
+  }, [objectId, refresh, accessRevision]);
+  const adjustmentAccessReason = ancestorBlocked || loading || loadedAccessRevision !== accessRevision
+    ? 'Проверяем доступ. Черновик сохранён; отправка временно заблокирована.'
+    : compensationError || error || (adjustment && !(adjustment.kind === 'extra_work' ? compensation?.requestExtraWork : compensation?.requestAdjustment)
+      ? 'Право изменять начисления недоступно. Черновик сохранён; отправка заблокирована до возврата права.' : null);
   useEffect(() => {
     const confirmedEmployeeIds = confirmedShiftEmployeeIds(facts, moscowToday());
     onDayStateChange({ checked: factsChecked, pending: loading || !!pending, owned: confirmedEmployeeIds.length > 0, confirmedEmployeeIds });
@@ -82,9 +97,14 @@ export function TodayShiftsPanel({ objectId, employees, onChanged = ignoreChange
     const key = `${eventKey(shift)}${replacement ? `:${replacement.substitutionId}` : ''}`;
     const requestKey = requests.current.get(key) ?? crypto.randomUUID();
     requests.current.set(key, requestKey);
+    const session = getAccessSessionGeneration();
+    const generation = getAccessGeneration();
     setPending(key); setError(null);
     try {
       const saved = await confirmScheduledShift(objectId, shift, requestKey, replacement);
+      if (getAccessSessionGeneration() !== session) return;
+      if (isSavedWithoutAccess(saved)) { onSavedWithoutAccess?.(); return; }
+      if (!mounted.current || !isAccessGenerationCurrent(generation)) { onSavedWithoutAccess?.(); return; }
       if ('adjustmentId' in saved) { setResult(saved); setReplacementShift(null); return; }
       setFacts((previous) => [...previous.filter((fact) => fact.id !== saved.id), saved]);
       setReplacementShift(null);
@@ -170,6 +190,6 @@ export function TodayShiftsPanel({ objectId, employees, onChanged = ignoreChange
         {error ? <Alert tone="danger">{error}</Alert> : null}
       </div> : null}
     </Dialog>
-    {adjustment ? <CompensationAdjustmentDialog objectId={objectId} kind={adjustment.kind} initialFact={adjustment.fact} employees={employees} onClose={() => setAdjustment(null)} onSaved={(saved) => { setAdjustment(null); setResult(saved); setRefresh((value) => value + 1); void onChanged().catch(() => setError('Изменение записано, но сведения объекта не обновлены. Обновите данные.')); }} /> : null}
+    {adjustment ? <CompensationAdjustmentDialog objectId={objectId} kind={adjustment.kind} initialFact={adjustment.fact} employees={employees} accessReason={adjustmentAccessReason} onClose={() => setAdjustment(null)} onSaved={(saved) => { setAdjustment(null); setResult(saved); setRefresh((value) => value + 1); void onChanged().catch(() => setError('Изменение записано, но сведения объекта не обновлены. Обновите данные.')); }} /> : null}
   </Surface>;
 }

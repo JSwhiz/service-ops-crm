@@ -87,6 +87,7 @@ export class TaskResponseDto {
     canEdit: boolean;
     canManageAssignees: boolean;
     canCompleteMyAssignment: boolean;
+    canCreateCompletionDraft?: boolean;
     canUndoMyCompletion: boolean;
     canConfirm: boolean;
     canCompleteNow: boolean;
@@ -96,6 +97,8 @@ export class TaskResponseDto {
     canViewHistory: boolean;
   };
 }
+
+export type TaskMutationResponse = TaskResponseDto | { outcome: 'saved_without_access' };
 
 export class TaskListResponseDto {
   items!: TaskResponseDto[];

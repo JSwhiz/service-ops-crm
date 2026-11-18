@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useId, useRef, useState } from 'react';
 
-import { usePopoverPlacement } from './use-popover-placement';
+import { useFloatingPosition } from '../overlays/use-floating-position';
 import { handleSelectEscape } from './select-escape';
 import styles from './searchable-select.module.css';
 
@@ -64,6 +64,7 @@ export function SearchableSelect({
   searchInputVariant = 'default',
   triggerProps,
 }: SearchableSelectProps): React.JSX.Element {
+  const labelId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
@@ -78,10 +79,11 @@ export function SearchableSelect({
   const [asyncOptions, setAsyncOptions] = useState(options);
   const [isAsyncLoading, setIsAsyncLoading] = useState(false);
   const [asyncError, setAsyncError] = useState(false);
-  const { placement, availableHeight } = usePopoverPlacement(
+  const popoverPosition = useFloatingPosition(
     isOpen && viewportAware,
     triggerRef,
     popoverRef,
+    true,
   );
 
   optionsRef.current = options;
@@ -187,18 +189,20 @@ export function SearchableSelect({
   const choose = (nextValue: string): void => {
     onChange(nextValue);
     setIsOpen(false);
+    triggerRef.current?.focus({ preventScroll: true });
   };
 
   return (
     <div className="searchable-select" ref={rootRef}
       onKeyDown={(event) => handleSelectEscape(event, isOpen, () => setIsOpen(false), () => triggerRef.current?.focus({ preventScroll: true }))}>
-      {hideLabel ? null : <span className="ui-detail-label">{label}</span>}
+      {hideLabel ? null : <span id={labelId} className="ui-detail-label">{label}</span>}
       <button
         {...triggerProps}
         ref={triggerRef}
         type="button"
         className={`searchable-select__trigger ${styles.wrappingTrigger}`}
         aria-label={hideLabel && label ? label : undefined}
+        aria-labelledby={triggerProps?.['aria-labelledby'] ?? (!hideLabel ? labelId : undefined)}
         aria-haspopup="listbox"
         aria-expanded={isOpen}
         aria-required={required || undefined}
@@ -215,9 +219,16 @@ export function SearchableSelect({
       {isOpen ? (
         <div
           ref={popoverRef}
-          className="searchable-select__popover"
-          data-placement={viewportAware ? placement : undefined}
-          style={viewportAware ? { '--anchored-popover-max-height': `${availableHeight}px` } as React.CSSProperties : undefined}
+          className={`searchable-select__popover${viewportAware ? ` ${styles.floatingPopover}` : ''}`}
+          popover={viewportAware ? 'manual' : undefined}
+          data-placement={viewportAware ? (popoverPosition?.placement === 'above' ? 'top' : 'bottom') : undefined}
+          style={viewportAware ? {
+            left: popoverPosition?.left,
+            top: popoverPosition?.top,
+            bottom: 'auto',
+            '--anchored-popover-max-height': `${Math.min(340, popoverPosition?.maxHeight ?? 340)}px`,
+            visibility: popoverPosition ? 'visible' : 'hidden',
+          } as React.CSSProperties : undefined}
         >
           {searchable ? (
             <input

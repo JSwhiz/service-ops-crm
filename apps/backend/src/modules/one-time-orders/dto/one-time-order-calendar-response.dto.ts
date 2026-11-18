@@ -1,4 +1,17 @@
+import type { ManagerAvailabilityCapabilities } from '../utils/one-time-manager-availability-capabilities.util';
+
+export interface CalendarManagerCapabilities {
+  canRequestOwnAvailability: boolean;
+  canCreateAvailability: boolean;
+  canExport: boolean;
+}
+
 export class OneTimeOrderCalendarResponseDto {
+  capabilities!: { canExport: boolean; canRequestOwnAvailability: boolean };
+  availabilityTargets!: Array<{
+    user: { id: string; login: string; fullName: string };
+    capabilities: CalendarManagerCapabilities;
+  }>;
   month!: string;
   daysInMonth!: number;
   managers!: Array<{
@@ -8,6 +21,7 @@ export class OneTimeOrderCalendarResponseDto {
       fullName: string;
     };
     isActive: boolean;
+    capabilities: CalendarManagerCapabilities;
     workedDays: number;
     orderCount: number;
     completedOrderCount: number;
@@ -27,6 +41,7 @@ export class OneTimeOrderCalendarResponseDto {
 }
 
 export interface CalendarAvailabilityDto {
+  capabilities: ManagerAvailabilityCapabilities;
   id: string;
   entryType: string;
   startDate: string;

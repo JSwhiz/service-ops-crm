@@ -2,10 +2,11 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import React, { useEffect, useId, useRef, useState } from 'react';
+import React, { useContext, useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 import { cn } from '@/shared/lib/cn';
+import { AccessSnapshotBlockedContext } from '@/shared/auth/access-snapshot-boundary';
 
 interface NavLinkProps {
   href: string;
@@ -28,6 +29,9 @@ export function NavLink({
   className,
 }: NavLinkProps): React.JSX.Element {
   const pathname = usePathname();
+  const blocked = useContext(AccessSnapshotBlockedContext);
+  const blockedRef = useRef(blocked);
+  blockedRef.current = blocked;
   const linkRef = useRef<HTMLAnchorElement>(null);
   const tooltipTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tooltipId = useId();
@@ -42,6 +46,7 @@ export function NavLink({
   };
 
   const showCollapsedTooltip = (): void => {
+    if (blockedRef.current) return;
     const link = linkRef.current;
     if (!link) return;
 
@@ -54,6 +59,7 @@ export function NavLink({
 
     clearTooltipTimer();
     tooltipTimerRef.current = setTimeout(() => {
+      if (blockedRef.current) { tooltipTimerRef.current = null; return; }
       const currentLink = linkRef.current;
       if (!currentLink) return;
       const rect = currentLink.getBoundingClientRect();
@@ -71,6 +77,9 @@ export function NavLink({
   };
 
   useEffect(() => () => clearTooltipTimer(), []);
+  useEffect(() => {
+    if (blocked) { clearTooltipTimer(); setTooltipPosition(null); }
+  }, [blocked]);
 
   return (
     <>
@@ -79,7 +88,7 @@ export function NavLink({
         href={href}
         aria-label={label}
         aria-current={isActive ? 'page' : undefined}
-        aria-describedby={tooltipPosition ? tooltipId : undefined}
+        aria-describedby={tooltipPosition && !blocked ? tooltipId : undefined}
         className={cn(
           'app-sidebar__link',
           className,
@@ -94,7 +103,7 @@ export function NavLink({
         <span className="app-sidebar__link-label">{label}</span>
       </Link>
 
-      {tooltipPosition && typeof document !== 'undefined'
+      {tooltipPosition && !blocked && typeof document !== 'undefined'
         ? createPortal(
             <span
               id={tooltipId}

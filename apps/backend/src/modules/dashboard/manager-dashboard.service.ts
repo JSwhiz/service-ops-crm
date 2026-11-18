@@ -1,14 +1,28 @@
-import { ForbiddenException, Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Injectable } from "@nestjs/common";
+import { Prisma } from "@prisma/client";
 
-import { ObjectResponseDto } from '../objects/dto/object-response.dto';
-import { ObjectsService } from '../objects/objects.service';
-import { OneTimeOrdersService } from '../one-time-orders/one-time-orders.service';
-import { PrismaService } from '../prisma/prisma.service';
-import { TaskListResponseDto, TaskResponseDto } from '../tasks/dto/task-response.dto';
-import { TasksService } from '../tasks/tasks.service';
+import { ObjectResponseDto } from "../objects/dto/object-response.dto";
+import { ObjectsService } from "../objects/objects.service";
+import { OneTimeOrdersService } from "../one-time-orders/one-time-orders.service";
+import { buildOneTimeOrderAccessWhere } from "../one-time-orders/utils/one-time-order-access.util";
+import { PrismaService } from "../prisma/prisma.service";
+import {
+  TaskListResponseDto,
+  TaskResponseDto,
+} from "../tasks/dto/task-response.dto";
+import { TasksService } from "../tasks/tasks.service";
 
-interface CurrentAuthUser {
+import type { AccessSubject } from "../users-access/types/access-policy.type";
+import {
+  assertDashboardAccess,
+  dashboardObjectIds,
+  dashboardObjectWhere,
+  dashboardObjectStaffing,
+  dashboardOrderIds,
+  dashboardSection,
+} from "./dashboard-access.util";
+
+interface CurrentAuthUser extends AccessSubject {
   id: string;
   login: string;
   fullName: string;
@@ -18,19 +32,23 @@ interface CurrentAuthUser {
   isActive: boolean;
 }
 
-type ScopeMode = 'regular' | 'one_time' | 'hybrid' | 'empty';
+type ScopeMode = "regular" | "one_time" | "hybrid" | "empty";
 type ManagerIssue =
-  | 'object_no_employees'
-  | 'object_attendance_missing'
-  | 'object_daily_report_missing'
-  | 'order_no_employees'
-  | 'order_attendance_missing'
-  | 'order_daily_report_missing';
+  | "object_no_employees"
+  | "object_attendance_missing"
+  | "object_daily_report_missing"
+  | "order_no_employees"
+  | "order_attendance_missing"
+  | "order_daily_report_missing";
 
 export interface ManagerDashboardResponse {
   generatedAt: string;
-  timeZone: 'Europe/Moscow';
-  scope: { mode: ScopeMode; regularAssignments: number; oneTimeAssignments: number };
+  timeZone: "Europe/Moscow";
+  scope: {
+    mode: ScopeMode;
+    regularAssignments: number;
+    oneTimeAssignments: number;
+  };
   today: {
     regularObjects: number;
     oneTimeOrders: number;
@@ -43,11 +61,11 @@ export interface ManagerDashboardResponse {
     total: number;
     items: Array<{
       id: string;
-      kind: 'scope_issue' | 'task';
+      kind: "scope_issue" | "task";
       issueCode?: ManagerIssue;
       entityId?: string;
       badge: string;
-      tone: 'danger' | 'warning' | 'neutral';
+      tone: "danger" | "warning" | "neutral";
       title: string;
       subtitle: string;
       meta: string;
@@ -81,7 +99,11 @@ export interface ManagerDashboardResponse {
   tasks: { totalRelevant: number; items: TaskResponseDto[] };
 }
 
-const MANAGER_ROLES = new Set(['manager', 'senior_manager', 'operation_manager']);
+const MANAGER_ROLES = new Set([
+  "manager",
+  "senior_manager",
+  "operation_manager",
+]);
 const PREVIEW_LIMIT = 5;
 
 function roleCodes(user: CurrentAuthUser): string[] {
@@ -89,17 +111,23 @@ function roleCodes(user: CurrentAuthUser): string[] {
 }
 
 function clock(now = new Date()) {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Europe/Moscow', year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', hour12: false,
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Moscow",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
   }).formatToParts(now);
-  const value = (type: string): string => parts.find((item) => item.type === type)?.value ?? '0';
-  const year = Number(value('year'));
-  const month = Number(value('month'));
-  const day = Number(value('day'));
+  const value = (type: string): string =>
+    parts.find((item) => item.type === type)?.value ?? "0";
+  const year = Number(value("year"));
+  const month = Number(value("month"));
+  const day = Number(value("day"));
   return {
-    date: `${value('year')}-${value('month')}-${value('day')}`,
-    minutes: Number(value('hour')) * 60 + Number(value('minute')),
+    date: `${value("year")}-${value("month")}-${value("day")}`,
+    minutes: Number(value("hour")) * 60 + Number(value("minute")),
     dayStartUtc: new Date(Date.UTC(year, month - 1, day, -3, 0, 0)),
   };
 }
@@ -119,7 +147,10 @@ function orderRunsToday(
 }
 
 function isMine(task: TaskResponseDto, userId: string): boolean {
-  return Boolean(task.myAssignment || task.assignees.some((item) => item.id === userId && item.isActive));
+  return Boolean(
+    task.myAssignment ||
+    task.assignees.some((item) => item.id === userId && item.isActive),
+  );
 }
 
 @Injectable()
@@ -132,51 +163,112 @@ export class ManagerDashboardService {
   ) {}
 
   async getDashboard(user: CurrentAuthUser): Promise<ManagerDashboardResponse> {
-    if (!roleCodes(user).some((role) => MANAGER_ROLES.has(role))) {
-      throw new ForbiddenException('Manager dashboard is not available for this role');
-    }
+    assertDashboardAccess(
+      user,
+      "manager",
+      roleCodes(user).some((role) => MANAGER_ROLES.has(role)),
+    );
 
     const now = clock();
-    const [regularAssignments, oneTimeAssignments, objectsResult, tasksResult, ordersResult] = await Promise.all([
-      this.prisma.objectAssignment.count({ where: { userId: user.id, isActive: true } }),
+    const [
+      regularAssignments,
+      oneTimeAssignments,
+      objectsResult,
+      tasksResult,
+      ordersResult,
+    ] = await Promise.all([
+      this.prisma.objectAssignment.count({
+        where: {
+          userId: user.id,
+          isActive: true,
+          object: dashboardObjectWhere(user),
+        },
+      }),
       this.prisma.oneTimeOrderAssignment.count({
-        where: { userId: user.id, assignmentRoleCode: 'one_time_manager', isActive: true },
+        where: {
+          userId: user.id,
+          assignmentRoleCode: "one_time_manager",
+          isActive: true,
+          oneTimeOrder: buildOneTimeOrderAccessWhere({
+            subject: user,
+            currentUserId: user.id,
+            roleCodes: roleCodes(user),
+            permissionCodes: user.permissionCodes,
+          }),
+        },
       }),
-      this.objectsService.listObjects(user, { status: 'active' }),
-      this.tasksService.listTasks(user, { page: 1, limit: 100, sortBy: 'dueAt', sortDirection: 'asc' }),
-      this.oneTimeOrdersService.listOrders(user, {
-        page: 1,
-        limit: 100,
-        managerUserId: user.id,
-        sortBy: 'executionStartDate',
-        sortDirection: 'asc',
-      }),
+      dashboardSection(
+        () => this.objectsService.listObjects(user, { status: "active" }),
+        [],
+      ),
+      dashboardSection(
+        () =>
+          this.tasksService.listTasks(user, {
+            page: 1,
+            limit: 100,
+            sortBy: "dueAt",
+            sortDirection: "asc",
+          }),
+        [],
+      ),
+      dashboardSection(
+        () =>
+          this.oneTimeOrdersService.listOrders(user, {
+            page: 1,
+            limit: 100,
+            managerUserId: user.id,
+            sortBy: "executionStartDate",
+            sortDirection: "asc",
+          }),
+        { items: [], total: 0, page: 1, limit: 100, totalPages: 0 },
+      ),
     ]);
 
-    const objects: ObjectResponseDto[] = Array.isArray(objectsResult) ? objectsResult : objectsResult.items;
-    const tasks = Array.isArray(tasksResult) ? tasksResult : (tasksResult as TaskListResponseDto).items;
-    const openOrders = ordersResult.items.filter((order) => !['completed', 'cancelled'].includes(order.status));
-    const todayOrders = openOrders.filter((order) => orderRunsToday(order, now.date));
-    const [objectSignals, orderSignals] = await Promise.all([
-      this.loadObjectSignals(objects, now),
-      this.loadOrderSignals(todayOrders.map((order) => order.id), now),
+    const objects: ObjectResponseDto[] = Array.isArray(objectsResult)
+      ? objectsResult
+      : objectsResult.items;
+    const tasks = Array.isArray(tasksResult)
+      ? tasksResult
+      : (tasksResult as TaskListResponseDto).items;
+    const openOrders = ordersResult.items.filter(
+      (order) => !["completed", "cancelled"].includes(order.status),
+    );
+    const todayOrders = openOrders.filter((order) =>
+      orderRunsToday(order, now.date),
+    );
+    const [objectSignals, orderSignals, staffing] = await Promise.all([
+      this.loadObjectSignals(objects, now, user),
+      this.loadOrderSignals(
+        todayOrders.map((order) => order.id),
+        now,
+        user,
+      ),
+      dashboardObjectStaffing(this.prisma, user, objects),
     ]);
 
     const mappedObjects = objects.map((object) => {
       const signal = objectSignals.get(object.id);
       const issues: ManagerIssue[] = [];
-      if (object.employees.length === 0) issues.push('object_no_employees');
-      if (signal?.attendanceMissing) issues.push('object_attendance_missing');
-      if (signal?.dailyReportMissing) issues.push('object_daily_report_missing');
-      return { id: object.id, name: object.name, address: object.address, employeeCount: object.employees.length, issues };
+      if (staffing.allowed.has(object.id) && !staffing.counts.get(object.id))
+        issues.push("object_no_employees");
+      if (signal?.attendanceMissing) issues.push("object_attendance_missing");
+      if (signal?.dailyReportMissing)
+        issues.push("object_daily_report_missing");
+      return {
+        id: object.id,
+        name: object.name,
+        address: object.address,
+        employeeCount: staffing.counts.get(object.id) ?? 0,
+        issues,
+      };
     });
 
     const mappedOrders = openOrders.map((order) => {
       const signal = orderSignals.get(order.id);
       const issues: ManagerIssue[] = [];
-      if (signal?.noEmployees) issues.push('order_no_employees');
-      if (signal?.attendanceMissing) issues.push('order_attendance_missing');
-      if (signal?.dailyReportMissing) issues.push('order_daily_report_missing');
+      if (signal?.noEmployees) issues.push("order_no_employees");
+      if (signal?.attendanceMissing) issues.push("order_attendance_missing");
+      if (signal?.dailyReportMissing) issues.push("order_daily_report_missing");
       return {
         id: order.id,
         title: order.title,
@@ -190,105 +282,155 @@ export class ManagerDashboardService {
     });
 
     const relevantTasks = [...tasks]
-      .filter((task) => !['completed', 'cancelled'].includes(task.status))
+      .filter((task) => !["completed", "cancelled"].includes(task.status))
       .filter((task) => isMine(task, user.id) || task.isOverdue)
       .sort((a, b) => {
         const rank = (task: TaskResponseDto): number => {
           if (isMine(task, user.id) && task.isOverdue) return 0;
-          if (isMine(task, user.id) && dateKey(task.dueAt) === now.date) return 1;
+          if (isMine(task, user.id) && dateKey(task.dueAt) === now.date)
+            return 1;
           if (isMine(task, user.id) && task.dueAt) return 2;
           if (isMine(task, user.id)) return 3;
           return 4;
         };
-        return rank(a) - rank(b) || (a.dueAt ?? '9999').localeCompare(b.dueAt ?? '9999');
+        return (
+          rank(a) - rank(b) ||
+          (a.dueAt ?? "9999").localeCompare(b.dueAt ?? "9999")
+        );
       });
 
-    const attention: ManagerDashboardResponse['attention']['items'] = [];
+    const attention: ManagerDashboardResponse["attention"]["items"] = [];
     for (const item of [...mappedObjects, ...mappedOrders]) {
       for (const issue of item.issues) {
-        const isOrder = issue.startsWith('order_');
+        const isOrder = issue.startsWith("order_");
         attention.push({
           id: `${issue}-${item.id}`,
-          kind: 'scope_issue',
+          kind: "scope_issue",
           issueCode: issue,
           entityId: item.id,
-          badge: issue.includes('attendance') ? 'Отметка' : issue.includes('report') ? 'Отчёт' : 'Люди',
-          tone: 'warning',
-          title: issue.includes('attendance') ? 'Нет отметки присутствия' : issue.includes('report') ? 'Нет дневного отчёта' : 'Нет сотрудников',
-          subtitle: 'name' in item ? item.name : item.title,
-          meta: isOrder ? 'Разовый заказ' : 'Объект',
+          badge: issue.includes("attendance")
+            ? "Отметка"
+            : issue.includes("report")
+              ? "Отчёт"
+              : "Люди",
+          tone: "warning",
+          title: issue.includes("attendance")
+            ? "Нет отметки присутствия"
+            : issue.includes("report")
+              ? "Нет дневного отчёта"
+              : "Нет сотрудников",
+          subtitle: "name" in item ? item.name : item.title,
+          meta: isOrder ? "Разовый заказ" : "Объект",
         });
       }
     }
     for (const task of relevantTasks.filter((item) => item.isOverdue)) {
       attention.push({
         id: `task-${task.id}`,
-        kind: 'task',
+        kind: "task",
         taskId: task.id,
-        badge: 'Просрочено',
-        tone: 'danger',
+        badge: "Просрочено",
+        tone: "danger",
         title: task.title,
-        subtitle: task.targetName || 'Без привязки',
-        meta: 'Задача',
+        subtitle: task.targetName || "Без привязки",
+        meta: "Задача",
       });
     }
 
-    const scopeMode: ScopeMode = regularAssignments > 0 && oneTimeAssignments > 0
-      ? 'hybrid'
-      : regularAssignments > 0
-        ? 'regular'
-        : oneTimeAssignments > 0
-          ? 'one_time'
-          : 'empty';
-    const uniqueEmployees = new Set(objects.flatMap((object) => object.employees.map((employee) => employee.id)));
+    const scopeMode: ScopeMode =
+      regularAssignments > 0 && oneTimeAssignments > 0
+        ? "hybrid"
+        : regularAssignments > 0
+          ? "regular"
+          : oneTimeAssignments > 0
+            ? "one_time"
+            : "empty";
+    const uniqueEmployees = staffing.employeeIds;
 
     return {
       generatedAt: new Date().toISOString(),
-      timeZone: 'Europe/Moscow',
+      timeZone: "Europe/Moscow",
       scope: { mode: scopeMode, regularAssignments, oneTimeAssignments },
       today: {
         regularObjects: objects.length,
         oneTimeOrders: todayOrders.length,
         employeesOnRegularObjects: uniqueEmployees.size,
-        regularAttendanceMissing: mappedObjects.filter((item) => item.issues.includes('object_attendance_missing')).length,
-        oneTimeAttendanceMissing: mappedOrders.filter((item) => item.issues.includes('order_attendance_missing')).length,
-        myTasksToday: relevantTasks.filter((task) => isMine(task, user.id) && dateKey(task.dueAt) === now.date).length,
+        regularAttendanceMissing: mappedObjects.filter((item) =>
+          item.issues.includes("object_attendance_missing"),
+        ).length,
+        oneTimeAttendanceMissing: mappedOrders.filter((item) =>
+          item.issues.includes("order_attendance_missing"),
+        ).length,
+        myTasksToday: relevantTasks.filter(
+          (task) => isMine(task, user.id) && dateKey(task.dueAt) === now.date,
+        ).length,
       },
-      attention: { total: attention.length, items: attention.slice(0, PREVIEW_LIMIT) },
+      attention: {
+        total: attention.length,
+        items: attention.slice(0, PREVIEW_LIMIT),
+      },
       objects: {
         total: mappedObjects.length,
-        items: [...mappedObjects.filter((item) => item.issues.length), ...mappedObjects.filter((item) => !item.issues.length)].slice(0, PREVIEW_LIMIT),
+        items: [
+          ...mappedObjects.filter((item) => item.issues.length),
+          ...mappedObjects.filter((item) => !item.issues.length),
+        ].slice(0, PREVIEW_LIMIT),
       },
       orders: {
         total: mappedOrders.length,
         today: todayOrders.length,
-        items: [...mappedOrders.filter((item) => item.issues.length), ...mappedOrders.filter((item) => !item.issues.length)].slice(0, PREVIEW_LIMIT),
+        items: [
+          ...mappedOrders.filter((item) => item.issues.length),
+          ...mappedOrders.filter((item) => !item.issues.length),
+        ].slice(0, PREVIEW_LIMIT),
       },
-      tasks: { totalRelevant: relevantTasks.length, items: relevantTasks.slice(0, PREVIEW_LIMIT) },
+      tasks: {
+        totalRelevant: relevantTasks.length,
+        items: relevantTasks.slice(0, PREVIEW_LIMIT),
+      },
     };
   }
 
   private async loadObjectSignals(
     objects: ObjectResponseDto[],
     now: ReturnType<typeof clock>,
-  ): Promise<Map<string, { attendanceMissing: boolean; dailyReportMissing: boolean }>> {
-    const result = new Map<string, { attendanceMissing: boolean; dailyReportMissing: boolean }>();
+    user: CurrentAuthUser,
+  ): Promise<
+    Map<string, { attendanceMissing: boolean; dailyReportMissing: boolean }>
+  > {
+    const result = new Map<
+      string,
+      { attendanceMissing: boolean; dailyReportMissing: boolean }
+    >();
     const ids = objects.map((object) => object.id);
     if (!ids.length) return result;
+    const [attendanceAllowed, reportsAllowed] = await Promise.all([
+      dashboardObjectIds(this.prisma, user, ids, "objects.attendance.read"),
+      dashboardObjectIds(this.prisma, user, ids, "objects.reports.read"),
+    ]);
     const attendanceRequired = now.minutes >= 8 * 60 + 30;
     const reportRequired = now.minutes >= 17 * 60;
     const nextDayStartUtc = new Date(now.dayStartUtc.getTime() + 86_400_000);
     const [submissions, reports] = await Promise.all([
       attendanceRequired
         ? this.prisma.objectAuditLog.findMany({
-            where: { objectId: { in: ids }, actionCode: 'attendance.submitted', createdAt: { gte: now.dayStartUtc, lt: nextDayStartUtc } },
+            where: {
+              objectId: { in: ids },
+              object: dashboardObjectWhere(user, "objects.attendance.read"),
+              actionCode: "attendance.submitted",
+              createdAt: { gte: now.dayStartUtc, lt: nextDayStartUtc },
+            },
             select: { objectId: true },
-            distinct: ['objectId'],
+            distinct: ["objectId"],
           })
         : Promise.resolve([]),
       reportRequired
         ? this.prisma.objectDailyReport.findMany({
-            where: { objectId: { in: ids }, reportDate: new Date(`${now.date}T00:00:00.000Z`) },
+            where: {
+              objectId: { in: ids },
+              object: dashboardObjectWhere(user, "objects.reports.read"),
+              reportDate: new Date(`${now.date}T00:00:00.000Z`),
+            },
             select: { objectId: true },
           })
         : Promise.resolve([]),
@@ -297,8 +439,14 @@ export class ManagerDashboardService {
     const reported = new Set(reports.map((item) => item.objectId));
     for (const object of objects) {
       result.set(object.id, {
-        attendanceMissing: attendanceRequired && !submitted.has(object.id),
-        dailyReportMissing: reportRequired && !reported.has(object.id),
+        attendanceMissing:
+          attendanceAllowed.has(object.id) &&
+          attendanceRequired &&
+          !submitted.has(object.id),
+        dailyReportMissing:
+          reportsAllowed.has(object.id) &&
+          reportRequired &&
+          !reported.has(object.id),
       });
     }
     return result;
@@ -307,8 +455,27 @@ export class ManagerDashboardService {
   private async loadOrderSignals(
     orderIds: string[],
     now: ReturnType<typeof clock>,
-  ): Promise<Map<string, { employeeCount: number; noEmployees: boolean; attendanceMissing: boolean; dailyReportMissing: boolean }>> {
-    const result = new Map<string, { employeeCount: number; noEmployees: boolean; attendanceMissing: boolean; dailyReportMissing: boolean }>();
+    user: CurrentAuthUser,
+  ): Promise<
+    Map<
+      string,
+      {
+        employeeCount: number;
+        noEmployees: boolean;
+        attendanceMissing: boolean;
+        dailyReportMissing: boolean;
+      }
+    >
+  > {
+    const result = new Map<
+      string,
+      {
+        employeeCount: number;
+        noEmployees: boolean;
+        attendanceMissing: boolean;
+        dailyReportMissing: boolean;
+      }
+    >();
     if (!orderIds.length) return result;
     const cycles = await this.prisma.oneTimeOrder.findMany({
       where: { id: { in: orderIds } },
@@ -316,37 +483,81 @@ export class ManagerDashboardService {
     });
     const attendanceRequired = now.minutes >= 8 * 60 + 30;
     const reportRequired = now.minutes >= 17 * 60;
-    const staffing = await this.prisma.$queryRaw<Array<{ oneTimeOrderId: string; workCycle: number; count: bigint }>>(Prisma.sql`
+    const [staffingAllowed, attendanceAllowed, reportsAllowed] =
+      await Promise.all([
+        dashboardOrderIds(
+          this.prisma,
+          user,
+          orderIds,
+          "one_time_orders.employees.read",
+        ),
+        dashboardOrderIds(
+          this.prisma,
+          user,
+          orderIds,
+          "one_time_orders.attendance.read",
+        ),
+        dashboardOrderIds(
+          this.prisma,
+          user,
+          orderIds,
+          "one_time_orders.reports.read",
+        ),
+      ]);
+    const staffing = staffingAllowed.size
+      ? await this.prisma.$queryRaw<
+          Array<{ oneTimeOrderId: string; workCycle: number; count: bigint }>
+        >(Prisma.sql`
       SELECT "oneTimeOrderId", "workCycle", COUNT(*)::bigint AS "count"
       FROM "one_time_order_employee_assignments"
-      WHERE "oneTimeOrderId" IN (${Prisma.join(orderIds)}) AND "isActive" = true
+      WHERE "oneTimeOrderId" IN (${Prisma.join([...staffingAllowed])}) AND "isActive" = true
       GROUP BY "oneTimeOrderId", "workCycle"
-    `);
-    const submissions = attendanceRequired
-      ? await this.prisma.$queryRaw<Array<{ oneTimeOrderId: string; workCycle: number }>>(Prisma.sql`
+    `)
+      : [];
+    const submissions =
+      attendanceRequired && attendanceAllowed.size
+        ? await this.prisma.$queryRaw<
+            Array<{ oneTimeOrderId: string; workCycle: number }>
+          >(Prisma.sql`
           SELECT "oneTimeOrderId", "workCycle"
           FROM "one_time_order_attendance_submissions"
-          WHERE "oneTimeOrderId" IN (${Prisma.join(orderIds)})
+          WHERE "oneTimeOrderId" IN (${Prisma.join([...attendanceAllowed])})
             AND "operationDate" = CAST(${now.date} AS DATE)
         `)
-      : [];
+        : [];
     const reports = reportRequired
       ? await this.prisma.oneTimeOrderDailyReport.findMany({
-          where: { oneTimeOrderId: { in: orderIds }, reportDate: new Date(`${now.date}T00:00:00.000Z`) },
+          where: {
+            oneTimeOrderId: { in: [...reportsAllowed] },
+            reportDate: new Date(`${now.date}T00:00:00.000Z`),
+          },
           select: { oneTimeOrderId: true },
         })
       : [];
-    const staffingMap = new Map(staffing.map((item) => [`${item.oneTimeOrderId}:${item.workCycle}`, Number(item.count)]));
-    const submitted = new Set(submissions.map((item) => `${item.oneTimeOrderId}:${item.workCycle}`));
+    const staffingMap = new Map(
+      staffing.map((item) => [
+        `${item.oneTimeOrderId}:${item.workCycle}`,
+        Number(item.count),
+      ]),
+    );
+    const submitted = new Set(
+      submissions.map((item) => `${item.oneTimeOrderId}:${item.workCycle}`),
+    );
     const reported = new Set(reports.map((item) => item.oneTimeOrderId));
     for (const order of cycles) {
       const key = `${order.id}:${order.workCycle}`;
       const employeeCount = staffingMap.get(key) ?? 0;
       result.set(order.id, {
         employeeCount,
-        noEmployees: employeeCount === 0,
-        attendanceMissing: attendanceRequired && !submitted.has(key),
-        dailyReportMissing: reportRequired && !reported.has(order.id),
+        noEmployees: staffingAllowed.has(order.id) && employeeCount === 0,
+        attendanceMissing:
+          attendanceAllowed.has(order.id) &&
+          attendanceRequired &&
+          !submitted.has(key),
+        dailyReportMissing:
+          reportsAllowed.has(order.id) &&
+          reportRequired &&
+          !reported.has(order.id),
       });
     }
     return result;

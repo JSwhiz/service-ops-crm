@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { PrismaClient } from "@prisma/client";
+import { ForbiddenException } from "@nestjs/common";
+import { loadAccessSubject } from "../src/common/access/notification-access";
+import { canResolveInventoryMissingPhotoApproval } from "../src/modules/inventory/utils/inventory-access.util";
+import { decideAccess } from "../src/modules/users-access/utils/access-policy.util";
 import { ObjectPlanningService } from "../src/modules/objects/object-planning.service";
 import {
   annualSeason,
@@ -384,14 +388,36 @@ test(
         );
         const { InventoryService } =
           await import("../src/modules/inventory/inventory.service");
+        const issued = await prisma.inventoryMovement.findUniqueOrThrow({ where: { id: issue.id } });
+        assert.equal(issued.createdByUserId, ids.get("founder"));
+        const decisionState = async () => ({
+          movement: await prisma.inventoryMovement.findUniqueOrThrow({ where: { id: issue.id } }),
+          budgets: await prisma.objectBudgetPeriod.findMany({ where: { objectId: object.id }, orderBy: [{ objectId: "asc" }, { month: "asc" }] }),
+          alerts: await prisma.objectBudgetAlert.findMany({ where: { objectId: object.id }, orderBy: { id: "asc" } }),
+          audits: await prisma.auditEvent.findMany({ where: { entityType: "inventory_movement", entityId: issue.id }, orderBy: { id: "asc" } }),
+        });
+        const beforeSelfApproval = await decisionState();
+        await assert.rejects(prisma.$transaction((tx) =>
+          app.get(InventoryService).applyInventoryExceptionApprovalDecision(tx, {
+            movementId: issue.id, actorUserId: issued.createdByUserId,
+          }),
+        ), (error: unknown) => error instanceof ForbiddenException && error.message === "Собственную отгрузку подтверждает другой пользователь");
+        assert.deepEqual(await decisionState(), beforeSelfApproval, "Self-approval must change no movement, budget, alert or audit");
+        // Existing seeded independent director, reloaded through the production
+        // subject loader: no fabricated role/permission or new resolver grant.
+        const approver = await prisma.user.findUniqueOrThrow({ where: { login: "director" }, select: { id: true } });
+        const approverSubject = await loadAccessSubject(prisma, approver.id);
+        assert.ok(approverSubject && approverSubject.isActive);
+        assert.notEqual(approverSubject.id, issued.createdByUserId);
+        assert.equal(decideAccess(approverSubject, "inventory.resolve_missing_photo",
+          canResolveInventoryMissingPhotoApproval([...(approverSubject.roleCodes ?? [])]),
+          { resourceType: "inventory_item", resourceId: item.id }), true);
         await prisma.$transaction((tx) =>
-          app
-            .get(InventoryService)
-            .applyInventoryExceptionApprovalDecision(tx, {
-              movementId: issue.id,
-              actorUserId: ids.get("founder")!,
-            }),
+          app.get(InventoryService).applyInventoryExceptionApprovalDecision(tx, {
+            movementId: issue.id, actorUserId: approverSubject.id,
+          }),
         );
+        assert.equal((await prisma.inventoryMovement.findUniqueOrThrow({ where: { id: issue.id } })).approvalBridgeResolvedByUserId, approverSubject.id);
         assert.equal(
           await prisma.objectBudgetAlert.count({
             where: { objectId: object.id },

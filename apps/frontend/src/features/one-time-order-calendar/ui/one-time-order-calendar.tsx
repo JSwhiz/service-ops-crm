@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 
 import {
   approveOneTimeManagerAvailability,
@@ -24,6 +24,9 @@ import type {
 } from '@/entities/one-time-order/model/one-time-order.types';
 import type { SystemUserOption } from '@/entities/user/model/user.types';
 import { useAuth } from '@/shared/auth/use-auth';
+import { useAccessRevision } from '@/shared/auth/use-access-revision';
+import { AccessSnapshotBoundary } from '@/shared/auth/access-snapshot-boundary';
+import { getAccessGeneration, isAccessGenerationCurrent } from '@/shared/auth/access-generation';
 import { getUserDisplayName } from '@/shared/lib/display-name';
 import { getOneTimeOrderStatusLabel } from '@/shared/lib/one-time-order-presentation';
 import { MonthPeriodPicker } from '@/shared/ui/month-period-picker/month-period-picker';
@@ -127,6 +130,7 @@ function getErrorMessage(error: unknown): string {
 
 export function OneTimeOrderCalendar(): React.JSX.Element {
   const { user } = useAuth();
+  const accessRevision = useAccessRevision();
   const [confirm, confirmDialog] = useConfirm();
   const router = useRouter();
   const pathname = usePathname();
@@ -135,15 +139,16 @@ export function OneTimeOrderCalendar(): React.JSX.Element {
   const requestedManagerUserId = searchParams.get('managerUserId') ?? '';
   const canView = user?.capabilities?.canViewOneTimeOrderCalendar ?? false;
   const canCreateOrder = user?.capabilities?.canCreateOneTimeOrder ?? false;
-  const canManageOwn =
-    user?.capabilities?.canManageOwnOneTimeOrderAvailability ?? false;
-  const canManageAny =
-    user?.capabilities?.canManageAnyOneTimeOrderAvailability ?? false;
-  const canApprove =
-    user?.capabilities?.canApproveOneTimeOrderAvailability ?? false;
-  const managerUserId =
-    requestedManagerUserId ||
-    (canManageOwn && !canManageAny && !canApprove ? user?.id ?? '' : '');
+  // The endpoint resolves its own default scope. A /me decision about the actor
+  // is not a decision about the requested manager.
+  const managerUserId = requestedManagerUserId;
+  const snapshotKey = JSON.stringify([accessRevision, month, managerUserId]);
+  const snapshotKeyRef = useRef(snapshotKey);
+  snapshotKeyRef.current = snapshotKey;
+  const requestRef = useRef(0);
+  const [loadedSnapshotKey, setLoadedSnapshotKey] = useState<string | null>(null);
+  const [readError, setReadError] = useState<string | null>(null);
+  const [confirmationTarget, setConfirmationTarget] = useState<{ id: string; scope: string } | null>(null);
   const [calendar, setCalendar] = useState<OneTimeOrderCalendarResponse | null>(null);
   const [managerOptions, setManagerOptions] = useState<SystemUserOption[]>([]);
   const [selectedDay, setSelectedDay] = useState<SelectedDay | null>(null);
@@ -156,6 +161,23 @@ export function OneTimeOrderCalendar(): React.JSX.Element {
   const [error, setError] = useState<string | null>(null);
   const calendarRootRef = useRef<HTMLDivElement | null>(null);
   const lastTodayScrollKeyRef = useRef<string | null>(null);
+  const snapshotFresh = canView && loadedSnapshotKey === snapshotKey && !readError;
+  const directTargets = calendar?.availabilityTargets?.filter(target => target.capabilities.canCreateAvailability) ?? [];
+  const canManageOwn = snapshotFresh && calendar?.capabilities?.canRequestOwnAvailability === true;
+  const canManageAny = snapshotFresh && directTargets.length > 0;
+  const selectedManager = calendar?.managers.find(manager => manager.user.id === selectedDay?.manager.user.id);
+  const selectedCalendarDay = selectedManager?.days.find(day => day.date === selectedDay?.day.date);
+  const currentSelectedDay = selectedManager && selectedCalendarDay ? { manager: selectedManager, day: selectedCalendarDay } : null;
+  const findAvailability = (id?: string) => calendar?.managers.flatMap(manager => manager.days.flatMap(day =>
+    [day.availability, ...day.pendingRequests].filter((entry): entry is OneTimeOrderCalendarAvailability => !!entry),
+  )).find(entry => entry.id === id);
+  const formAllowed = snapshotFresh && !!availabilityForm && (availabilityForm.mode === 'own'
+    ? canManageOwn && availabilityForm.userId === user?.id
+    : availabilityForm.mode === 'direct'
+      ? directTargets.some(target => target.user.id === availabilityForm.userId)
+      : findAvailability(availabilityForm.availabilityId)?.capabilities?.canEdit === true);
+  const confirmationAllowed = snapshotFresh && confirmationTarget?.scope === snapshotKey &&
+    findAvailability(confirmationTarget.id)?.capabilities?.canCancel === true;
 
   const scrollTodayIntoView = (): void => {
     window.requestAnimationFrame(() => {
@@ -182,52 +204,43 @@ export function OneTimeOrderCalendar(): React.JSX.Element {
     router.replace(`${pathname}?${query.toString()}`, { scroll: false });
   };
 
-  const loadCalendar = async (): Promise<void> => {
+  const loadCalendar = useCallback(async (): Promise<void> => {
+    if (snapshotKeyRef.current !== snapshotKey) return;
+    const requestId = ++requestRef.current;
     setIsLoading(true);
+    setReadError(null);
     setError(null);
+    setLoadedSnapshotKey(null);
     try {
       const response = await getOneTimeOrderCalendar({
         month,
         managerUserId: managerUserId || undefined,
       });
+      if (requestId !== requestRef.current || snapshotKeyRef.current !== snapshotKey) return;
       setCalendar(response);
+      setLoadedSnapshotKey(snapshotKey);
     } catch (loadError) {
-      setError(getErrorMessage(loadError));
+      if (requestId === requestRef.current && snapshotKeyRef.current === snapshotKey) setReadError(getErrorMessage(loadError));
     } finally {
-      setIsLoading(false);
+      if (requestId === requestRef.current && snapshotKeyRef.current === snapshotKey) setIsLoading(false);
     }
-  };
+  }, [month, managerUserId, snapshotKey]);
 
   useEffect(() => {
     if (!canView) {
       setIsLoading(false);
       return;
     }
-    let cancelled = false;
-    setIsLoading(true);
-    setError(null);
-    void getOneTimeOrderCalendar({
-      month,
-      managerUserId: managerUserId || undefined,
-    })
-      .then((response) => {
-        if (!cancelled) setCalendar(response);
-      })
-      .catch((loadError: unknown) => {
-        if (!cancelled) setError(getErrorMessage(loadError));
-      })
-      .finally(() => {
-        if (!cancelled) setIsLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [canView, managerUserId, month]);
+    void loadCalendar();
+    return () => { requestRef.current += 1; };
+  }, [canView, loadCalendar]);
 
   useEffect(() => {
     if (!canView) return;
+    let cancelled = false;
+    setManagerOptions([]);
     void listOneTimeOrderCalendarManagers()
-      .then((items) =>
+      .then((items) => { if (!cancelled)
         setManagerOptions(
           items.map((item) => ({
             ...item,
@@ -235,10 +248,11 @@ export function OneTimeOrderCalendar(): React.JSX.Element {
             roleCodes: [],
             isActive: true,
           })),
-        ),
-      )
-      .catch(() => setManagerOptions([]));
-  }, [canView]);
+        );
+      })
+      .catch(() => { if (!cancelled) setManagerOptions([]); });
+    return () => { cancelled = true; };
+  }, [canView, accessRevision]);
 
   useEffect(() => {
     if (!calendar || month !== getCurrentMonth()) {
@@ -259,12 +273,17 @@ export function OneTimeOrderCalendar(): React.JSX.Element {
       availability?: OneTimeOrderCalendarAvailability;
     },
   ): void => {
+    if (!snapshotFresh || isSubmitting) return;
     const availability = params?.availability;
+    const targetId = mode === 'own' ? user?.id ?? '' : params?.managerId ?? directTargets[0]?.user.id ?? '';
+    if (mode === 'own' ? !canManageOwn
+      : mode === 'direct' ? !directTargets.some(target => target.user.id === targetId)
+        : !availability || !findAvailability(availability.id)?.capabilities?.canEdit) return;
     const date = params?.date ?? getTodayDate();
     setAvailabilityForm({
       mode,
       availabilityId: availability?.id,
-      userId: params?.managerId ?? user?.id ?? '',
+      userId: targetId,
       entryType: availability?.entryType ?? 'day_off',
       startDate: availability?.startDate ?? date,
       endDate: availability?.endDate ?? date,
@@ -277,7 +296,9 @@ export function OneTimeOrderCalendar(): React.JSX.Element {
     event: React.FormEvent<HTMLFormElement>,
   ): Promise<void> => {
     event.preventDefault();
-    if (!availabilityForm) return;
+    if (!availabilityForm || !formAllowed || isSubmitting) return;
+    const generation = getAccessGeneration();
+    const mutationScope = snapshotKey;
     setIsSubmitting(true);
     setError(null);
     try {
@@ -300,11 +321,12 @@ export function OneTimeOrderCalendar(): React.JSX.Element {
           payload,
         );
       }
+      if (!isAccessGenerationCurrent(generation) || snapshotKeyRef.current !== mutationScope) return;
       setAvailabilityForm(null);
       setSelectedDay(null);
       await loadCalendar();
     } catch (submitError) {
-      setError(getErrorMessage(submitError));
+      if (isAccessGenerationCurrent(generation) && snapshotKeyRef.current === mutationScope) setError(getErrorMessage(submitError));
     } finally {
       setIsSubmitting(false);
     }
@@ -314,6 +336,10 @@ export function OneTimeOrderCalendar(): React.JSX.Element {
     decision: 'approve' | 'reject',
     pending: OneTimeOrderCalendarAvailability,
   ): Promise<void> => {
+    const current = findAvailability(pending.id);
+    if (!snapshotFresh || isSubmitting || !(decision === 'approve' ? current?.capabilities?.canApprove : current?.capabilities?.canReject)) return;
+    const generation = getAccessGeneration();
+    const mutationScope = snapshotKey;
     if (decision === 'reject' && !decisionComment.trim()) {
       setError('Для отклонения укажите причину.');
       return;
@@ -329,11 +355,12 @@ export function OneTimeOrderCalendar(): React.JSX.Element {
       } else {
         await rejectOneTimeManagerAvailability(pending.id, decisionComment.trim());
       }
+      if (!isAccessGenerationCurrent(generation) || snapshotKeyRef.current !== mutationScope) return;
       setSelectedDay(null);
       setDecisionComment('');
       await loadCalendar();
     } catch (resolveError) {
-      setError(getErrorMessage(resolveError));
+      if (isAccessGenerationCurrent(generation) && snapshotKeyRef.current === mutationScope) setError(getErrorMessage(resolveError));
     } finally {
       setIsSubmitting(false);
     }
@@ -342,6 +369,10 @@ export function OneTimeOrderCalendar(): React.JSX.Element {
   const cancelAvailability = async (
     availability: OneTimeOrderCalendarAvailability,
   ): Promise<void> => {
+    if (!snapshotFresh || isSubmitting || !findAvailability(availability.id)?.capabilities?.canCancel) return;
+    const generation = getAccessGeneration();
+    const confirmationScope = snapshotKey;
+    setConfirmationTarget({ id: availability.id, scope: confirmationScope });
     if (!(await confirm({
       title: `Отменить запись «${availabilityLabel(availability.entryType)}»?`,
       consequence: 'Запись пропадёт из календаря менеджера.',
@@ -350,14 +381,16 @@ export function OneTimeOrderCalendar(): React.JSX.Element {
     }))) {
       return;
     }
+    if (!isAccessGenerationCurrent(generation) || snapshotKeyRef.current !== confirmationScope) return;
     setIsSubmitting(true);
     setError(null);
     try {
       await cancelOneTimeManagerAvailability(availability.id);
+      if (!isAccessGenerationCurrent(generation) || snapshotKeyRef.current !== confirmationScope) return;
       setSelectedDay(null);
       await loadCalendar();
     } catch (cancelError) {
-      setError(getErrorMessage(cancelError));
+      if (isAccessGenerationCurrent(generation) && snapshotKeyRef.current === confirmationScope) setError(getErrorMessage(cancelError));
     } finally {
       setIsSubmitting(false);
     }
@@ -384,7 +417,12 @@ export function OneTimeOrderCalendar(): React.JSX.Element {
 
   return (
     <div className={calendarStyles.oneTimeCalendar} ref={calendarRootRef}>
-      {confirmDialog}
+      {!snapshotFresh ? <Surface padding="md" role={readError ? 'alert' : 'status'}>
+        {readError || 'Проверяем доступ к календарю…'}
+        {readError ? <Button onClick={() => void loadCalendar()}>Повторить проверку доступа</Button> : null}
+      </Surface> : null}
+      <AccessSnapshotBoundary blocked={!snapshotFresh}>
+      <AccessSnapshotBoundary blocked={!confirmationAllowed}>{confirmDialog}</AccessSnapshotBoundary>
       <Surface padding="md" className={`filter-panel ${calendarStyles.oneTimeCalendarToolbar}`}>
         <div className={calendarStyles.oneTimeCalendarMonthNav}>
           <MonthPeriodPicker
@@ -407,12 +445,8 @@ export function OneTimeOrderCalendar(): React.JSX.Element {
               searchText: manager.login,
             }))}
             onChange={(value) => replaceQuery(month, value)}
-            clearable={canManageAny || canApprove}
-            placeholder={
-              canManageOwn && !canManageAny && !canApprove
-                ? 'Мой календарь'
-                : 'Все менеджеры'
-            }
+            clearable
+            placeholder="Доступный календарь"
             asyncSearch={async (search) =>
               (await listOneTimeOrderCalendarManagers(search)).map((manager) => ({
                 value: manager.id,
@@ -422,8 +456,6 @@ export function OneTimeOrderCalendar(): React.JSX.Element {
             }
           />
           {canManageOwn &&
-          !canManageAny &&
-          !canApprove &&
           user?.id &&
           managerUserId !== user.id ? (
             <Button
@@ -436,8 +468,11 @@ export function OneTimeOrderCalendar(): React.JSX.Element {
         </div>
         <div className={`ui-inline ${calendarStyles.oneTimeCalendarActions}`}>
           <Button
-            disabled={isExporting}
+            disabled={isExporting || !snapshotFresh || calendar?.capabilities?.canExport !== true}
             onClick={() => {
+              if (!snapshotFresh || calendar?.capabilities?.canExport !== true) return;
+              const generation = getAccessGeneration();
+              const exportScope = snapshotKey;
               setIsExporting(true);
               setError(null);
               void downloadOneTimeOrderCalendarExcel({
@@ -445,6 +480,7 @@ export function OneTimeOrderCalendar(): React.JSX.Element {
                 managerUserId: managerUserId || undefined,
               })
                 .then((blob) => {
+                  if (!isAccessGenerationCurrent(generation) || snapshotKeyRef.current !== exportScope) return;
                   const url = URL.createObjectURL(blob);
                   const anchor = document.createElement('a');
                   anchor.href = url;
@@ -453,7 +489,7 @@ export function OneTimeOrderCalendar(): React.JSX.Element {
                   window.setTimeout(() => URL.revokeObjectURL(url), 0);
                 })
                 .catch((exportError: unknown) => {
-                  setError(getErrorMessage(exportError));
+                  if (isAccessGenerationCurrent(generation) && snapshotKeyRef.current === exportScope) setError(getErrorMessage(exportError));
                 })
                 .finally(() => setIsExporting(false));
             }}
@@ -606,33 +642,30 @@ export function OneTimeOrderCalendar(): React.JSX.Element {
         </>
       )}
 
-      {selectedDay ? (
+      {currentSelectedDay ? (
         <DayDetailsModal
-          selected={selectedDay}
-          currentUserId={user?.id ?? ''}
+          selected={currentSelectedDay}
           canCreateOrder={canCreateOrder}
-          canManageAny={canManageAny}
-          canApprove={canApprove}
           decisionComment={decisionComment}
           isSubmitting={isSubmitting}
           error={error}
           onDecisionCommentChange={setDecisionComment}
           onClose={() => setSelectedDay(null)}
           onEdit={(availability) =>
-            openAvailabilityForm('edit', { availability })
+            openAvailabilityForm('edit', { availability, managerId: currentSelectedDay.manager.user.id })
           }
           onCancel={cancelAvailability}
           onApprove={(pending) => resolvePending('approve', pending)}
           onReject={(pending) => resolvePending('reject', pending)}
           onCreateOwn={(date) => openAvailabilityForm('own', { date })}
-          canManageOwn={canManageOwn}
+          onCreateDirect={(date) => openAvailabilityForm('direct', { date, managerId: currentSelectedDay.manager.user.id })}
         />
       ) : null}
 
-      {availabilityForm ? (
+      {availabilityForm && formAllowed ? (
         <AvailabilityModal
           form={availabilityForm}
-          managerOptions={availableManagers}
+          managerOptions={directTargets.map(target => ({ ...target.user, roleCode: '', roleCodes: [], isActive: true }))}
           isSubmitting={isSubmitting}
           error={error}
           onChange={setAvailabilityForm}
@@ -640,6 +673,10 @@ export function OneTimeOrderCalendar(): React.JSX.Element {
           onSubmit={submitAvailability}
         />
       ) : null}
+      {availabilityForm && !formAllowed ? <Surface padding="md" role="status">Действие больше недоступно. Черновик сохранён до восстановления доступа.
+        <Button onClick={() => setAvailabilityForm(null)}>Закрыть черновик</Button>
+      </Surface> : null}
+      </AccessSnapshotBoundary>
     </div>
   );
 }
@@ -692,11 +729,7 @@ function CalendarDayContent({
 
 function DayDetailsModal({
   selected,
-  currentUserId,
   canCreateOrder,
-  canManageOwn,
-  canManageAny,
-  canApprove,
   decisionComment,
   error,
   isSubmitting,
@@ -707,13 +740,10 @@ function DayDetailsModal({
   onApprove,
   onReject,
   onCreateOwn,
+  onCreateDirect,
 }: {
   selected: SelectedDay;
-  currentUserId: string;
   canCreateOrder: boolean;
-  canManageOwn: boolean;
-  canManageAny: boolean;
-  canApprove: boolean;
   decisionComment: string;
   error: string | null;
   isSubmitting: boolean;
@@ -724,6 +754,7 @@ function DayDetailsModal({
   onApprove: (availability: OneTimeOrderCalendarAvailability) => void;
   onReject: (availability: OneTimeOrderCalendarAvailability) => void;
   onCreateOwn: (date: string) => void;
+  onCreateDirect: (date: string) => void;
 }): React.JSX.Element {
   const { manager, day } = selected;
   const warning = conflictLabel(day.conflictLevel);
@@ -755,14 +786,14 @@ function DayDetailsModal({
               {formatDate(day.availability.startDate)} — {formatDate(day.availability.endDate)}
             </span>
             {day.availability.comment ? <p>{day.availability.comment}</p> : null}
-            {canManageAny ? (
+            {day.availability.capabilities?.canEdit || day.availability.capabilities?.canCancel ? (
               <div className="ui-inline">
-                <Button onClick={() => onEdit(day.availability!)}>
+                {day.availability.capabilities?.canEdit ? <Button disabled={isSubmitting} onClick={() => onEdit(day.availability!)}>
                   Изменить
-                </Button>
-                <Button onClick={() => onCancel(day.availability!)}>
+                </Button> : null}
+                {day.availability.capabilities?.canCancel ? <Button disabled={isSubmitting} onClick={() => onCancel(day.availability!)}>
                   Отменить запись
-                </Button>
+                </Button> : null}
               </div>
             ) : null}
           </div>
@@ -778,7 +809,7 @@ function DayDetailsModal({
               {formatDate(pending.startDate)} — {formatDate(pending.endDate)}
             </span>
             {pending.comment ? <p>{pending.comment}</p> : null}
-            {canApprove ? (
+            {pending.capabilities?.canApprove || pending.capabilities?.canReject ? (
               <>
                 <label>
                   <span>Комментарий решения</span>
@@ -790,21 +821,22 @@ function DayDetailsModal({
                   />
                 </label>
                 <div className="ui-inline">
-                  <Button
+                  {pending.capabilities?.canApprove ? <Button
                     disabled={isSubmitting}
                     onClick={() => onApprove(pending)}
                   >
                     Согласовать
-                  </Button>
-                  <Button
+                  </Button> : null}
+                  {pending.capabilities?.canReject ? <Button
                     disabled={isSubmitting}
                     onClick={() => onReject(pending)}
                   >
                     Отклонить
-                  </Button>
+                  </Button> : null}
                 </div>
               </>
-            ) : manager.user.id === currentUserId ? (
+            ) : null}
+            {pending.capabilities?.canCancel ? (
               <Button
                 disabled={isSubmitting}
                 onClick={() => onCancel(pending)}
@@ -860,11 +892,12 @@ function DayDetailsModal({
               Создать заказ на дату
             </CreateNavigationLink>
           ) : null}
-          {canManageOwn && manager.user.id === currentUserId ? (
+          {manager.capabilities?.canRequestOwnAvailability ? (
             <Button onClick={() => onCreateOwn(day.date)}>
               Запросить отсутствие
             </Button>
           ) : null}
+          {manager.capabilities?.canCreateAvailability ? <Button disabled={isSubmitting} onClick={() => onCreateDirect(day.date)}>Добавить запись</Button> : null}
         </div>
       </div>
     </div>

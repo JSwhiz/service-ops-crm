@@ -1,4 +1,5 @@
-import { fetcher } from '@/shared/api/fetcher';
+import type { SavedWithoutAccess } from '@/shared/api/saved-without-access';
+import { committedWrite, fetcher } from '@/shared/api/fetcher';
 import { sortObjectOptions } from '../lib/sort-object-options';
 import type { ApprovalRequestItem } from '@/entities/approval/model/approval.types';
 import type { ObjectSetupData } from '../model/object-setup.types';
@@ -8,11 +9,14 @@ import type { ContactInput } from './object-planning-client';
 import type {
   ObjectAuditLogItem,
   ServiceObject,
+  WindowCleaningMode,
+  WindowCleaningSeason,
 } from '../model/object.types';
 
 export interface ListObjectsParams {
   search?: string;
   status?: string;
+  archiveState?: 'active' | 'archived' | 'all';
 }
 
 export type ObjectSortField =
@@ -25,6 +29,7 @@ export type ObjectSortField =
 export interface ListObjectsPageParams {
   q?: string;
   status?: string;
+  archiveState?: 'active' | 'archived' | 'all';
   page: number;
   limit: number;
   sortBy: ObjectSortField;
@@ -37,6 +42,7 @@ export interface ObjectListPage {
   limit: number;
   total: number;
   totalPages: number;
+  archiveCounts?: { active: number; archived: number };
 }
 
 export interface ObjectRegistrySignal {
@@ -50,26 +56,28 @@ export interface CreateObjectPayload {
   internalName?: string;
   address: string;
   status: string;
-  seasonMode: string | null;
+  seasonMode?: string | null;
   summerWindowCleaning?: boolean;
+  windowCleaningMode?: WindowCleaningMode | null;
+  windowCleaningSeasons?: WindowCleaningSeason[];
   engineeringRequired?: boolean;
   winterTractorMode?: 'none' | 'with_removal' | 'without_removal';
   instructionSteps?: string[];
-  paymentType: 'monthly' | 'daily';
-  dailyRate: number;
-  monthlySalary: number;
+  paymentType?: 'monthly' | 'daily';
+  dailyRate?: number;
+  monthlySalary?: number;
   paymentScheduleCode?: string | null;
   paymentScheduleWeekdays?: string[];
   paymentScheduleCycleStartDate?: string | null;
-  summerPaymentType: 'monthly' | 'daily';
-  summerDailyRate: number;
-  summerMonthlySalary: number;
+  summerPaymentType?: 'monthly' | 'daily';
+  summerDailyRate?: number;
+  summerMonthlySalary?: number;
   summerScheduleCode?: string | null;
   summerScheduleWeekdays?: string[];
   summerScheduleCycleStartDate?: string | null;
-  winterPaymentType: 'monthly' | 'daily';
-  winterDailyRate: number;
-  winterMonthlySalary: number;
+  winterPaymentType?: 'monthly' | 'daily';
+  winterDailyRate?: number;
+  winterMonthlySalary?: number;
   winterScheduleCode?: string | null;
   winterScheduleWeekdays?: string[];
   winterScheduleCycleStartDate?: string | null;
@@ -91,6 +99,8 @@ export interface UpdateObjectPayload {
   status?: string;
   seasonMode?: string | null;
   summerWindowCleaning?: boolean;
+  windowCleaningMode?: WindowCleaningMode | null;
+  windowCleaningSeasons?: WindowCleaningSeason[];
   engineeringRequired?: boolean;
   winterTractorMode?: 'none' | 'with_removal' | 'without_removal';
   instructionSteps?: string[];
@@ -126,6 +136,7 @@ function buildObjectsQuery(params?: ListObjectsParams): string {
   const searchParams = new URLSearchParams();
   if (params.search) searchParams.set('search', params.search);
   if (params.status) searchParams.set('status', params.status);
+  if (params.archiveState) searchParams.set('archiveState', params.archiveState);
   const query = searchParams.toString();
   return query ? `?${query}` : '';
 }
@@ -144,6 +155,7 @@ export async function listObjectsPage(params: ListObjectsPageParams): Promise<Ob
   });
   if (params.q?.trim()) searchParams.set('q', params.q.trim());
   if (params.status) searchParams.set('status', params.status);
+  if (params.archiveState) searchParams.set('archiveState', params.archiveState);
   return fetcher<ObjectListPage>(`/objects?${searchParams.toString()}`, { method: 'GET' });
 }
 
@@ -161,30 +173,30 @@ export async function listObjectAuditLogs(id: string): Promise<ObjectAuditLogIte
   return fetcher<ObjectAuditLogItem[]>(`/objects/${id}/audit`, { method: 'GET' });
 }
 
-export async function createObject(payload: CreateObjectPayload): Promise<ServiceObject> {
-  return fetcher<ServiceObject>('/objects', { method: 'POST', body: JSON.stringify(payload) });
+export async function createObject(payload: CreateObjectPayload): Promise<ServiceObject | SavedWithoutAccess> {
+  return committedWrite<ServiceObject>('/objects', { method: 'POST', body: JSON.stringify(payload) });
 }
 
-export async function updateObject(id: string, payload: UpdateObjectPayload): Promise<ServiceObject> {
-  return fetcher<ServiceObject>(`/objects/${id}`, { method: 'PATCH', body: JSON.stringify(payload) });
+export async function updateObject(id: string, payload: UpdateObjectPayload): Promise<ServiceObject | SavedWithoutAccess> {
+  return committedWrite<ServiceObject>(`/objects/${id}`, { method: 'PATCH', body: JSON.stringify(payload) });
 }
 
-export async function changeObjectStatus(id: string, payload: ChangeObjectStatusPayload): Promise<ApprovalRequestItem> {
-  return fetcher<ApprovalRequestItem>(`/objects/${id}/status`, { method: 'PATCH', body: JSON.stringify(payload) });
+export async function changeObjectStatus(id: string, payload: ChangeObjectStatusPayload): Promise<ApprovalRequestItem | SavedWithoutAccess> {
+  return committedWrite<ApprovalRequestItem>(`/objects/${id}/status`, { method: 'PATCH', body: JSON.stringify(payload) });
 }
 
-export async function addResponsibleToObject(id: string, userId: string): Promise<ServiceObject> {
-  return fetcher<ServiceObject>(`/objects/${id}/responsibles`, { method: 'POST', body: JSON.stringify({ userId }) });
+export async function addResponsibleToObject(id: string, userId: string): Promise<ServiceObject | SavedWithoutAccess> {
+  return committedWrite<ServiceObject>(`/objects/${id}/responsibles`, { method: 'POST', body: JSON.stringify({ userId }) });
 }
 
 export async function removeResponsibleFromObject(id: string, userId: string): Promise<ServiceObject> {
   return fetcher<ServiceObject>(`/objects/${id}/responsibles/${userId}`, { method: 'DELETE' });
 }
 
-export async function addManagerToObject(id: string, userId: string): Promise<ServiceObject> {
-  return fetcher<ServiceObject>(`/objects/${id}/managers`, { method: 'POST', body: JSON.stringify({ userId }) });
+export async function addManagerToObject(id: string, userId: string): Promise<ServiceObject | SavedWithoutAccess> {
+  return committedWrite<ServiceObject>(`/objects/${id}/managers`, { method: 'POST', body: JSON.stringify({ userId }) });
 }
 
-export async function removeManagerFromObject(id: string, userId: string): Promise<ServiceObject> {
-  return fetcher<ServiceObject>(`/objects/${id}/managers/${userId}`, { method: 'DELETE' });
+export async function removeManagerFromObject(id: string, userId: string): Promise<ServiceObject | SavedWithoutAccess> {
+  return committedWrite<ServiceObject>(`/objects/${id}/managers/${userId}`, { method: 'DELETE' });
 }

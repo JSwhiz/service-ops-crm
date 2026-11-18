@@ -413,6 +413,7 @@ export function ObjectStaffingPanel({
 
   return (
     <Surface padding="md">
+      {!canManageAssignments ? <Alert tone="info" role="status">У вас нет доступа к изменению состава объекта. Добавление и снятие сотрудников недоступны; текущий состав можно просматривать.</Alert> : null}
       <div className="ui-section-header" style={{ marginBottom: 14 }}>
         <div className="ui-section-title">Сотрудники объекта</div>
       </div>

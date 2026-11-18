@@ -19,8 +19,15 @@ test('read notifications can be permanently hidden by their recipient without de
     loginAndGetCookieHeader({ baseUrl, login: 'manager2', password: 'manager123' }),
   ]);
   const readAt = new Date('2026-10-20T10:00:00Z');
+  // Source visibility is enforced before notification mutations. Use an actual
+  // shared object rather than an opaque ID with no corresponding resource.
+  const object = await prisma.object.create({ data: {
+    name: 'Isolated shared notification source', address: 'Local integration fixture',
+    status: 'active', createdByUserId: owner.id,
+    assignments: { create: [{ userId: colleague.id, assignmentRoleCode: 'manager', isActive: true }] },
+  } });
   const create = (recipientUserId: string, read: boolean) => prisma.notification.create({ data: {
-    recipientUserId, type: 'object.created', title: 'Объект создан', entityType: 'object', entityId: 'object-link-fixture', readAt: read ? readAt : null,
+    recipientUserId, type: 'object.created', title: 'Объект создан', entityType: 'object', entityId: object.id, readAt: read ? readAt : null,
   } });
   const [read, unread, other] = await Promise.all([create(owner.id, true), create(owner.id, false), create(colleague.id, true)]);
   const request = (auth: string, path: string, method = 'POST'): Promise<Response> => fetch(`${baseUrl}/api/v1/notifications${path}`, { method, headers: { Cookie: auth } });
@@ -42,7 +49,7 @@ test('read notifications can be permanently hidden by their recipient without de
   assert.equal(listResponse.status, 200);
   const list = (await listResponse.json()) as { items: Array<{ id: string; targetUrl: string }>; total: number };
   assert.ok(!list.items.some((item) => item.id === read.id || item.id === other.id));
-  assert.equal(list.items.find((item) => item.id === unread.id)?.targetUrl, '/objects/object-link-fixture');
+  assert.equal(list.items.find((item) => item.id === unread.id)?.targetUrl, `/objects/${object.id}`);
   assert.equal((await request(cookie, `/${read.id}/read`)).status, 404);
   assert.equal((await request(cookie, '/read-all')).status, 201);
   const ownUnread = await prisma.notification.findUniqueOrThrow({ where: { id: unread.id } });

@@ -1,17 +1,20 @@
 'use client';
 
-import { useLayoutEffect, useState, type RefObject } from 'react';
+import { useContext, useLayoutEffect, useState, type RefObject } from 'react';
+import { AccessSnapshotBlockedContext } from '@/shared/auth/access-snapshot-boundary';
 import { getFloatingPosition, type FloatingPosition } from './floating-position';
 
 export function useFloatingPosition(
   open: boolean,
   anchorRef: RefObject<HTMLElement | null>,
   floatingRef: RefObject<HTMLElement | null>,
+  matchAnchorWidth = false,
 ): FloatingPosition | null {
+  const accessBlocked = useContext(AccessSnapshotBlockedContext);
   const [position, setPosition] = useState<FloatingPosition | null>(null);
 
   useLayoutEffect(() => {
-    if (!open) return;
+    if (!open || accessBlocked) return;
     const floating = floatingRef.current;
     if (!floating) return;
     // The dialog's DOM still owns focus, while the top layer escapes scroll clipping.
@@ -20,7 +23,9 @@ export function useFloatingPosition(
     const update = (): void => {
       const anchor = anchorRef.current;
       if (!anchor) return;
-      const next = getFloatingPosition(anchor.getBoundingClientRect(), {
+      const anchorRect = anchor.getBoundingClientRect();
+      if (matchAnchorWidth) floating.style.width = `${Math.min(anchorRect.width, Math.max(0, window.innerWidth - 24))}px`;
+      const next = getFloatingPosition(anchorRect, {
         width: floating.offsetWidth,
         height: floating.scrollHeight,
       }, { width: window.innerWidth, height: window.innerHeight });
@@ -38,7 +43,7 @@ export function useFloatingPosition(
       window.removeEventListener('scroll', update, true);
       if (nativePopover && floating.matches(':popover-open')) floating.hidePopover();
     };
-  }, [anchorRef, floatingRef, open]);
+  }, [anchorRef, floatingRef, open, accessBlocked, matchAnchorWidth]);
 
-  return position;
+  return accessBlocked ? null : position;
 }

@@ -7,6 +7,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { lockActorAccessRevision } from '../../common/access/lock-actor-access-revision';
+import { availabilityActionAllowed, canManageManagerAvailability, managerAvailabilityCapabilities } from './utils/one-time-manager-availability-capabilities.util';
 
 import {
   ONE_TIME_MANAGER_AVAILABILITY_APPROVAL_SOURCE_ENTITY_TYPE,
@@ -28,7 +30,6 @@ import {
   canBeOneTimeOrderManager,
   hasOneTimeOrderPermission,
   ONE_TIME_ORDER_CALENDAR_APPROVE_PERMISSION,
-  ONE_TIME_ORDER_CALENDAR_MANAGE_PERMISSION,
 } from './utils/one-time-order-access.util';
 import {
   formatAvailabilityDate,
@@ -44,6 +45,7 @@ interface CurrentAuthUser {
   roleCodes?: string[];
   permissionCodes?: string[];
   isActive: boolean;
+  accessVersion?: number;
 }
 
 interface AvailabilityRecord {
@@ -84,6 +86,7 @@ export class OneTimeManagerAvailabilityService {
     currentUser: CurrentAuthUser,
     payload: CreateOneTimeManagerAvailabilityRequestDto,
   ): Promise<OneTimeManagerAvailabilityResponseDto> {
+    this.assertAvailabilityAction(currentUser, 'one_time_order_calendar.availability.own', true, currentUser.id);
     if (!(await isOneTimeOrderCalendarManager(this.prisma, currentUser.id))) {
       throw new ForbiddenException(
         'User is not configured for the one-time order calendar',
@@ -144,12 +147,13 @@ export class OneTimeManagerAvailabilityService {
       return { availability, approvalRequestId: approvalRequest.id };
     });
 
-    return this.mapAvailability(result.availability, result.approvalRequestId);
+    return this.mapAvailability(result.availability, result.approvalRequestId, currentUser);
   }
 
   async listOwnRequests(
     currentUser: CurrentAuthUser,
   ): Promise<OneTimeManagerAvailabilityResponseDto[]> {
+    this.assertAvailabilityAction(currentUser, 'one_time_order_calendar.availability.own', true, currentUser.id);
     const entries = (await this.prisma.oneTimeManagerAvailability.findMany({
       where: { userId: currentUser.id },
       include: this.availabilityInclude(),
@@ -160,7 +164,7 @@ export class OneTimeManagerAvailabilityService {
     );
 
     return entries.map((entry) =>
-      this.mapAvailability(entry, approvalRequestIds.get(entry.id) ?? null),
+      this.mapAvailability(entry, approvalRequestIds.get(entry.id) ?? null, currentUser),
     );
   }
 
@@ -168,7 +172,7 @@ export class OneTimeManagerAvailabilityService {
     currentUser: CurrentAuthUser,
     payload: CreateOneTimeManagerAvailabilityDirectDto,
   ): Promise<OneTimeManagerAvailabilityResponseDto> {
-    this.assertCanManage(currentUser);
+    this.assertCanManage(currentUser, payload.userId);
     if (!(await isOneTimeOrderCalendarManager(this.prisma, payload.userId))) {
       throw new ForbiddenException(
         'User is not configured for the one-time order calendar',
@@ -180,6 +184,7 @@ export class OneTimeManagerAvailabilityService {
 
     const availability = await this.prisma.$transaction(async (tx) => {
       await this.lockAvailabilityUser(tx, payload.userId);
+      await lockActorAccessRevision(tx, currentUser);
       await this.assertNoApprovedOverlap(
         tx,
         payload.userId,
@@ -216,7 +221,7 @@ export class OneTimeManagerAvailabilityService {
       return created;
     });
 
-    return this.mapAvailability(availability, null);
+    return this.mapAvailability(availability, null, currentUser);
   }
 
   async approveAvailability(
@@ -225,6 +230,7 @@ export class OneTimeManagerAvailabilityService {
     payload: ApproveOneTimeManagerAvailabilityDto,
   ): Promise<OneTimeManagerAvailabilityResponseDto> {
     this.assertCanApprove(currentUser);
+    this.assertAvailabilityAction(currentUser, 'one_time_order_calendar.availability.approve', true, (await this.getAvailability(availabilityId)).userId);
     const approvalRequest = await this.getPendingApprovalRequest(availabilityId);
     const comment = payload.comment?.trim() || null;
 
@@ -258,7 +264,7 @@ export class OneTimeManagerAvailabilityService {
       return approved;
     });
 
-    return this.mapAvailability(availability, approvalRequest.id);
+    return this.mapAvailability(availability, approvalRequest.id, currentUser);
   }
 
   async rejectAvailability(
@@ -267,6 +273,7 @@ export class OneTimeManagerAvailabilityService {
     payload: RejectOneTimeManagerAvailabilityDto,
   ): Promise<OneTimeManagerAvailabilityResponseDto> {
     this.assertCanApprove(currentUser);
+    this.assertAvailabilityAction(currentUser, 'one_time_order_calendar.availability.approve', true, (await this.getAvailability(availabilityId)).userId);
     const comment = payload.comment.trim();
 
     if (!comment) {
@@ -304,7 +311,7 @@ export class OneTimeManagerAvailabilityService {
       return rejected;
     });
 
-    return this.mapAvailability(availability, approvalRequest.id);
+    return this.mapAvailability(availability, approvalRequest.id, currentUser);
   }
 
   async cancelAvailability(
@@ -312,18 +319,14 @@ export class OneTimeManagerAvailabilityService {
     availabilityId: string,
   ): Promise<OneTimeManagerAvailabilityResponseDto> {
     const current = await this.getAvailability(availabilityId);
+    this.assertAvailabilityAction(currentUser, current.userId === currentUser.id ? 'one_time_order_calendar.availability.own' : 'one_time_order_calendar.availability.manage', true, current.userId);
     if (
       current.userId === currentUser.id &&
       current.status !== 'pending'
     ) {
       throw new ConflictException('Manager availability state has changed');
     }
-    const canCancelOwnPending =
-      current.status === 'pending' && current.userId === currentUser.id;
-    const canCancelApproved =
-      current.status === 'approved' && this.canManage(currentUser);
-
-    if (!canCancelOwnPending && !canCancelApproved) {
+    if (!managerAvailabilityCapabilities(currentUser, current).canCancel) {
       throw new ForbiddenException('Availability cancellation denied');
     }
 
@@ -401,6 +404,7 @@ export class OneTimeManagerAvailabilityService {
     return this.mapAvailability(
       result.availability,
       result.approvalRequestId,
+      currentUser,
     );
   }
 
@@ -409,8 +413,8 @@ export class OneTimeManagerAvailabilityService {
     availabilityId: string,
     payload: UpdateOneTimeManagerAvailabilityDto,
   ): Promise<OneTimeManagerAvailabilityResponseDto> {
-    this.assertCanManage(currentUser);
     const current = await this.getAvailability(availabilityId);
+    this.assertCanManage(currentUser, current.userId);
 
     if (current.status !== 'approved') {
       throw new ConflictException('Only approved availability can be edited');
@@ -422,6 +426,7 @@ export class OneTimeManagerAvailabilityService {
 
     const updated = await this.prisma.$transaction(async (tx) => {
       await this.lockAvailabilityUser(tx, current.userId);
+      await lockActorAccessRevision(tx, currentUser);
       await this.assertNoApprovedOverlap(
         tx,
         current.userId,
@@ -458,7 +463,7 @@ export class OneTimeManagerAvailabilityService {
     });
 
     const approvalRequestId = await this.findLatestApprovalRequestId(availabilityId);
-    return this.mapAvailability(updated, approvalRequestId);
+    return this.mapAvailability(updated, approvalRequestId, currentUser);
   }
 
   async applyApprovalDecision(
@@ -572,20 +577,18 @@ export class OneTimeManagerAvailabilityService {
     }
   }
 
-  private assertCanManage(currentUser: CurrentAuthUser): void {
-    if (!this.canManage(currentUser)) {
+  private assertCanManage(currentUser: CurrentAuthUser, userId?: string): void {
+    if (!this.canManage(currentUser, userId)) {
       throw new ForbiddenException('Manager availability management denied');
     }
   }
 
-  private canManage(currentUser: CurrentAuthUser): boolean {
-    return hasOneTimeOrderPermission(
-      currentUser.permissionCodes,
-      ONE_TIME_ORDER_CALENDAR_MANAGE_PERMISSION,
-    );
+  private canManage(currentUser: CurrentAuthUser, userId?: string): boolean {
+    return canManageManagerAvailability(currentUser, userId);
   }
 
   private assertCanApprove(currentUser: CurrentAuthUser): void {
+    this.assertAvailabilityAction(currentUser, 'one_time_order_calendar.availability.approve', true, currentUser.id);
     if (
       !hasOneTimeOrderPermission(
         currentUser.permissionCodes,
@@ -594,6 +597,10 @@ export class OneTimeManagerAvailabilityService {
     ) {
       throw new ForbiddenException('Manager availability approval denied');
     }
+  }
+
+  private assertAvailabilityAction(user: CurrentAuthUser, actionCode: string, legacy: boolean, userId: string): void {
+    if (!availabilityActionAllowed(user, actionCode, legacy, userId)) throw new ForbiddenException('Availability access denied');
   }
 
   private async getAvailability(id: string): Promise<AvailabilityRecord> {
@@ -771,6 +778,7 @@ export class OneTimeManagerAvailabilityService {
   private mapAvailability(
     availability: AvailabilityRecord,
     approvalRequestId: string | null,
+    currentUser: CurrentAuthUser,
   ): OneTimeManagerAvailabilityResponseDto {
     const durationDays =
       Math.floor(
@@ -779,6 +787,7 @@ export class OneTimeManagerAvailabilityService {
       ) + 1;
     return {
       id: availability.id,
+      capabilities: managerAvailabilityCapabilities(currentUser, availability),
       userId: availability.userId,
       entryType: availability.entryType,
       startDate: formatAvailabilityDate(availability.startDate),

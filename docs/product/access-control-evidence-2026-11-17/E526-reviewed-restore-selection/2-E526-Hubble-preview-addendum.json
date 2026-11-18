@@ -1,0 +1,184 @@
+{
+  "id": "E526-Hubble-preview-addendum",
+  "reviewer": "Codex/Hubble independent; not Main product or McClintock helper/runtime author",
+  "verdict": "bounded_actual_restore_preview201_and_ordinary_update400_supported_with_independent_oracle_reconciliation",
+  "raw": {
+    "path": "/private/tmp/E526-object-preview-isolated/attempt-001/object-preview.json",
+    "sha256": "7377cbe62626c30021e764d03656d17498387b21de1fe30bdac5ead15efe1994",
+    "status": "actual_preview_failure_Main_owner",
+    "exitCode": 1,
+    "unchanged": true
+  },
+  "newActualPreviewRequests": 2,
+  "originalLiteralAssertions": {
+    "rawMatchedTrue": 10,
+    "rawMatchedFalse": 1,
+    "structuralEqualityTrue": 11,
+    "notRawWholePass": true
+  },
+  "structuralComparison": {
+    "path": "/private/tmp/E526-Hubble-preview-structural-comparison.json",
+    "sha256": "db6014f43ae186886b04b7f6a6425c97ddd31cd3e01da7424c7471d98e6b8098"
+  },
+  "supportedOutcomes": [
+    {
+      "requestPointer": "/requests/0",
+      "meaning": "Exact archived object selected objects.restore preview201; exact change/target/version returned, real token hash and persisted preview identity verified."
+    },
+    {
+      "requestPointer": "/requests/1",
+      "meaning": "Same archived selected object under ordinary objects.update preview400 with Selected resource does not exist; ordinary active-only boundary preserved."
+    }
+  ],
+  "noGrantSaveEffects": {
+    "snapshotPointers": [
+      "/businessBefore",
+      "/businessAfterPreview0",
+      "/businessAfterPreview1"
+    ],
+    "equal": true,
+    "modelsAndProjections": [
+      "objects",
+      "userVersions",
+      "rules",
+      "adminSaveAudit",
+      "audit",
+      "roles"
+    ],
+    "exception": "One intended unused UserAccessPreview record is created by successful preview. This is not a persisted access grant and is explicitly included, not excluded as zero DB effects.",
+    "persistedPreviewPointer": "/previewRowsAfter/0",
+    "persistedRulesCount": 0,
+    "targetAccessVersionUnchanged": true,
+    "archivedObjectAllFieldsUnchanged": true,
+    "saveRequests": 0,
+    "restoreCommands": 0
+  },
+  "sourceBinding": {
+    "actuallyExecuted": {
+      "source": "/Users/dmitrijkruckov/Desktop/service-ops-crm/apps/backend/src/modules/users-access/access-admin.service.ts",
+      "path": "/private/tmp/E526-object-preview-isolated/attempt-001/source-freeze/cc67bc3157c26838ed54369ab8b1915031e442318e5695dc06a80430199fb5d4/apps/backend/src/modules/users-access/access-admin.service.ts",
+      "sha256": "cc67bc3157c26838ed54369ab8b1915031e442318e5695dc06a80430199fb5d4",
+      "phase": "before_createTestApp_and_fixture",
+      "capturedAtUTC": "2026-11-17T00:05:53.448Z"
+    },
+    "currentSHA256": "cc67bc3157c26838ed54369ab8b1915031e442318e5695dc06a80430199fb5d4",
+    "currentEqualsExecuted": true,
+    "originalLookup18ExecutedSHA256": "f98be998611b63ded5d055a91c87c731daffe95e8940834c1446a0b406367111",
+    "originalLookup18NotReplayed": true,
+    "oldValidatorBefore": "Source-only P2, no before validator execution or fabricated failed runtime."
+  },
+  "helperProvenance": {
+    "executedFrozenHelper": {
+      "source": "/private/tmp/E526-object-preview-isolated/helper.cjs",
+      "path": "/private/tmp/E526-object-preview-isolated/attempt-001/source-freeze/32e6f9274061e0706d02fd72f62f6118319934cf81a9f6f3fe709364daf7ab03/external/helper.cjs",
+      "sha256": "32e6f9274061e0706d02fd72f62f6118319934cf81a9f6f3fe709364daf7ab03",
+      "phase": "before_createTestApp_and_fixture",
+      "capturedAtUTC": "2026-11-17T00:05:53.451Z"
+    },
+    "correctedAuthorHelperSHA256": "7f9363f405a0f613936a7975935d07f533390d45d2b1cf7e12d24d83f6c342ec",
+    "correctedAuthorHelperNotExecuted": true,
+    "independentComparisonNotAuthorSelfCredit": true
+  },
+  "P2Disposition": {
+    "id": "E526-Hubble-P2-01",
+    "status": "addressed_source_and_exact_preview_runtime_supported",
+    "scope": "Archived objects.restore now reaches real selected preview; ordinary object action still rejected. Shared selected validator source is bound to both preview/save; no actual save/grant/business restore is credited."
+  },
+  "priorReviewsRetained": [
+    {
+      "path": "/private/tmp/E526-Hubble-after-review.json",
+      "sha256": "be71b2fcaa0f31debaa2ede4b8ab1da96af07cb1176d5ea74748dcabe9764ff1"
+    },
+    {
+      "path": "/private/tmp/E526-Hubble-source-addressed.json",
+      "sha256": "7f7b6714b7b23e37b2013eb91eea0f352a0f4f02db3b9c158a28981d5a32938e"
+    }
+  ],
+  "cleanup": {
+    "exitCode": 1,
+    "ownRedisRemoved": true,
+    "ownBucketRemoved": true,
+    "helperErrors": []
+  },
+  "findings": [],
+  "limits": [
+    "Derivative addendum only; no whole matrix/criterion admission, canonical/ledger/product edit or recorder invocation.",
+    "No runtime/API/DB/server/browser replay; only existing TMP raw/source inspection and strict offline comparison.",
+    "Failed raw/Node exit1 retained. Eleven structurally equal assertions do not mean a passed runner container.",
+    "No original18/54 replay or source hash reassignment. No OS permission operation or Documents/Q access."
+  ],
+  "artifactManifest": [
+    {
+      "path": "/private/tmp/E526-object-preview-isolated/attempt-001/source-freeze/cc67bc3157c26838ed54369ab8b1915031e442318e5695dc06a80430199fb5d4/apps/backend/src/modules/users-access/access-admin.service.ts",
+      "sha256": "cc67bc3157c26838ed54369ab8b1915031e442318e5695dc06a80430199fb5d4"
+    },
+    {
+      "path": "/private/tmp/E526-object-preview-isolated/attempt-001/source-freeze/d67aeab32847f99ee56e62355120b461568a3629acc0b65b5817641f42a95661/apps/backend/src/modules/users-access/access-admin.controller.ts",
+      "sha256": "d67aeab32847f99ee56e62355120b461568a3629acc0b65b5817641f42a95661"
+    },
+    {
+      "path": "/private/tmp/E526-object-preview-isolated/attempt-001/source-freeze/3fea03e5d8b8042f614e5604f9bbd05fed83bab798dbfb5cfd1b9ab240f2a375/apps/backend/src/modules/users-access/dto/access-admin.dto.ts",
+      "sha256": "3fea03e5d8b8042f614e5604f9bbd05fed83bab798dbfb5cfd1b9ab240f2a375"
+    },
+    {
+      "path": "/private/tmp/E526-object-preview-isolated/attempt-001/source-freeze/623a57fdb2661925661afe330e240c9ded76e206b2433b442327bb1d43b9514f/apps/backend/src/modules/users-access/access-action-catalog.ts",
+      "sha256": "623a57fdb2661925661afe330e240c9ded76e206b2433b442327bb1d43b9514f"
+    },
+    {
+      "path": "/private/tmp/E526-object-preview-isolated/attempt-001/source-freeze/32e6f9274061e0706d02fd72f62f6118319934cf81a9f6f3fe709364daf7ab03/external/helper.cjs",
+      "sha256": "32e6f9274061e0706d02fd72f62f6118319934cf81a9f6f3fe709364daf7ab03"
+    },
+    {
+      "path": "/private/tmp/E526-object-preview-isolated/attempt-001/source-freeze/0a378da612c94d97a9b31836f462367c28ce2f405a185b4dda8d6ee84e81d902/external/run.mjs",
+      "sha256": "0a378da612c94d97a9b31836f462367c28ce2f405a185b4dda8d6ee84e81d902"
+    },
+    {
+      "path": "/private/tmp/E526-object-preview-isolated/attempt-001/object-preview.json",
+      "sha256": "7377cbe62626c30021e764d03656d17498387b21de1fe30bdac5ead15efe1994"
+    },
+    {
+      "path": "/private/tmp/E526-object-preview-isolated/attempt-001/exit.json",
+      "sha256": "01614b0e7bf86220a2287c6fd76f9b3a5c06913c2e0762c9eb3958c397f0bbee"
+    },
+    {
+      "path": "/private/tmp/E526-object-preview-isolated/attempt-001/cleanup.json",
+      "sha256": "6666868aa30e6ecdf8c26602f8679e214f3f3efc1aeea06f74a18856082edbaf"
+    },
+    {
+      "path": "/private/tmp/E526-object-preview-isolated/attempt-001/helper-cleanup.json",
+      "sha256": "4d7fb62d182e64d98296af95ffed7ef7a9b9c8c815c7466ac9fc4d953c021063"
+    },
+    {
+      "path": "/private/tmp/E526-object-preview-isolated/attempt-001/object-preview.log",
+      "sha256": "025494b801d3b99c8c8288250debf8783d7878efd02c2d02021443332fcf21b8"
+    },
+    {
+      "path": "/private/tmp/E526-object-preview-isolated/source-finding-bridge.json",
+      "sha256": "a99908d4a4dfbc33f52b96a76bd2ee7801566885859dea43f184592b6e5e65c3"
+    },
+    {
+      "path": "/private/tmp/E526-object-preview-isolated/helper-reconciliation.json",
+      "sha256": "008b379a417bc2e5288d4c2c30c4e92ec615885c90a67c8c1fec27e4a40fd164"
+    },
+    {
+      "path": "/private/tmp/E526-object-preview-isolated/attempt-001/before-source-finding/f98be998611b63ded5d055a91c87c731daffe95e8940834c1446a0b406367111/access-admin.service.ts",
+      "sha256": "f98be998611b63ded5d055a91c87c731daffe95e8940834c1446a0b406367111"
+    },
+    {
+      "path": "/private/tmp/E526-Hubble-after-review.json",
+      "sha256": "be71b2fcaa0f31debaa2ede4b8ab1da96af07cb1176d5ea74748dcabe9764ff1"
+    },
+    {
+      "path": "/private/tmp/E526-Hubble-source-addressed.json",
+      "sha256": "7f7b6714b7b23e37b2013eb91eea0f352a0f4f02db3b9c158a28981d5a32938e"
+    },
+    {
+      "path": "/private/tmp/E526-Hubble-preview-structural-comparison.json",
+      "sha256": "db6014f43ae186886b04b7f6a6425c97ddd31cd3e01da7424c7471d98e6b8098"
+    }
+  ],
+  "newReviewerRuntime": false,
+  "canonicalWritten": false,
+  "productWritten": false,
+  "atUTC": "2026-11-17T00:10:36.178041+00:00"
+}

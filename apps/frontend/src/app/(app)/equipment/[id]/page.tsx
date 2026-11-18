@@ -2,6 +2,11 @@
 
 import { useRouter } from 'next/navigation';
 import React, { useEffect, useState } from 'react';
+import { useAccessRevision } from '@/shared/auth/use-access-revision';
+import { AccessSnapshotBoundary } from '@/shared/auth/access-snapshot-boundary';
+import { useOpenAccessRefresh } from '@/shared/auth/use-open-access-refresh';
+import { ApiError } from '@/shared/api/fetcher';
+import { isSavedWithoutAccess } from '@/shared/api/saved-without-access';
 
 import {
   createEquipmentMovement,
@@ -48,6 +53,9 @@ export default function EquipmentDetailPage({
   params: Promise<{ id: string }>;
 }): React.JSX.Element {
   const router = useRouter();
+  const accessRevision = useAccessRevision();
+  const [loadedAccessRevision, setLoadedAccessRevision] = useState<string | null>(null);
+  const [accessRetry, setAccessRetry] = useState(0);
   const [unit, setUnit] = useState<EquipmentUnit | null>(null);
   const [movements, setMovements] = useState<EquipmentMovement[]>([]);
   const [objects, setObjects] = useState<ServiceObject[]>([]);
@@ -57,33 +65,36 @@ export default function EquipmentDetailPage({
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [savedWithoutAccess, setSavedWithoutAccess] = useState<{ hasPendingFiles: boolean } | null>(null);
+  useOpenAccessRefresh(unit !== null);
 
-  const loadAll = async (id: string, cancelled = false): Promise<void> => {
+  const loadAll = async (id: string, isCancelled: () => boolean = () => false): Promise<void> => {
     const loadedUnit = await getEquipmentUnitById(id);
 
-    if (cancelled) {
+    if (isCancelled()) {
       return;
     }
 
     setUnit(loadedUnit);
 
-    const requests: Array<Promise<void>> = [
+    const requests: Array<Promise<void>> = loadedUnit.capabilities.canViewHistory ? [
       listEquipmentMovements(id).then((response) => {
-        if (!cancelled) {
+        if (!isCancelled()) {
           setMovements(response);
         }
       }),
-    ];
+    ] : [];
+    if (!loadedUnit.capabilities.canViewHistory && !isCancelled()) setMovements([]);
 
-    if (loadedUnit.capabilities.canCreateMovement) {
+    if (loadedUnit.capabilities.canAssignToObject) {
       requests.push(
         listObjects().then((response) => {
-          if (!cancelled) {
+          if (!isCancelled()) {
             setObjects(response);
           }
         }),
       );
-    } else if (!cancelled) {
+    } else if (!isCancelled()) {
       setObjects([]);
     }
     if (loadedUnit.capabilities.canAssignToOneTimeOrder) {
@@ -92,30 +103,32 @@ export default function EquipmentDetailPage({
           sortBy: 'title',
           sortDirection: 'asc',
         }).then((response) => {
-          if (!cancelled) {
+          if (!isCancelled()) {
             setOrders(response.items);
           }
         }));
-    } else if (!cancelled) {
+    } else if (!isCancelled()) {
       setOrders([]);
     }
 
     await Promise.all(requests);
+    if (!isCancelled()) setLoadedAccessRevision(accessRevision);
   };
 
   useEffect(() => {
     let cancelled = false;
 
     const load = async (): Promise<void> => {
-      setIsLoading(true);
       setError(null);
 
       try {
         const resolved = await params;
-        await loadAll(resolved.id, cancelled);
+        await loadAll(resolved.id, () => cancelled);
       } catch (loadError) {
         if (!cancelled) {
-          setError(getErrorMessage(loadError, 'Не удалось загрузить оборудование.'));
+          setError(loadError instanceof ApiError && (loadError.statusCode === 403 || loadError.statusCode === 404)
+            ? 'Оборудование не найдено или недоступно.'
+            : 'Не удалось загрузить карточку оборудования.');
         }
       } finally {
         if (!cancelled) {
@@ -129,11 +142,32 @@ export default function EquipmentDetailPage({
     return () => {
       cancelled = true;
     };
-  }, [params]);
+  }, [params, accessRevision, accessRetry]);
+
+  if (savedWithoutAccess) return (
+    <div className={`ui-page ${inventoryStyles.equipmentWorkspace}`}>
+      <BackLink href="/equipment">Оборудование</BackLink>
+      <Alert tone="success" role="status">
+        Операция сохранена. Доступ к карточке изменился.
+        {savedWithoutAccess.hasPendingFiles ? ' Выбранные файлы не прикрепились.' : ''}
+      </Alert>
+      <Button onClick={() => {
+        setSavedWithoutAccess(null);
+        setUnit(null);
+        setIsLoading(true);
+        setError(null);
+        setLoadedAccessRevision(null);
+        setAccessRetry((value) => value + 1);
+      }}>Проверить доступ</Button>
+    </div>
+  );
 
   return (
     <div className={`ui-page ${inventoryStyles.equipmentWorkspace}`}>
       <BackLink href="/equipment">Оборудование</BackLink>
+      {loadedAccessRevision !== accessRevision && !error ? <LoadingState label="Проверка доступа к оборудованию…" /> : null}
+      {loadedAccessRevision !== accessRevision && error ? <Alert tone="danger" action={<Button onClick={() => setAccessRetry((value) => value + 1)}>Повторить проверку доступа</Button>}>{error}</Alert> : null}
+      <AccessSnapshotBoundary blocked={loadedAccessRevision !== accessRevision}>
 
       {isLoading ? (
         <LoadingState label="Загружаем оборудование…" />
@@ -189,6 +223,9 @@ export default function EquipmentDetailPage({
             ) : null}
           </Surface>
 
+          {isDeleteConfirmationOpen && !unit.capabilities.canDelete ? (
+            <Alert tone="warning" role="status">Удаление оборудования недоступно. Карточка не удалена. После возврата доступа подтвердите удаление вручную.</Alert>
+          ) : null}
           {unit.capabilities.canDelete ? (
             <Surface padding="md" style={{ display: 'grid', gap: 12 }}>
               <div className="ui-section-header">
@@ -261,6 +298,17 @@ export default function EquipmentDetailPage({
             onCreateMovement={async ({ payload, evidenceFiles }) => {
               const created = await createEquipmentMovement(unit.id, payload);
 
+              if (isSavedWithoutAccess(created)) {
+                setUnit(null);
+                setMovements([]);
+                setObjects([]);
+                setOrders([]);
+                setLoadedAccessRevision(null);
+                setError(null);
+                setSavedWithoutAccess({ hasPendingFiles: evidenceFiles.length > 0 });
+                return;
+              }
+
               await Promise.all(
                 evidenceFiles.map((file) =>
                   uploadFileToEntity({
@@ -278,6 +326,7 @@ export default function EquipmentDetailPage({
       ) : (
         <Surface padding="md">Оборудование не найдено.</Surface>
       )}
+      </AccessSnapshotBoundary>
     </div>
   );
 }

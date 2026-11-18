@@ -2,6 +2,8 @@
 
 import Link from 'next/link';
 import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useAccessRevision } from '@/shared/auth/use-access-revision';
+import { AccessSnapshotBoundary } from '@/shared/auth/access-snapshot-boundary';
 
 import {
   addEmployeeAvailability,
@@ -86,7 +88,10 @@ export function EmployeeScheduleSection({
   item: EmployeeDetail;
   onItemChange: (employee: EmployeeDetail) => void;
 }): React.JSX.Element {
+  const accessRevision = useAccessRevision();
   const [cursor, setCursor] = useState<MonthCursor>(currentMonth);
+  const attendanceScope = `${item.id}:${cursor.year}:${cursor.month}:${accessRevision}`;
+  const [loadedAttendanceScope, setLoadedAttendanceScope] = useState<string | null>(null);
   const [attendance, setAttendance] = useState<EmployeeAttendanceMonth | null>(null);
   const [attendanceError, setAttendanceError] = useState<string | null>(null);
   const [isAttendanceLoading, setIsAttendanceLoading] = useState(true);
@@ -108,7 +113,7 @@ export function EmployeeScheduleSection({
     setIsAttendanceLoading(true);
     setAttendanceError(null);
     void getEmployeeAttendance(item.id, cursor.year, cursor.month)
-      .then((response) => { if (request === requestRef.current) setAttendance(response); })
+      .then((response) => { if (request === requestRef.current) { setAttendance(response); setLoadedAttendanceScope(attendanceScope); } })
       .catch((error) => {
         if (request === requestRef.current) {
           setAttendance(null);
@@ -116,7 +121,10 @@ export function EmployeeScheduleSection({
         }
       })
       .finally(() => { if (request === requestRef.current) setIsAttendanceLoading(false); });
-  }, [cursor, item.id, reloadKey]);
+    return () => { requestRef.current += 1; };
+  }, [attendanceScope, cursor, item.id, reloadKey]);
+
+  useEffect(() => { setConfirm(null); }, [accessRevision]);
 
   const grid = useMemo(() => buildMonthGrid(cursor), [cursor]);
   const substitutions = useMemo(
@@ -261,6 +269,7 @@ export function EmployeeScheduleSection({
 
   return (
     <Surface className={`${styles.section} ${styles.schedule}`} aria-labelledby="employee-schedule-title">
+      {loadedAttendanceScope !== attendanceScope || attendanceError ? <Alert tone={attendanceError ? 'danger' : 'info'} action={attendanceError ? <Button size="sm" onClick={() => setReloadKey((value) => value + 1)}>Повторить</Button> : undefined}>{attendanceError ?? 'Обновляем доступ к графику…'}</Alert> : null}
       <div className={styles.scheduleHeader}>
         <div className={styles.monthNav}>
           <h2 id="employee-schedule-title" className={styles.visuallyHidden}>График</h2>
@@ -270,7 +279,7 @@ export function EmployeeScheduleSection({
           <Button size="sm" variant="ghost" onClick={() => setCursor(currentMonth())}>Сегодня</Button>
         </div>
         <ul className={styles.legend} aria-label="Итоги месяца">
-          <li><span className={`${styles.swatch} ${styles.swatchWorked}`} aria-hidden="true" />Выходы: <strong>{isAttendanceLoading ? '…' : attendanceError ? '—' : attendance?.days.length ?? 0}</strong></li>
+          <li><span className={`${styles.swatch} ${styles.swatchWorked}`} aria-hidden="true" />Выходы: <strong>{attendanceError ? '—' : isAttendanceLoading || loadedAttendanceScope !== attendanceScope ? '…' : attendance?.days.length ?? 0}</strong></li>
           <li><span className={`${styles.swatch} ${styles.swatchUnavailable}`} aria-hidden="true" />Недоступна: <strong>{countDays('unavailable')}</strong></li>
           <li><span className={`${styles.swatch} ${styles.swatchSubstitution}`} aria-hidden="true" />Подмены: <strong>{countDays('substitution')}</strong></li>
         </ul>
@@ -286,14 +295,8 @@ export function EmployeeScheduleSection({
         ) : null}
       </div>
 
-      {attendanceError ? (
-        <Alert tone="danger" title="Выходы не загрузились"
-          action={<Button size="sm" onClick={() => setReloadKey((value) => value + 1)}>Повторить</Button>}>
-          {attendanceError}
-        </Alert>
-      ) : null}
-
       <div className={styles.scheduleBody}>
+        <AccessSnapshotBoundary blocked={loadedAttendanceScope !== attendanceScope || !!attendanceError}>
         <div className={styles.calendarColumn}>
           <div className={styles.calendar} role="table" aria-label={`Календарь: ${formatMonth(cursor)}`} aria-busy={isAttendanceLoading}>
             <div role="row" className={styles.calendarRow}>
@@ -356,6 +359,7 @@ export function EmployeeScheduleSection({
             ) : null}
           </ul>
         </div>
+        </AccessSnapshotBoundary>
 
         <aside className={styles.sidePanel} aria-label="Подмены и недоступность">
           <div className={styles.sideTabs}>
@@ -428,22 +432,22 @@ export function EmployeeScheduleSection({
         </aside>
       </div>
 
-      {item.capabilities.canManageAvailability && !item.isArchived ? (
+      <AccessSnapshotBoundary blocked={!item.capabilities.canManageAvailability || item.isArchived}>
         <AvailabilityDialog
           open={availabilityOpen}
           onOpenChange={setAvailabilityOpen}
           employee={item}
           onSaved={(updated) => { onItemChange(updated); setAvailabilityOpen(false); setSideTab('availability'); }}
         />
-      ) : null}
-      {item.capabilities.canManageSubstitutions && !item.isArchived ? (
+      </AccessSnapshotBoundary>
+      <AccessSnapshotBoundary blocked={!item.capabilities.canManageSubstitutions || item.isArchived}>
         <SubstitutionDialog
           open={substitutionOpen}
           onOpenChange={setSubstitutionOpen}
           employee={item}
           onSaved={(updated) => { onItemChange(updated); setSubstitutionOpen(false); setSideTab('substitutions'); }}
         />
-      ) : null}
+      </AccessSnapshotBoundary>
 
       <ConfirmDialog
         open={confirm !== null}
@@ -525,6 +529,7 @@ function AvailabilityDialog({
         noValidate
         onSubmit={async (event) => {
           event.preventDefault();
+          if (pending || !employee.capabilities.canManageAvailability || employee.isArchived) return;
           const nextErrors = validate();
           setErrors(nextErrors);
           if (Object.keys(nextErrors).length) return;
@@ -602,6 +607,7 @@ function SubstitutionDialog({
   employee: EmployeeDetail;
   onSaved: (employee: EmployeeDetail) => void;
 }): React.JSX.Element {
+  const accessRevision = useAccessRevision();
   const formId = useId();
   const currentObjects = employee.currentObjectAssignments.map((assignment) => ({
     value: assignment.objectId,
@@ -655,6 +661,7 @@ function SubstitutionDialog({
         noValidate
         onSubmit={async (event) => {
           event.preventDefault();
+          if (pending || !employee.capabilities.canManageSubstitutions || employee.isArchived) return;
           const nextErrors = validate();
           setErrors(nextErrors);
           if (Object.keys(nextErrors).length) return;
@@ -679,6 +686,7 @@ function SubstitutionDialog({
       >
         {error ? <Alert tone="danger" role="alert">{error}</Alert> : null}
         <SelectField
+          key={`substitute:${accessRevision}`}
           label="Кто подменяет"
           required
           error={errors.substitute}
@@ -699,6 +707,7 @@ function SubstitutionDialog({
           onChange={(substituteEmployeeId) => setForm((current) => ({ ...current, substituteEmployeeId }))}
         />
         <SelectField
+          key={`object:${accessRevision}`}
           label="Объект"
           value={form.objectId}
           options={currentObjects}

@@ -19,6 +19,7 @@ import { listTasks } from '@/entities/task/api/task-client';
 import type { TaskItem, TaskListResponse } from '@/entities/task/model/task.types';
 import { useAuth } from '@/shared/auth/use-auth';
 import { getUserGreetingName } from '@/shared/lib/display-name';
+import { EmptyState, Surface } from '@/shared/ui/foundation';
 
 import styles from './dashboard-workspace.module.css';
 
@@ -53,16 +54,19 @@ function buildAttention(approvals: ApprovalRequestItem[], tasks: TaskItem[]): Ar
 
 export function DashboardWorkspace(): React.JSX.Element {
   const { user } = useAuth();
+  const canAccessDashboard = user?.capabilities?.canAccessDashboard === true;
   const [data, setData] = useState<DashboardData>({ approvals:[], tasks:EMPTY_TASKS, objects:[], orders:EMPTY_ORDERS, employees:EMPTY_EMPLOYEES, unassignedEmployees:0, overdueCandidates:0, money:EMPTY_MONEY });
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
+    if (!canAccessDashboard) return;
     let active = true;
     const safe = async <T,>(promise: Promise<T>, fallback: T): Promise<T> => promise.catch(() => fallback);
     const loadMoney = async (): Promise<MoneyState> => {
       if (!user?.capabilities?.canReviewAccountability) return EMPTY_MONEY;
       const accounts = await safe(listAccountabilityAccounts(), []);
+      if (!active) return EMPTY_MONEY;
       const submitted = accounts.reduce((sum, account) => sum + account.summary.submittedExpensesCount, 0);
       const closures = accounts.filter((account) => account.status === 'closing_requested').length;
       const details = await Promise.all(accounts.map((account) => safe(getAccountabilityAccountByUserId(account.user.id), null)));
@@ -86,7 +90,7 @@ export function DashboardWorkspace(): React.JSX.Element {
       setLoading(false);
     }).catch(() => { if (active) { setFailed(true); setLoading(false); } });
     return () => { active = false; };
-  }, [user?.capabilities?.canAccessCandidates, user?.capabilities?.canReviewAccountability]);
+  }, [canAccessDashboard, user?.capabilities?.canAccessCandidates, user?.capabilities?.canReviewAccountability]);
 
   const attention = useMemo(() => buildAttention(data.approvals, data.tasks.items), [data.approvals, data.tasks.items]);
   const activeObjects = useMemo(() => data.objects.filter((item) => item.status === 'active'), [data.objects]);
@@ -95,6 +99,8 @@ export function DashboardWorkspace(): React.JSX.Element {
   const orders = useMemo(() => data.orders.items.filter((item) => !['completed','cancelled'].includes(item.status)).slice(0,4), [data.orders.items]);
   const attentionCount = data.approvals.length + data.tasks.items.filter((item) => item.isOverdue && item.status !== 'completed').length;
   const name = user ? getUserGreetingName(user) : '';
+
+  if (!canAccessDashboard) return <Surface padding="md"><EmptyState title="Рабочий стол недоступен" description="У вас нет доступа к рабочему столу." /></Surface>;
 
   return <div className={styles.root}>
     <section className={styles.intro}>

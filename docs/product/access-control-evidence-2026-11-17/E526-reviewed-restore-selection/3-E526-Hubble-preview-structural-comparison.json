@@ -1,0 +1,111 @@
+{
+  "id": "E526-Hubble-preview-independent-structural-comparison",
+  "reviewer": "Codex/Hubble independent; not Main product or McClintock helper/runtime author",
+  "raw": {
+    "path": "/private/tmp/E526-object-preview-isolated/attempt-001/object-preview.json",
+    "sha256": "7377cbe62626c30021e764d03656d17498387b21de1fe30bdac5ead15efe1994"
+  },
+  "comparisonSemantics": "Strict recursive JSON structural equality: identical scalar types/values, exact object key sets and recursively equal members; array order and multiplicity preserved. Only object member serialization order ignored. No expected values changed, no key or array sorting/filtering that could hide a mismatch.",
+  "checks": [
+    {
+      "rawPointer": "/assertions/0",
+      "label": "archived selected objects.restore actual preview201",
+      "rawMatchedFlag": true,
+      "strictStructuralEqual": true,
+      "objectKeyOrderDifferences": []
+    },
+    {
+      "rawPointer": "/assertions/1",
+      "label": "restore preview preserves exact requested archived selected scope",
+      "rawMatchedFlag": true,
+      "strictStructuralEqual": true,
+      "objectKeyOrderDifferences": []
+    },
+    {
+      "rawPointer": "/assertions/2",
+      "label": "restore preview returns real preview token/hash",
+      "rawMatchedFlag": true,
+      "strictStructuralEqual": true,
+      "objectKeyOrderDifferences": []
+    },
+    {
+      "rawPointer": "/assertions/3",
+      "label": "preview0 leaves all business/audit/rules/versions unchanged",
+      "rawMatchedFlag": true,
+      "strictStructuralEqual": true,
+      "objectKeyOrderDifferences": []
+    },
+    {
+      "rawPointer": "/assertions/4",
+      "label": "ordinary objects.update selected archived object rejects400",
+      "rawMatchedFlag": true,
+      "strictStructuralEqual": true,
+      "objectKeyOrderDifferences": []
+    },
+    {
+      "rawPointer": "/assertions/5",
+      "label": "preview1 leaves all business/audit/rules/versions unchanged",
+      "rawMatchedFlag": true,
+      "strictStructuralEqual": true,
+      "objectKeyOrderDifferences": []
+    },
+    {
+      "rawPointer": "/assertions/6",
+      "label": "exactly one preview-only record created for successful restore preview",
+      "rawMatchedFlag": true,
+      "strictStructuralEqual": true,
+      "objectKeyOrderDifferences": []
+    },
+    {
+      "rawPointer": "/assertions/7",
+      "label": "persisted preview is only intended objects.restore proposal",
+      "rawMatchedFlag": false,
+      "strictStructuralEqual": true,
+      "objectKeyOrderDifferences": [
+        {
+          "pointer": "/0/changes/0",
+          "actualKeyOrder": [
+            "scope",
+            "effect",
+            "actionCode",
+            "selectedIds"
+          ],
+          "expectedKeyOrder": [
+            "actionCode",
+            "effect",
+            "scope",
+            "selectedIds"
+          ]
+        }
+      ]
+    },
+    {
+      "rawPointer": "/assertions/8",
+      "label": "no grant rules persisted for target",
+      "rawMatchedFlag": true,
+      "strictStructuralEqual": true,
+      "objectKeyOrderDifferences": []
+    },
+    {
+      "rawPointer": "/assertions/9",
+      "label": "target access version unchanged",
+      "rawMatchedFlag": true,
+      "strictStructuralEqual": true,
+      "objectKeyOrderDifferences": []
+    },
+    {
+      "rawPointer": "/assertions/10",
+      "label": "archived object unchanged and never restored",
+      "rawMatchedFlag": true,
+      "strictStructuralEqual": true,
+      "objectKeyOrderDifferences": []
+    }
+  ],
+  "rawFailedMatchedPointers": [
+    "/assertions/7/matched"
+  ],
+  "rawContainerStatus": "actual_preview_failure_Main_owner",
+  "rawExitCode": 1,
+  "classification": "Only nested JSON object-key serialization order differs; actual stored proposal is exact intended content. Original byte-string comparator is unsuitable for PostgreSQL JSONB key order. Raw failure is preserved, not rewritten or promoted.",
+  "newRuntimeRequests": 0
+}

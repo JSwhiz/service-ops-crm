@@ -11,6 +11,7 @@ import {
   canCreateObject,
   canManageObjectResponsibles,
   canViewObjectByScope,
+  buildObjectBasicProfileAccessWhere,
 } from '../objects/utils/object-access.util';
 import {
   canBeOneTimeOrderManager,
@@ -21,6 +22,7 @@ import {
 
 import { ListSystemUsersQueryDto } from './dto/list-system-users-query.dto';
 import { SystemUserOptionDto } from './dto/system-user-option.dto';
+import { AccessRule, decideAccess, hasModuleDeny } from './utils/access-policy.util';
 
 interface CurrentAuthUser {
   id: string;
@@ -29,6 +31,7 @@ interface CurrentAuthUser {
   roleCode: string;
   roleCodes?: string[];
   permissionCodes?: string[];
+  accessRules?: AccessRule[];
   isActive: boolean;
 }
 
@@ -102,18 +105,8 @@ export class UsersAccessService {
     objectId?: string,
   ): Promise<SystemUserOptionDto[]> {
     if (objectId) {
-      const object = await this.getObjectWithAssignments(objectId);
-      const roleCodes = this.getRoleCodes(currentUser);
-      const isResponsible = object.assignments.some(
-        (assignment) =>
-          assignment.userId === currentUser.id &&
-          assignment.assignmentRoleCode === 'responsible',
-      );
-
-      if (!canManageObjectResponsibles(roleCodes) && !isResponsible && !hasDelegatedObjectAction(currentUser.id, objectId, 'assign')) {
-        throw new ForbiddenException('Manager candidate access denied');
-      }
-    } else if (!canCreateObject(this.getRoleCodes(currentUser))) {
+      await this.assertObjectTeamCandidateAccess(currentUser, objectId, 'objects.managers.manage');
+    } else if (!this.canListNewObjectCandidates(currentUser, 'objects.managers.manage')) {
       throw new ForbiddenException('Manager candidate access denied');
     }
 
@@ -131,16 +124,39 @@ export class UsersAccessService {
     objectId?: string,
   ): Promise<SystemUserOptionDto[]> {
     if (objectId) {
-      await this.getObjectWithAssignments(objectId);
-    }
-
-    if (!canManageObjectResponsibles(this.getRoleCodes(currentUser)) && !hasDelegatedObjectAction(currentUser.id, objectId, 'assign')) {
+      await this.assertObjectTeamCandidateAccess(currentUser, objectId, 'objects.responsibles.manage');
+    } else if (!this.canListNewObjectCandidates(currentUser, 'objects.responsibles.manage')) {
       throw new ForbiddenException('Responsible candidate access denied');
     }
 
     const users = await this.getActiveUsersWithRoles();
 
     return users.map((user) => this.mapUser(user));
+  }
+
+  private async assertObjectTeamCandidateAccess(currentUser: CurrentAuthUser, objectId: string, action: 'objects.managers.manage' | 'objects.responsibles.manage'): Promise<void> {
+    const object = await this.prisma.object.findFirst({
+      where: { id: objectId, deletedAt: null },
+      select: { createdByUserId: true, assignments: { where: { isActive: true }, select: { userId: true } } },
+    });
+    if (!object) throw new ForbiddenException('Object team candidate access denied');
+    const context = { resourceType: 'object', resourceId: objectId, ownerUserId: object.createdByUserId, assignedUserIds: object.assignments.map(assignment => assignment.userId) };
+    const legacy = canManageObjectResponsibles(this.getRoleCodes(currentUser));
+    if (!decideAccess(currentUser, action, legacy, context) &&
+        !decideAccess(currentUser, action, hasDelegatedObjectAction(currentUser.id, objectId, 'assign', true, action, context), context)) {
+      throw new ForbiddenException('Object team candidate access denied');
+    }
+    const visible = await this.prisma.object.findFirst({ where: { id: objectId, ...buildObjectBasicProfileAccessWhere({
+      subject: currentUser, roleCodes: this.getRoleCodes(currentUser), permissionCodes: this.getPermissionCodes(currentUser),
+    }) }, select: { id: true } });
+    if (!visible) throw new NotFoundException('Object not found');
+  }
+
+  private canListNewObjectCandidates(currentUser: CurrentAuthUser, action: 'objects.managers.manage' | 'objects.responsibles.manage'): boolean {
+    const context = { resourceType: 'object' as const, ownerUserId: currentUser.id };
+    return decideAccess(currentUser, 'objects.create', canCreateObject(this.getRoleCodes(currentUser))) &&
+      decideAccess(currentUser, 'objects.read', true, context) &&
+      decideAccess(currentUser, action, true, context);
   }
 
   private async listTaskAssigneeCandidates(
@@ -196,14 +212,20 @@ export class UsersAccessService {
       ? await this.getOneTimeOrderWithAssignments(oneTimeOrderId)
       : null;
     const isCreator = order?.createdByUserId === currentUser.id;
-
-    if (
-      !isCreator &&
-      !canManageOneTimeOrderManagers(
-        this.getRoleCodes(currentUser),
-        this.getPermissionCodes(currentUser),
-      )
-    ) {
+    const orderContext = order ? { resourceType: 'one_time_order', resourceId: order.id, ownerUserId: order.createdByUserId,
+      assignedUserIds: order.assignments.filter(assignment => assignment.assignmentRoleCode === 'one_time_manager').map(assignment => assignment.userId) } : {};
+    const legacy = isCreator || canManageOneTimeOrderManagers(this.getRoleCodes(currentUser), this.getPermissionCodes(currentUser));
+    if (order) {
+      if (!decideAccess(currentUser, 'one_time_orders.read', true, orderContext) ||
+          !decideAccess(currentUser, 'one_time_orders.managers.manage', legacy, orderContext)) {
+        throw new ForbiddenException('One-time order manager candidate access denied');
+      }
+      if (!canViewOneTimeOrderByScope({ subject: currentUser, currentUserId: currentUser.id,
+        roleCodes: this.getRoleCodes(currentUser), permissionCodes: this.getPermissionCodes(currentUser), order })) {
+        throw new NotFoundException('One-time order not found');
+      }
+    } else if (hasModuleDeny(currentUser, 'one_time_orders.read') || !legacy) {
+      // New-order/copy picker has its own existing role baseline and no ID.
       throw new ForbiddenException('One-time order manager candidate access denied');
     }
 
@@ -292,6 +314,7 @@ export class UsersAccessService {
     const order = await this.getOneTimeOrderWithAssignments(oneTimeOrderId);
     if (
       !canViewOneTimeOrderByScope({
+        subject: currentUser,
         currentUserId: currentUser.id,
         roleCodes: this.getRoleCodes(currentUser),
         permissionCodes: this.getPermissionCodes(currentUser),
@@ -353,7 +376,7 @@ export class UsersAccessService {
     objectId?: string,
     oneTimeOrderId?: string,
   ) {
-    if (!currentUser.isActive) {
+    if (!currentUser.isActive || hasModuleDeny(currentUser, 'tasks.access')) {
       throw new ForbiddenException('Task candidate access denied');
     }
 
@@ -368,6 +391,7 @@ export class UsersAccessService {
     if (
       object &&
       !canViewObjectByScope({
+        subject: currentUser,
         currentUserId: currentUser.id,
         roleCodes,
         object,
@@ -379,6 +403,7 @@ export class UsersAccessService {
     if (
       order &&
       !canViewOneTimeOrderByScope({
+        subject: currentUser,
         currentUserId: currentUser.id,
         roleCodes,
         permissionCodes: this.getPermissionCodes(currentUser),
@@ -394,7 +419,7 @@ export class UsersAccessService {
   private async listChatParticipantCandidates(
     currentUser: CurrentAuthUser,
   ): Promise<SystemUserOptionDto[]> {
-    if (!currentUser.isActive) {
+    if (!currentUser.isActive || hasModuleDeny(currentUser, 'chat.access')) {
       throw new ForbiddenException('Chat participant candidate access denied');
     }
 
@@ -463,6 +488,7 @@ export class UsersAccessService {
         deletedAt: null,
       },
       select: {
+        id: true,
         createdByUserId: true,
         assignments: {
           where: {
@@ -510,6 +536,7 @@ export class UsersAccessService {
         id: oneTimeOrderId,
       },
       select: {
+        id: true,
         createdByUserId: true,
         assignments: {
           where: {

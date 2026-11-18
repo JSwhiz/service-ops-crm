@@ -1,4 +1,4 @@
-import type { UserAbsenceType } from '@/entities/user-absence/model/user-absence.types';
+import type { UserAbsenceItem, UserAbsenceType, UserAbsenceUserOption } from '@/entities/user-absence/model/user-absence.types';
 
 export interface UserAbsenceCreateValues {
   userId: string;
@@ -8,22 +8,52 @@ export interface UserAbsenceCreateValues {
   comment: string;
 }
 
+export function changeUserAbsenceCreateTarget(
+  value: UserAbsenceCreateValues,
+  userId: string,
+): UserAbsenceCreateValues {
+  return userId === value.userId ? value : { ...value, userId, comment: '' };
+}
+
 export function toCreateUserAbsencePayload(
   value: UserAbsenceCreateValues,
-  access: { canManageAll: boolean; canViewPrivateReasons: boolean; currentUserId?: string },
+  target: UserAbsenceUserOption | undefined,
 ): {
   userId: string;
   absenceType: UserAbsenceType;
   startDate: string;
   endDate: string;
-  comment: string | null;
+  comment?: string | null;
 } {
-  const mayIncludeComment = value.userId === access.currentUserId || access.canViewPrivateReasons;
+  if (!target || target.id !== value.userId || target.capabilities?.canCreate !== true) {
+    throw new Error('Создание отсутствия для выбранного пользователя недоступно. Выберите пользователя с правом создания. Черновик сохранён.');
+  }
   return {
-    userId: access.canManageAll ? value.userId : access.currentUserId ?? value.userId,
+    userId: value.userId,
     absenceType: value.absenceType,
     startDate: value.startDate,
     endDate: value.endDate,
-    comment: mayIncludeComment ? value.comment || null : null,
+    ...(target.capabilities.canViewPrivateReasons ? { comment: value.comment || null } : {}),
+  };
+}
+
+export function toUpdateUserAbsencePayload(
+  value: UserAbsenceCreateValues,
+  item: UserAbsenceItem | undefined,
+  commentChanged = false,
+): {
+  absenceType: UserAbsenceType;
+  startDate: string;
+  endDate: string;
+  comment?: string | null;
+} {
+  if (!item || item.userId !== value.userId || item.capabilities?.canUpdate !== true) {
+    throw new Error('Изменение этой записи недоступно. Черновик сохранён. Обновите календарь для проверки доступа.');
+  }
+  return {
+    absenceType: value.absenceType,
+    startDate: value.startDate,
+    endDate: value.endDate,
+    ...(commentChanged && item.capabilities.canViewPrivateReasons ? { comment: value.comment || null } : {}),
   };
 }

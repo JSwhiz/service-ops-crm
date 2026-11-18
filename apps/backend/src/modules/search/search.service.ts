@@ -1,16 +1,15 @@
-import { Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import { delegatedObjectIds } from '../user-substitutions/object-delegation.context';
 
 import { buildCandidateAccessWhere, canViewCandidates } from '../candidates/utils/candidate-access.util';
 import { candidatePhoneSearchDigits } from '../candidates/utils/candidate-phone.util';
 import { canViewCounterparties } from '../counterparties/utils/counterparty-access.util';
 import { canViewEmployeesHr } from '../employees/utils/employee-hr-access.util';
 import { canAccessEquipment } from '../equipment/utils/equipment-access.util';
+import { equipmentPolicyWhere } from '../equipment/utils/equipment-policy.util';
 import { canAccessInventory } from '../inventory/utils/inventory-access.util';
 import {
-  hasHrObjectView,
-  hasWideObjectAccess,
+  buildObjectBasicProfileAccessWhere,
 } from '../objects/utils/object-access.util';
 import {
   buildOneTimeOrderAccessWhere,
@@ -18,6 +17,8 @@ import {
 } from '../one-time-orders/utils/one-time-order-access.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { buildTaskAccessWhere } from '../tasks/utils/task-access.util';
+import { taskVisibilityWhere } from '../tasks/utils/task-policy.util';
+import { buildAccessWhere, decideAccess, type AccessSubject } from '../users-access/utils/access-policy.util';
 
 import { GlobalSearchQueryDto } from './dto/global-search-query.dto';
 import {
@@ -29,7 +30,7 @@ import {
   ResolveRecentSearchDto,
 } from './dto/resolve-recent-search.dto';
 
-interface CurrentAuthUser {
+interface CurrentAuthUser extends AccessSubject {
   id: string;
   roleCode: string;
   roleCodes?: string[];
@@ -43,6 +44,10 @@ interface SearchAccessContext {
   candidateWhere: Prisma.CandidateWhereInput;
   taskWhere: Prisma.TaskWhereInput;
   orderWhere: Prisma.OneTimeOrderWhereInput;
+  employeeWhere: Prisma.EmployeeWhereInput;
+  counterpartyWhere: Prisma.CounterpartyWhereInput;
+  inventoryWhere: Prisma.InventoryItemWhereInput;
+  equipmentWhere: Prisma.EquipmentUnitWhereInput;
   canSearchOrders: boolean;
   canSearchEmployees: boolean;
   canSearchCandidates: boolean;
@@ -65,6 +70,7 @@ export class SearchService {
     currentUser: CurrentAuthUser,
     query: GlobalSearchQueryDto,
   ): Promise<GlobalSearchResponseDto> {
+    if (!decideAccess(currentUser, 'search.query', true)) throw new ForbiddenException('Поиск недоступен');
     const access = this.buildAccessContext(currentUser);
     const normalizedQuery = query.q.trim();
     const term = normalizedQuery.replace(/^#/, '').trim();
@@ -179,6 +185,7 @@ export class SearchService {
       access.canSearchEmployees
         ? this.prisma.employee.findMany({
             where: {
+              AND: [access.employeeWhere],
               deletedAt: null,
               OR: [
                 { id: { contains: term, mode: 'insensitive' } },
@@ -232,6 +239,7 @@ export class SearchService {
       access.canSearchCounterparties
         ? this.prisma.counterparty.findMany({
             where: {
+              AND: [access.counterpartyWhere],
               OR: [
                 { id: { contains: term, mode: 'insensitive' } },
                 { name: { contains: term, mode: 'insensitive' } },
@@ -279,7 +287,7 @@ export class SearchService {
                 select: { name: true },
                 take: 3,
               },
-              _count: { select: { objects: true } },
+              _count: { select: { objects: { where: access.objectWhere } } },
             },
             orderBy: [{ updatedAt: 'desc' }, { id: 'asc' }],
             take: candidateTake,
@@ -288,6 +296,7 @@ export class SearchService {
       access.canSearchInventory
         ? this.prisma.inventoryItem.findMany({
             where: {
+              AND: [access.inventoryWhere],
               OR: [
                 { id: { contains: term, mode: 'insensitive' } },
                 { name: { contains: term, mode: 'insensitive' } },
@@ -309,6 +318,7 @@ export class SearchService {
       access.canSearchEquipment
         ? this.prisma.equipmentUnit.findMany({
             where: {
+              AND: [access.equipmentWhere],
               OR: [
                 { id: { contains: term, mode: 'insensitive' } },
                 { inventoryNumber: { contains: term, mode: 'insensitive' } },
@@ -453,6 +463,7 @@ export class SearchService {
     currentUser: CurrentAuthUser,
     payload: ResolveRecentSearchDto,
   ): Promise<GlobalSearchItemDto[]> {
+    if (!decideAccess(currentUser, 'search.recent', true)) throw new ForbiddenException('Недавние результаты поиска недоступны');
     if (payload.refs.length === 0) return [];
 
     const access = this.buildAccessContext(currentUser);
@@ -514,7 +525,7 @@ export class SearchService {
         : Promise.resolve([]),
       access.canSearchEmployees && employeeIds.length
         ? this.prisma.employee.findMany({
-            where: { id: { in: employeeIds }, deletedAt: null },
+            where: { id: { in: employeeIds }, deletedAt: null, AND: [access.employeeWhere] },
             select: { id: true, fullName: true, phone: true, position: true },
           })
         : Promise.resolve([]),
@@ -526,7 +537,7 @@ export class SearchService {
         : Promise.resolve([]),
       access.canSearchCounterparties && counterpartyIds.length
         ? this.prisma.counterparty.findMany({
-            where: { id: { in: counterpartyIds } },
+            where: { id: { in: counterpartyIds }, AND: [access.counterpartyWhere] },
             select: {
               id: true,
               name: true,
@@ -534,13 +545,13 @@ export class SearchService {
               contactName: true,
               contactPhone: true,
               status: true,
-              _count: { select: { objects: true } },
+              _count: { select: { objects: { where: access.objectWhere } } },
             },
           })
         : Promise.resolve([]),
       access.canSearchInventory && inventoryItemIds.length
         ? this.prisma.inventoryItem.findMany({
-            where: { id: { in: inventoryItemIds } },
+            where: { id: { in: inventoryItemIds }, AND: [access.inventoryWhere] },
             select: {
               id: true,
               name: true,
@@ -552,7 +563,7 @@ export class SearchService {
         : Promise.resolve([]),
       access.canSearchEquipment && equipmentUnitIds.length
         ? this.prisma.equipmentUnit.findMany({
-            where: { id: { in: equipmentUnitIds } },
+            where: { id: { in: equipmentUnitIds }, AND: [access.equipmentWhere] },
             select: {
               id: true,
               inventoryNumber: true,
@@ -594,42 +605,56 @@ export class SearchService {
       : [currentUser.roleCode];
     const permissionCodes = currentUser.permissionCodes ?? [];
 
-    const objectWhere: Prisma.ObjectWhereInput =
-      hasWideObjectAccess(roleCodes) || hasHrObjectView(permissionCodes)
-        ? {}
-        : {
-            OR: [
-              { id: { in: delegatedObjectIds(currentUser.id) } },
-              { createdByUserId: currentUser.id },
-              {
-                assignments: {
-                  some: { userId: currentUser.id, isActive: true },
-                },
-              },
-            ],
-          };
+    const objectWhere = buildObjectBasicProfileAccessWhere({ subject: currentUser, roleCodes, permissionCodes });
 
     return {
       roleCodes,
       permissionCodes,
       objectWhere,
-      candidateWhere: buildCandidateAccessWhere(currentUser),
-      taskWhere: buildTaskAccessWhere({
+      candidateWhere: this.accessWhere(currentUser, 'candidates.view', canViewCandidates(permissionCodes) ? buildCandidateAccessWhere(currentUser) : { id: { in: [] } }, 'candidate'),
+      taskWhere: taskVisibilityWhere(currentUser, buildTaskAccessWhere({
         currentUserId: currentUser.id,
         roleCodes,
-      }),
-      orderWhere: buildOneTimeOrderAccessWhere({
+      })),
+      orderWhere: this.accessWhere(currentUser, 'one_time_orders.read', canAccessOneTimeOrders(roleCodes, permissionCodes) ? buildOneTimeOrderAccessWhere({
         currentUserId: currentUser.id,
         roleCodes,
         permissionCodes,
-      }),
-      canSearchOrders: canAccessOneTimeOrders(roleCodes, permissionCodes),
-      canSearchEmployees: canViewEmployeesHr(permissionCodes),
-      canSearchCandidates: canViewCandidates(permissionCodes),
-      canSearchCounterparties: canViewCounterparties(permissionCodes),
-      canSearchInventory: canAccessInventory(roleCodes),
-      canSearchEquipment: canAccessEquipment(roleCodes),
+      }) : { id: { in: [] } }, 'one_time_order'),
+      employeeWhere: this.accessWhere(currentUser, 'employees.view', canViewEmployeesHr(permissionCodes) ? {} : { id: { in: [] } }, 'employee'),
+      counterpartyWhere: this.accessWhere(currentUser, 'counterparties.read', canViewCounterparties(permissionCodes) ? {} : { id: { in: [] } }, 'counterparty'),
+      inventoryWhere: this.accessWhere(currentUser, 'inventory.read', canAccessInventory(roleCodes) ? {} : { id: { in: [] } }, 'inventory_item'),
+      equipmentWhere: equipmentPolicyWhere(currentUser, canAccessEquipment(roleCodes) ? {} : { id: { in: [] } }),
+      // All categories are filtered in the database, including scoped grants.
+      // A boolean evaluated without a resource would incorrectly hide those grants.
+      canSearchOrders: true,
+      canSearchEmployees: true,
+      canSearchCandidates: true,
+      canSearchCounterparties: true,
+      canSearchInventory: true,
+      canSearchEquipment: true,
     };
+  }
+
+  private accessWhere<Where>(subject: CurrentAuthUser, actionCode: string, legacyWhere: Where, resourceType: string): Where {
+    const assigned = (type: string): Record<string, unknown> | null => {
+      if (type === 'object' || type === 'one_time_order') return { assignments: { some: { userId: subject.id, isActive: true } } };
+      if (type === 'task') return { OR: [
+        { assignees: { some: { userId: subject.id, isActive: true } } },
+        { visibilityUsers: { some: { userId: subject.id } } },
+      ] };
+      if (type === 'candidate') return { assignments: { some: { managerUserId: subject.id, endedAt: null } } };
+      return null;
+    };
+    return buildAccessWhere({
+      subject, actionCode, legacyWhere, invariantWhere: {} as Where,
+      scopeWhere: (rule) => {
+        if (rule.scope === 'all') return {} as Where;
+        if (rule.scope === 'selected') return { id: { in: [...rule.selectedIds] } } as Where;
+        if (rule.scope === 'own') return resourceType === 'employee' ? null : { createdByUserId: subject.id } as Where;
+        return assigned(resourceType) as Where | null;
+      },
+    }) as Where;
   }
 
   private matchScore(

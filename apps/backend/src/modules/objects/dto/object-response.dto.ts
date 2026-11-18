@@ -7,6 +7,8 @@ export class ObjectResponseDto {
   seasonMode!: string | null;
   baseCompensationProfile?: unknown;
   summerWindowCleaning!: boolean;
+  windowCleaningMode!: 'scheduled' | 'on_request' | 'notprovided' | null;
+  windowCleaningSeasons!: string[];
   engineeringRequired!: boolean;
   winterTractorMode!: 'none' | 'with_removal' | 'without_removal';
   instructionSteps!: string[];
@@ -29,6 +31,7 @@ export class ObjectResponseDto {
   winterScheduleWeekdays!: string[];
   winterScheduleCycleStartDate!: string | null;
   notes!: string | null;
+  counterpartyAccessRestricted?: boolean;
   counterparty!: {
     id: string;
     name: string;
@@ -69,11 +72,22 @@ export class ObjectResponseDto {
     canEditDailyRate: boolean;
     canViewCompensationRates: boolean;
     canManageCompensationRates: boolean;
+    canReadMaterials?: boolean;
+    canManageMaterials?: boolean;
+    canReadContacts?: boolean;
+    canManageContacts?: boolean;
     canEditMonthlySalary: boolean;
     canChangeStatus: boolean;
+    canFreeze?: boolean;
+    canArchive?: boolean;
+    canRestore?: boolean;
     canManageResponsibles: boolean;
     canManageManagers: boolean;
     canCreateTask: boolean;
+    canCreateArrivalPhoto?: boolean;
+    canEditDailyReport?: boolean;
+    canSubmitDailyReport?: boolean;
+    canCreateComment?: boolean;
     canViewBasicProfile: boolean;
     canViewOperationalSections: boolean;
     canViewReportsHistory: boolean;

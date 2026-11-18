@@ -206,7 +206,7 @@ export class AuditService {
     actorUserId: string;
     actionCode: string;
     payload?: Prisma.InputJsonValue | null;
-  }): Promise<void> {
+  }, database: Pick<Prisma.TransactionClient, 'auditEvent' | 'objectAuditLog'> = this.prisma): Promise<void> {
     const delegations = usedObjectDelegations();
     if (delegations.length) {
       params = { ...params, payload: { ...(params.payload && typeof params.payload === 'object' && !Array.isArray(params.payload) ? params.payload : {}), delegations } };
@@ -217,9 +217,9 @@ export class AuditService {
       actorUserId: params.actorUserId,
       action: params.actionCode,
       metadata: params.payload ?? null,
-    });
+    }, database);
 
-    await this.prisma.objectAuditLog.create({
+    await database.objectAuditLog.create({
       data: {
         objectId: params.objectId,
         actorUserId: params.actorUserId,

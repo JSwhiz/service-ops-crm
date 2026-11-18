@@ -6,6 +6,7 @@ import React, { useRef, useState } from 'react';
 
 import { createCounterparty } from '@/entities/counterparty/api/counterparty-client';
 import { toCreateCounterpartyPayload } from '@/features/counterparty-create/model/create-counterparty-payload';
+import { isSavedWithoutAccess } from '@/shared/api/saved-without-access';
 import { useAuth } from '@/shared/auth/use-auth';
 import { useCreateDraft } from '@/shared/drafts';
 import { useCreateNavigation } from '@/shared/create-navigation';
@@ -55,8 +56,9 @@ export function CounterpartyCreateDialog(): React.JSX.Element {
   const busy = localBusy || draft.submitting;
   const [error, setError] = useState<string | null>(null);
   const [createdHref, setCreatedHref] = useState<string | null>(null);
+  const [savedWithoutAccess, setSavedWithoutAccess] = useState(false);
   const submitLockRef = useRef(false);
-  const canManage = user?.capabilities?.canManageCounterparties ?? false;
+  const canCreate = user?.capabilities?.canCreateCounterparty ?? false;
 
   const updateField = (key: keyof CounterpartyDraft, value: string): void => {
     const next = { ...draft.value, [key]: value };
@@ -66,7 +68,7 @@ export function CounterpartyCreateDialog(): React.JSX.Element {
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault();
-    if (submitLockRef.current || busy || createdHref || !canManage) return;
+    if (submitLockRef.current || busy || createdHref || !canCreate) return;
 
     submitLockRef.current = true;
     setBusy(true);
@@ -75,6 +77,12 @@ export function CounterpartyCreateDialog(): React.JSX.Element {
     let createdId: string;
     try {
       const created = await draft.submit(() => createCounterparty(toCreateCounterpartyPayload(draft.value)));
+      if (isSavedWithoutAccess(created)) {
+        draft.clear();
+        setSavedWithoutAccess(true);
+        setBusy(false);
+        return;
+      }
       createdId = created.id;
     } catch (caughtError) {
       setError(getErrorMessage(caughtError));
@@ -104,9 +112,9 @@ export function CounterpartyCreateDialog(): React.JSX.Element {
       footer={({ requestClose }) => (
         <div className={styles.footer}>
           <Button onClick={() => void requestClose()} disabled={busy}>
-            Отмена
+            {savedWithoutAccess ? 'Закрыть' : 'Отмена'}
           </Button>
-          {canManage ? (
+          {canCreate && !savedWithoutAccess ? (
             <Button
               variant="primary"
               type="submit"
@@ -121,7 +129,9 @@ export function CounterpartyCreateDialog(): React.JSX.Element {
         </div>
       )}
     >
-      {canManage ? (
+      {savedWithoutAccess ? (
+        <Alert tone="success" role="status">Контрагент создан.</Alert>
+      ) : canCreate ? (
         <form id={FORM_ID} className={styles.form} onSubmit={(event) => void handleSubmit(event)}>
           <p className={styles.requiredNote}><span aria-hidden="true">*</span> — обязательное поле</p>
           <div className={styles.fields}>

@@ -1,6 +1,7 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 
 import { PrismaService } from '../prisma/prisma.service';
+import { decideAccess } from '../users-access/utils/access-policy.util';
 import { canEditOneTimeOrderByScope } from './utils/one-time-order-access.util';
 
 interface CurrentAuthUser {
@@ -34,7 +35,7 @@ export class OneTimeOrderWorkforceDirectoryService {
       },
     });
     if (!order) throw new NotFoundException('One-time order not found');
-    if (!canEditOneTimeOrderByScope({
+    if (!canEditOneTimeOrderByScope({ subject: currentUser,
       currentUserId: currentUser.id,
       roleCodes: currentUser.roleCodes ?? [currentUser.roleCode],
       permissionCodes: currentUser.permissionCodes,
@@ -44,7 +45,7 @@ export class OneTimeOrderWorkforceDirectoryService {
     }
 
     const query = search?.trim();
-    return this.prisma.employee.findMany({
+    const employees = await this.prisma.employee.findMany({
       where: {
         deletedAt: null,
         employmentStatus: 'active',
@@ -59,5 +60,8 @@ export class OneTimeOrderWorkforceDirectoryService {
       orderBy: { fullName: 'asc' },
       take: 50,
     });
+    const financeVisible = decideAccess(currentUser, 'one_time_orders.finance.read', true, { resourceType: 'one_time_order', resourceId: order.id,
+      ownerUserId: order.createdByUserId, assignedUserIds: order.assignments.filter(a => a.isActive && a.assignmentRoleCode === 'one_time_manager').map(a => a.userId) });
+    return employees.map(employee => ({ ...employee, baseDailyRate: financeVisible ? employee.baseDailyRate : null }));
   }
 }

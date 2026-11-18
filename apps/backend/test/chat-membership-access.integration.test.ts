@@ -38,26 +38,54 @@ test('personal member management does not grant room administration, history res
   assert.equal((await request(ordinary, `/chats/rooms/${room.id}/participants`, 'POST', { userIds: [id('manager2')] })).status, 403);
   assert.equal((await request(member, `/chats/rooms/${room.id}/participants`, 'POST', { userIds: [id('manager2')] })).status, 201);
   const founderMembership = await prisma.chatRoomParticipant.findUniqueOrThrow({ where: { chatRoomId_userId: { chatRoomId: room.id, userId: id('founder') } } });
+  assert.equal(founderMembership.membershipOverride, null);
   assert.equal((await request(member, `/chats/rooms/${room.id}/participants`, 'POST', { userIds: [id('founder')] })).status, 201);
   const unchanged = await prisma.chatRoomParticipant.findUniqueOrThrow({ where: { id: founderMembership.id } });
   assert.equal(unchanged.roleInRoom, 'admin');
   assert.equal(unchanged.joinedAt.toISOString(), founderMembership.joinedAt.toISOString());
+  assert.equal(unchanged.membershipOverride, 'include');
   assert.equal((await request(ordinary, `/chats/rooms/${room.id}/participants/${id('manager2')}`, 'DELETE')).status, 403);
   assert.equal((await request(member, `/chats/rooms/${room.id}/participants/${id('manager2')}`, 'DELETE')).status, 200);
   const removed = await prisma.chatRoomParticipant.findUniqueOrThrow({ where: { chatRoomId_userId: { chatRoomId: room.id, userId: id('manager2') } } });
   assert.ok(removed.leftAt);
+  assert.equal(removed.membershipOverride, 'exclude');
   const manager2 = await loginAndGetCookieHeader({ baseUrl, login: 'manager2', password: 'manager123' });
   assert.equal((await request(manager2, `/chats/rooms/${room.id}/messages`)).status, 403);
   assert.equal((await request(member, `/chats/rooms/${room.id}/participants`, 'POST', { userIds: [id('manager2')] })).status, 201);
   const rejoined = await prisma.chatRoomParticipant.findUniqueOrThrow({ where: { id: removed.id } });
   assert.equal(rejoined.leftAt, null);
+  assert.equal(rejoined.membershipOverride, 'include');
   assert.ok(rejoined.joinedAt > removed.joinedAt);
   const unrelated = await request(founder, '/chats/rooms/group', 'POST', { title: 'Unrelated', participantUserIds: [id('manager1')] });
   const unrelatedRoom = (await unrelated.json()) as { id: string };
   assert.equal((await request(member, `/chats/rooms/${unrelatedRoom.id}/participants`, 'POST', { userIds: [id('kireeva')] })).status, 403);
   const audit = await prisma.auditEvent.findMany({ where: { entityType: 'chat_room', entityId: room.id, actorUserId: id('stepanova') } });
-  assert.equal(audit.filter((entry) => entry.action === 'chat.room.participants_added').length, 2);
-  assert.equal(audit.filter((entry) => entry.action === 'chat.room.participant_removed').length, 1);
+  const additions = audit.filter((entry) => entry.action === 'chat.room.participants_added');
+  assert.equal(additions.length, 3);
+  assert.equal(new Set(additions.map((entry) => entry.id)).size, 3);
+  // Each addition records a different transition, including pinning an existing
+  // admin as a manual member without resetting their role or history.
+  for (const [userId, previousOverride] of [
+    [id('manager2'), null],
+    [id('founder'), null],
+    [id('manager2'), 'exclude'],
+  ] as const) {
+    const matching = additions.filter((entry) => {
+      const old = entry.oldValues as { participants: Array<{ userId: string; previousOverride: string | null }> };
+      return old.participants.length === 1 && old.participants[0].userId === userId &&
+        old.participants[0].previousOverride === previousOverride;
+    });
+    assert.equal(matching.length, 1, `Exactly one manual include transition for ${userId} from ${previousOverride}`);
+    assert.deepEqual(matching[0].oldValues, { participants: [{ userId, previousOverride }] });
+    assert.deepEqual(matching[0].newValues, { userIds: [userId], membershipOverride: 'include' });
+    assert.equal(matching[0].entityType, 'chat_room');
+    assert.equal(matching[0].entityId, room.id);
+    assert.equal(matching[0].actorUserId, id('stepanova'));
+  }
+  const removals = audit.filter((entry) => entry.action === 'chat.room.participant_removed');
+  assert.equal(removals.length, 1);
+  assert.deepEqual(removals[0].oldValues, { userId: id('manager2'), membershipOverride: 'include' });
+  assert.deepEqual(removals[0].newValues, { userId: id('manager2'), membershipOverride: 'exclude' });
   await prisma.userPermission.delete({ where: { userId_permissionId: { userId: id('stepanova'), permissionId: permission.id } } });
   const revoked = await loginAndGetCookieHeader({ baseUrl, login: 'stepanova', password: 'stepanova123' });
   assert.equal((await request(revoked, `/chats/rooms/${room.id}/participants`, 'POST', { userIds: [id('kireeva')] })).status, 403);

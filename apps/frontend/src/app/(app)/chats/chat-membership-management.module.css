@@ -1,0 +1,2 @@
+.roster { display: grid; gap: var(--ui-space-4); min-width: 0; }
+.row { display: grid; gap: var(--ui-space-2); padding-block: var(--ui-space-3); border-bottom: 1px solid var(--ui-border); min-width: 0; overflow-wrap: anywhere; }

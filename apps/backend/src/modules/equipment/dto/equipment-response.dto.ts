@@ -68,12 +68,14 @@ export class EquipmentUnitResponseDto {
   };
   capabilities!: {
     canCreateMovement: boolean;
+    canOpenCard?: boolean;
     canDelete: boolean;
     canAssignToObject: boolean;
     canAssignToOneTimeOrder: boolean;
     canReturn: boolean;
     canMove: boolean;
     canMarkBroken: boolean;
+    canMarkLost?: boolean;
     canSendToRepair: boolean;
     canReturnFromRepair: boolean;
     canWriteoff: boolean;

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 import {
@@ -26,6 +26,11 @@ import type {
 import { uploadFileToEntity } from '@/entities/file/api/file-client';
 import { AccountabilityAccountPanel } from '@/features/accountability/ui/accountability-account-panel';
 import { useAuth } from '@/shared/auth/use-auth';
+import { useAccessRevision } from '@/shared/auth/use-access-revision';
+import { getAccessGeneration, getAccessSessionGeneration, isAccessGenerationCurrent } from '@/shared/auth/access-generation';
+import { AccessSnapshotBoundary } from '@/shared/auth/access-snapshot-boundary';
+import { isSavedWithoutAccess } from '@/shared/api/saved-without-access';
+import { ApiError } from '@/shared/api/fetcher';
 import { getAccountabilityAccountStatusLabel } from '@/shared/lib/accountability-presentation';
 import {
   getUserDisplayName,
@@ -51,7 +56,8 @@ function formatMoney(value: number): string {
 export default function AccountabilityPage(): React.JSX.Element {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user } = useAuth();
+  const { user, refreshUser, capabilitiesRefreshError } = useAuth();
+  const accessRevision = useAccessRevision();
   const canAccessAccountability =
     user?.capabilities?.canAccessAccountability ?? false;
   const canViewOwnAccountability =
@@ -59,18 +65,17 @@ export default function AccountabilityPage(): React.JSX.Element {
   const canRecordExternalReceipt =
     user?.capabilities?.canRecordExternalReceipt ?? false;
   const canOpenOwnLedger = canViewOwnAccountability || canRecordExternalReceipt;
-  const canReviewAccountability =
-    user?.capabilities?.canReviewAccountability ?? false;
-  const canIssueAccountabilityFunds =
-    user?.capabilities?.canIssueAccountabilityFunds ?? false;
+  // Discovery permits only navigation and server-filtered options, not access
+  // to any concrete account or its funding actions.
+  const canDiscoverAccountabilityReview = user?.capabilities?.canDiscoverAccountabilityReview ?? false;
   const workspaceSections = useMemo(
     () => [
       ...(canOpenOwnLedger ? [{ value: 'mine', label: 'Мой подотчёт' }] : []),
-      ...(canReviewAccountability
+      ...(canDiscoverAccountabilityReview
         ? [{ value: 'accounts', label: 'Счета сотрудников' }]
         : []),
     ],
-    [canOpenOwnLedger, canReviewAccountability],
+    [canOpenOwnLedger, canDiscoverAccountabilityReview],
   );
   const requestedWorkspaceSection = searchParams.get('section') ?? '';
   const activeWorkspaceSection = workspaceSections.some(
@@ -102,21 +107,30 @@ export default function AccountabilityPage(): React.JSX.Element {
   const [ownView, setOwnView] = useState<AccountabilityAccountView | null>(null);
   const [ownLoading, setOwnLoading] = useState(true);
   const [ownError, setOwnError] = useState<string | null>(null);
+  const [ownViewRevision, setOwnViewRevision] = useState<string | null>(null);
+  const ownRequest = useRef(0);
 
   const [accountItems, setAccountItems] = useState<AccountabilityAccountListItem[]>(
     [],
   );
   const [userOptions, setUserOptions] = useState<AccountabilityUserSummary[]>([]);
+  const [directoryRevision, setDirectoryRevision] = useState<string | null>(null);
   const [selectedUserId, setSelectedUserId] = useState('');
+  const selectedUserIdRef = useRef(selectedUserId);
+  selectedUserIdRef.current = selectedUserId;
   const [reviewView, setReviewView] = useState<AccountabilityAccountView | null>(
     null,
   );
+  const [reviewViewRevision, setReviewViewRevision] = useState<string | null>(null);
+  const reviewRequest = useRef(0);
+  const directoryRequest = useRef(0);
   const [reviewLoading, setReviewLoading] = useState(false);
   const [reviewError, setReviewError] = useState<string | null>(null);
 
   const [fundingAmount, setFundingAmount] = useState('');
   const [fundingComment, setFundingComment] = useState('');
   const [isIssuingFunding, setIsIssuingFunding] = useState(false);
+  const [savedNotice, setSavedNotice] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [externalAmount, setExternalAmount] = useState('');
   const [externalSource, setExternalSource] = useState('');
@@ -127,15 +141,48 @@ export default function AccountabilityPage(): React.JSX.Element {
     id: string;
     files: File[];
   } | null>(null);
+  const [pendingExpenseAttachments, setPendingExpenseAttachments] = useState<{ id: string | null; files: File[] } | null>(null);
+  const [isAttachingExpense, setIsAttachingExpense] = useState(false);
 
+  useEffect(() => {
+    // A rights revision preserves a draft; a different account must not inherit it.
+    setExternalAmount(''); setExternalSource(''); setExternalComment(''); setExternalFiles([]);
+    setPendingReceiptAttachments(null); setFundingAmount(''); setFundingComment('');
+    setPendingExpenseAttachments(null);
+    setIsAttachingExpense(false);
+    setIsRecordingExternal(false); setIsIssuingFunding(false);
+    setSelectedUserId(''); setActionError(null); setSavedNotice(null);
+  }, [user?.id]);
+
+  const visibleUserOptions = directoryRevision === accessRevision ? userOptions : [];
+  const visibleAccountItems = directoryRevision === accessRevision ? accountItems : [];
+  const freshReviewView = !reviewLoading && reviewViewRevision === accessRevision
+    && reviewView?.account.user.id === selectedUserId ? reviewView : null;
   const selectedUser = useMemo(
-    () => userOptions.find((item) => item.id === selectedUserId) ?? null,
-    [selectedUserId, userOptions],
+    () => directoryRevision === accessRevision
+      ? userOptions.find((item) => item.id === selectedUserId) ?? null : null,
+    [selectedUserId, userOptions, directoryRevision, accessRevision],
   );
+  const canIssueAccountabilityFunds = Boolean(
+    selectedUser && !reviewLoading && reviewViewRevision === accessRevision && selectedUserId &&
+    reviewView?.account.user.id === selectedUserId && reviewView.capabilities.canIssueFunding,
+  );
+  const selectReviewedUser = (nextUserId: string): void => {
+    if (isIssuingFunding) return;
+    if (nextUserId !== selectedUserIdRef.current) {
+      setFundingAmount('');
+      setFundingComment('');
+    }
+    selectedUserIdRef.current = nextUserId;
+    setSelectedUserId(nextUserId);
+  };
 
   const reloadOwnView = async (): Promise<void> => {
+    const requestId = ++ownRequest.current;
+    const generation = getAccessGeneration();
     if (!canOpenOwnLedger) {
-      setOwnView(null);
+      // Keep a same-user draft mounted but concealed until access is checked again.
+      setOwnView((current) => current?.account.user.id === user?.id ? current : null);
       setOwnError(null);
       setOwnLoading(false);
       return;
@@ -146,25 +193,37 @@ export default function AccountabilityPage(): React.JSX.Element {
 
     try {
       const response = await getMyAccountability();
+      if (requestId !== ownRequest.current || !isAccessGenerationCurrent(generation)) return;
+      if (response.account.user.id !== user?.id) {
+        setOwnView(null);
+        setOwnError('Не удалось подтвердить владельца счёта. Обновите доступ.');
+        return;
+      }
       setOwnView(response);
+      setOwnViewRevision(accessRevision);
     } catch (error) {
-      setOwnView(null);
+      if (requestId !== ownRequest.current || !isAccessGenerationCurrent(generation)) return;
+      setOwnView((current) => current?.account.user.id === user?.id ? current : null);
       setOwnError(
         getErrorMessage(error, 'Не удалось загрузить ваш подотчетный контур.'),
       );
     } finally {
-      setOwnLoading(false);
+      if (requestId === ownRequest.current && isAccessGenerationCurrent(generation)) setOwnLoading(false);
     }
   };
 
   const reloadReviewDirectory = async (
     preferredUserId?: string,
-  ): Promise<void> => {
-    if (!canReviewAccountability) {
+  ): Promise<AccountabilityUserSummary[]> => {
+    const requestId = ++directoryRequest.current;
+    const generation = getAccessGeneration();
+    setDirectoryRevision(null);
+    if (!canDiscoverAccountabilityReview) {
+      reviewRequest.current += 1;
+      setReviewView(null);
       setAccountItems([]);
       setUserOptions([]);
-      setSelectedUserId('');
-      return;
+      return [];
     }
 
     try {
@@ -172,20 +231,26 @@ export default function AccountabilityPage(): React.JSX.Element {
         listAccountabilityAccounts(),
         listAccountabilityUsers(),
       ]);
+      if (requestId !== directoryRequest.current || !isAccessGenerationCurrent(generation)) return [];
 
       setAccountItems(accounts);
       setUserOptions(users);
+      setDirectoryRevision(accessRevision);
+      setReviewError(null);
       setSelectedUserId((current) => {
         const isAllowed = (candidate: string | undefined): candidate is string =>
           Boolean(candidate) && users.some((userItem) => userItem.id === candidate);
 
-        if (isAllowed(preferredUserId)) {
+        if (!current && isAllowed(preferredUserId)) {
           return preferredUserId;
         }
 
         if (isAllowed(current)) {
           return current;
         }
+
+        // Losing access must never retarget an entered amount to another person.
+        if (current) return current;
 
         if (isAllowed(accounts[0]?.user.id)) {
           return accounts[0].user.id;
@@ -197,15 +262,25 @@ export default function AccountabilityPage(): React.JSX.Element {
 
         return users[0]?.id ?? '';
       });
+      return users;
     } catch (error) {
+      if (requestId !== directoryRequest.current || !isAccessGenerationCurrent(generation)) return [];
+      reviewRequest.current += 1;
+      setReviewView(null);
+      setAccountItems([]);
+      setUserOptions([]);
       setReviewError(
-        getErrorMessage(error, 'Не удалось загрузить список подотчетных пользователей.'),
+        error instanceof ApiError && error.statusCode === 403 ? null
+          : getErrorMessage(error, 'Не удалось загрузить список подотчетных пользователей.'),
       );
+      return [];
     }
   };
 
   const reloadReviewView = async (userId: string): Promise<void> => {
-    if (!canReviewAccountability || !userId) {
+    const requestId = ++reviewRequest.current;
+    const generation = getAccessGeneration();
+    if (!canDiscoverAccountabilityReview || !userId || !userOptions.some(({ id }) => id === userId)) {
       setReviewView(null);
       setReviewError(null);
       setReviewLoading(false);
@@ -217,38 +292,46 @@ export default function AccountabilityPage(): React.JSX.Element {
 
     try {
       const response = await getAccountabilityAccountByUserId(userId);
+      if (requestId !== reviewRequest.current || !isAccessGenerationCurrent(generation)) return;
       setReviewView(response);
+      setReviewViewRevision(accessRevision);
     } catch (error) {
+      if (requestId !== reviewRequest.current || !isAccessGenerationCurrent(generation)) return;
       setReviewView(null);
       setReviewError(
         getErrorMessage(error, 'Не удалось загрузить подотчетный контур пользователя.'),
       );
     } finally {
-      setReviewLoading(false);
+      if (requestId === reviewRequest.current && isAccessGenerationCurrent(generation)) setReviewLoading(false);
     }
   };
 
   const reloadAfterAccountChange = async (affectedUserId: string): Promise<void> => {
     await reloadOwnView();
 
-    if (!canReviewAccountability) {
+    if (!canDiscoverAccountabilityReview) {
       return;
     }
 
-    await reloadReviewDirectory(affectedUserId);
-    await reloadReviewView(affectedUserId);
+    const users = await reloadReviewDirectory(affectedUserId);
+    if (selectedUserIdRef.current === affectedUserId && users.some(({ id }) => id === affectedUserId)) {
+      await reloadReviewView(affectedUserId);
+    }
   };
 
   useEffect(() => {
     void reloadOwnView();
-  }, [canOpenOwnLedger]);
+    return () => { ownRequest.current += 1; };
+  }, [canOpenOwnLedger, accessRevision]);
 
   useEffect(() => {
     void reloadReviewDirectory();
-  }, [canReviewAccountability, user?.id]);
+    return () => { directoryRequest.current += 1; };
+  }, [canDiscoverAccountabilityReview, accessRevision]);
 
   useEffect(() => {
-    if (!canReviewAccountability || !selectedUserId) {
+    if (!canDiscoverAccountabilityReview || !selectedUserId) {
+      reviewRequest.current += 1;
       setReviewView(null);
       setReviewError(null);
       setReviewLoading(false);
@@ -256,7 +339,13 @@ export default function AccountabilityPage(): React.JSX.Element {
     }
 
     void reloadReviewView(selectedUserId);
-  }, [canReviewAccountability, selectedUserId]);
+  }, [canDiscoverAccountabilityReview, selectedUserId, userOptions, accessRevision]);
+
+  const acknowledgeIfAccessChanged = (result: object, generation: number, message: string): boolean => {
+    if (!isSavedWithoutAccess(result) && isAccessGenerationCurrent(generation)) return false;
+    setSavedNotice(message);
+    return true;
+  };
 
   const externalReceiptForm = canRecordExternalReceipt && ownView ? (
     <Surface as="section" padding="md" style={{ display: 'grid', gap: 16 }}>
@@ -292,13 +381,16 @@ export default function AccountabilityPage(): React.JSX.Element {
           <Button disabled={isRecordingExternal} onClick={() => void (async () => {
             if (!pendingReceiptAttachments) return;
             setIsRecordingExternal(true);
+            const session = getAccessSessionGeneration();
             try {
               await Promise.all(pendingReceiptAttachments.files.map((file) => uploadFileToEntity({ entityType: 'accountability_funding', entityId: pendingReceiptAttachments.id, file })));
+              if (getAccessSessionGeneration() !== session) return;
               setPendingReceiptAttachments(null);
               await reloadOwnView();
             } catch {
+              if (getAccessSessionGeneration() !== session) return;
               setActionError('Поступление уже учтено, но файл не прикреплён. Повторите прикрепление.');
-            } finally { setIsRecordingExternal(false); }
+            } finally { if (getAccessSessionGeneration() === session) setIsRecordingExternal(false); }
           })()}>Повторить прикрепление</Button>
         </Surface>
       ) : null}
@@ -306,10 +398,21 @@ export default function AccountabilityPage(): React.JSX.Element {
         <Button disabled={isRecordingExternal || pendingReceiptAttachments !== null || !Number.isFinite(Number(externalAmount)) || Number(externalAmount) <= 0 || !externalSource.trim() || !externalComment.trim() || ownView.account.status === 'closing_requested'} onClick={() => void (async () => {
           setActionError(null);
           setIsRecordingExternal(true);
+          const session = getAccessSessionGeneration();
           try {
+            const generation = getAccessGeneration();
             const receipt = await recordExternalAccountabilityReceipt({ amount: Number(externalAmount), source: externalSource.trim(), comment: externalComment.trim() });
+            if (getAccessSessionGeneration() !== session) return;
             const files = externalFiles;
+            const message = files.length ? 'Поступление сохранено. Файлы не прикреплены.' : 'Поступление сохранено.';
+            // Returning from the acknowledgement must not expose this already
+            // committed receipt as a new, still-sendable money draft.
             setExternalAmount(''); setExternalSource(''); setExternalComment(''); setExternalFiles([]);
+            if (isSavedWithoutAccess(receipt) || !isAccessGenerationCurrent(generation)) {
+              if (!isSavedWithoutAccess(receipt) && files.length) setPendingReceiptAttachments({ id: receipt.id, files });
+              setSavedNotice(message);
+              return;
+            }
             if (files.length > 0) {
               try {
                 await Promise.all(files.map((file) => uploadFileToEntity({ entityType: 'accountability_funding', entityId: receipt.id, file })));
@@ -320,14 +423,26 @@ export default function AccountabilityPage(): React.JSX.Element {
             }
             await reloadOwnView();
           } catch (error) {
+            if (getAccessSessionGeneration() !== session) return;
             setActionError(getErrorMessage(error, 'Не удалось записать поступление.'));
-          } finally { setIsRecordingExternal(false); }
+          } finally { if (getAccessSessionGeneration() === session) setIsRecordingExternal(false); }
         })()}>{isRecordingExternal ? 'Сохраняем...' : 'Зафиксировать поступление'}</Button>
       </div>
     </Surface>
   ) : null;
 
-  if (!canAccessAccountability) {
+  if (savedNotice) return (
+    <>
+      <PageTitle title="Подотчёт" />
+      <Alert tone="success" role="status" title={savedNotice}>
+        <p>Доступ изменился. Карточка закрыта.</p>
+        {capabilitiesRefreshError ? <p role="alert">{capabilitiesRefreshError}</p> : null}
+        <Button onClick={() => void refreshUser({ force: true }).then(() => setSavedNotice(null)).catch(() => undefined)}>Проверить доступ</Button>
+      </Alert>
+    </>
+  );
+
+  if (!canAccessAccountability && !canDiscoverAccountabilityReview && !ownView) {
     return (
       <>
         <PageTitle title="Подотчёт" />
@@ -341,6 +456,9 @@ export default function AccountabilityPage(): React.JSX.Element {
       <PageTitle title="Подотчёт" />
 
       <div className={`ui-page ${accountabilityStyles.accountabilityWorkspace}`}>
+        {!canAccessAccountability && !canDiscoverAccountabilityReview ? (
+          <Surface padding="md">Доступ к подотчёту отозван. Несохранённый черновик скрыт.</Surface>
+        ) : null}
         {actionError ? (
           <Alert tone="danger" role="alert">
             {actionError}
@@ -356,24 +474,61 @@ export default function AccountabilityPage(): React.JSX.Element {
           />
         ) : null}
 
-        {canOpenOwnLedger ? (
+        {canOpenOwnLedger || (ownView && ownView.account.user.id === user?.id) ? (
         <section
           className={`ui-stack ui-stack--lg ${accountabilityStyles.accountabilityWorkspacePanel}`}
           role={workspaceSections.length > 1 ? 'tabpanel' : 'region'}
           id="workspace-panel-mine"
           aria-labelledby={workspaceSections.length > 1 ? 'workspace-tab-mine' : undefined}
           aria-label={workspaceSections.length > 1 ? undefined : 'Мой подотчёт'}
-          hidden={activeWorkspaceSection !== 'mine'}
+          hidden={!canOpenOwnLedger || activeWorkspaceSection !== 'mine'}
         >
         {ownLoading ? (
           <Surface padding="md">Загрузка вашего подотчета...</Surface>
-        ) : ownError ? (
+        ) : null}
+        {ownError ? (
           <Alert tone="danger" role="alert">
             {ownError}
+            <Button onClick={() => void reloadOwnView()}>Проверить доступ</Button>
           </Alert>
-        ) : ownView ? (
-          <>
+        ) : null}
+        {ownView ? (
+          <AccessSnapshotBoundary blocked={!canOpenOwnLedger || ownView.account.user.id !== user?.id || ownLoading || ownViewRevision !== accessRevision || Boolean(ownError)}>
+          {pendingExpenseAttachments ? (
+            <Alert tone="warning" role="status">
+              Черновик расхода уже сохранён. Часть файлов не прикреплена; повторное прикрепление не создаёт новый расход.
+              {!pendingExpenseAttachments.id ? (
+                <SearchableSelect label="Сохранённый расход" value=""
+                  placeholder="Выберите сохранённый расход для этих файлов"
+                  options={ownView.expenses.filter((expense) => expense.status === 'draft' && expense.createdBy.id === user?.id)
+                    .map((expense) => ({ value: expense.id, label: `${formatMoney(expense.amount)} · ${expense.description}`,
+                      description: new Date(expense.createdAt).toLocaleString('ru-RU') }))}
+                  onChange={(expenseId) => setPendingExpenseAttachments((current) => current ? { ...current, id: expenseId || null } : null)} />
+              ) : <p>Сохранённый расход: {ownView.expenses.find((expense) => expense.id === pendingExpenseAttachments.id)?.description ?? 'сейчас недоступен'}.</p>}
+              <Button disabled={!pendingExpenseAttachments.id || isAttachingExpense || user?.capabilities?.canUploadFile === false ||
+                !ownView.expenses.find((expense) => expense.id === pendingExpenseAttachments.id)?.capabilities.canEdit}
+                onClick={() => void (async () => {
+                  if (!pendingExpenseAttachments?.id || isAttachingExpense) return;
+                  const pending = pendingExpenseAttachments;
+                  const expenseId = pendingExpenseAttachments.id;
+                  const generation = getAccessGeneration();
+                  const session = getAccessSessionGeneration();
+                  setIsAttachingExpense(true);
+                  const outcomes = await Promise.allSettled(pending.files.map((file) => uploadFileToEntity({
+                    entityType: 'accountability_expense', entityId: expenseId, file,
+                  })));
+                  if (getAccessSessionGeneration() !== session) return;
+                  setIsAttachingExpense(false);
+                  const failed = pending.files.filter((_, index) => outcomes[index]?.status !== 'fulfilled');
+                  setPendingExpenseAttachments(failed.length ? { id: pending.id, files: failed } : null);
+                  if (!isAccessGenerationCurrent(generation)) return;
+                  setActionError(failed.length ? 'Черновик расхода сохранён. Не все файлы прикреплены; повторите прикрепление после проверки доступа.' : null);
+                  await reloadOwnView();
+                })()}>Повторить прикрепление</Button>
+            </Alert>
+          ) : null}
           <AccountabilityAccountPanel
+            key={ownView.account.user.id}
             title="Мой подотчет"
             view={ownView}
             isOwnView
@@ -383,36 +538,79 @@ export default function AccountabilityPage(): React.JSX.Element {
             movementContent={externalReceiptForm}
             onSaveExpense={async (payload) => {
               setActionError(null);
+              const generation = getAccessGeneration();
+              const session = getAccessSessionGeneration();
+              let committedExpenseId: string | null = null;
 
               try {
+                if (pendingExpenseAttachments) throw new Error('Сначала завершите прикрепление файлов к уже сохранённому расходу.');
                 let savedExpense = payload.expenseId
                   ? await updateAccountabilityExpense(payload.expenseId, {
                       amount: payload.amount,
                       description: payload.description,
                     })
                   : await createAccountabilityExpense({
+                      clientRequestId: payload.clientRequestId,
                       amount: payload.amount,
                       description: payload.description,
                     });
 
+                if (getAccessSessionGeneration() !== session) return;
+                if (payload.files.length && (isSavedWithoutAccess(savedExpense) || !isAccessGenerationCurrent(generation))) {
+                  setPendingExpenseAttachments({ id: isSavedWithoutAccess(savedExpense) ? payload.expenseId ?? null : savedExpense.id, files: payload.files });
+                }
+                if (acknowledgeIfAccessChanged(savedExpense, generation,
+                  payload.files.length ? 'Черновик расхода сохранён. Файлы не прикреплены.' : 'Черновик расхода сохранён.')) return;
+                if (isSavedWithoutAccess(savedExpense)) return;
+                const savedExpenseId = savedExpense.id;
+                committedExpenseId = savedExpenseId;
+
                 if (payload.files.length > 0) {
-                  await Promise.all(
+                  const uploads = await Promise.allSettled(
                     payload.files.map((file) =>
                       uploadFileToEntity({
                         entityType: 'accountability_expense',
-                        entityId: savedExpense.id,
+                        entityId: savedExpenseId,
                         file,
                       }),
                     ),
                   );
+                  if (getAccessSessionGeneration() !== session) return;
+                  const failed = payload.files.filter((_, index) => uploads[index]?.status !== 'fulfilled');
+                  if (failed.length) setPendingExpenseAttachments({ id: savedExpenseId, files: failed });
+                  if (!isAccessGenerationCurrent(generation)) {
+                    setSavedNotice('Черновик расхода сохранён. Проверьте вложения в карточке расхода.');
+                    return;
+                  }
+                  if (failed.length) {
+                    setActionError('Черновик расхода сохранён. Часть файлов не прикреплена; отправка на проверку не выполнена.');
+                    await reloadOwnView();
+                    return;
+                  }
                 }
 
                 if (payload.submitAfterSave) {
+                  if (!isAccessGenerationCurrent(generation)) {
+                    setSavedNotice('Черновик расхода сохранён. Он не отправлен на проверку.');
+                    return;
+                  }
                   savedExpense = await submitAccountabilityExpense(savedExpense.id);
+                  if (getAccessSessionGeneration() !== session) return;
+                  if (acknowledgeIfAccessChanged(savedExpense, generation, 'Расход отправлен на проверку.')) return;
                 }
 
                 await reloadAfterAccountChange(user?.id ?? ownView.account.user.id);
               } catch (error) {
+                if (getAccessSessionGeneration() !== session) return;
+                if (committedExpenseId) {
+                  const notice = 'Расход сохранён. Не удалось подтвердить следующий шаг. Проверьте его состояние в списке расходов.';
+                  if (!isAccessGenerationCurrent(generation)) setSavedNotice(notice);
+                  else {
+                    setActionError(notice);
+                    await reloadOwnView();
+                  }
+                  return;
+                }
                 setActionError(
                   getErrorMessage(error, 'Не удалось сохранить расход подотчета.'),
                 );
@@ -421,11 +619,16 @@ export default function AccountabilityPage(): React.JSX.Element {
             }}
             onSubmitExpense={async (expenseId) => {
               setActionError(null);
+              const generation = getAccessGeneration();
+              const session = getAccessSessionGeneration();
 
               try {
-                await submitAccountabilityExpense(expenseId);
+                const result = await submitAccountabilityExpense(expenseId);
+                if (getAccessSessionGeneration() !== session) return;
+                if (acknowledgeIfAccessChanged(result, generation, 'Расход отправлен на проверку.')) return;
                 await reloadAfterAccountChange(user?.id ?? ownView.account.user.id);
               } catch (error) {
+                if (getAccessSessionGeneration() !== session) return;
                 setActionError(
                   getErrorMessage(error, 'Не удалось отправить расход на подтверждение.'),
                 );
@@ -447,21 +650,29 @@ export default function AccountabilityPage(): React.JSX.Element {
               setActionError(null);
 
               try {
-                await rejectAccountabilityExpense(expenseId, comment);
+                const generation = getAccessGeneration();
+                const result = await rejectAccountabilityExpense(expenseId, comment);
+                if (acknowledgeIfAccessChanged(result, generation, 'Расход отклонён.')) return;
                 await reloadAfterAccountChange(user?.id ?? ownView.account.user.id);
               } catch (error) {
                 setActionError(
                   getErrorMessage(error, 'Не удалось отклонить расход.'),
                 );
+                throw error;
               }
             }}
             onRequestClosure={async () => {
+              const generation = getAccessGeneration();
+              const session = getAccessSessionGeneration();
               setActionError(null);
 
               try {
-                await requestAccountabilityClosure();
+                const result = await requestAccountabilityClosure();
+                if (getAccessSessionGeneration() !== session) return;
+                if (acknowledgeIfAccessChanged(result, generation, 'Подотчёт отправлен на сверку.')) return;
                 await reloadAfterAccountChange(user?.id ?? ownView.account.user.id);
               } catch (error) {
+                if (getAccessSessionGeneration() !== session) return;
                 setActionError(
                   getErrorMessage(error, 'Не удалось отправить подотчет на сверку.'),
                 );
@@ -470,7 +681,9 @@ export default function AccountabilityPage(): React.JSX.Element {
             onReverseExternalReceipt={async (fundingId, reason) => {
               setActionError(null);
               try {
-                await reverseExternalAccountabilityReceipt(fundingId, reason);
+                const generation = getAccessGeneration();
+                const result = await reverseExternalAccountabilityReceipt(fundingId, reason);
+                if (acknowledgeIfAccessChanged(result, generation, 'Сторно сохранено.')) return;
                 await reloadAfterAccountChange(ownView.account.user.id);
               } catch (error) {
                 setActionError(getErrorMessage(error, 'Не удалось сторнировать внешнее поступление.'));
@@ -478,11 +691,11 @@ export default function AccountabilityPage(): React.JSX.Element {
               }
             }}
           />
-          </>
-        ) : <EmptyState title="Подотчёт пока не открыт" description="Это не нулевой остаток: сведения о вашем счёте пока отсутствуют. Обратитесь к пользователю с правом выдачи подотчётных средств." />}
+          </AccessSnapshotBoundary>
+        ) : !ownLoading && !ownError ? <EmptyState title="Подотчёт пока не открыт" description="Это не нулевой остаток: сведения о вашем счёте пока отсутствуют. Обратитесь к пользователю с правом выдачи подотчётных средств." /> : null}
         </section>
         ) : null}
-        {canReviewAccountability ? (
+        {canDiscoverAccountabilityReview ? (
         <section
           className={`ui-stack ui-stack--lg ${accountabilityStyles.accountabilityWorkspacePanel}`}
           role={workspaceSections.length > 1 ? 'tabpanel' : 'region'}
@@ -506,14 +719,15 @@ export default function AccountabilityPage(): React.JSX.Element {
                 <span className="ui-detail-label">Пользователь</span>
                 <SearchableSelect
                   label="Пользователь"
-                  value={selectedUserId}
-                  options={userOptions.map((option) => ({
+                  value={selectedUser ? selectedUserId : ''}
+                  options={visibleUserOptions.map((option) => ({
                     value: option.id,
                     label: getUserDisplayName(option),
                     description: getUserSecondaryLabel(option) || undefined,
                     searchText: `${option.login} ${option.roleCodes.join(' ')}`,
                   }))}
-                  onChange={setSelectedUserId}
+                  onChange={selectReviewedUser}
+                  disabled={isIssuingFunding}
                   placeholder="Выберите пользователя"
                   searchPlaceholder="Найти пользователя"
                   emptyText="Пользователь не найден"
@@ -521,6 +735,10 @@ export default function AccountabilityPage(): React.JSX.Element {
                   hideLabel
                 />
               </Stack>
+
+              {selectedUserId && !selectedUser ? (
+                <Alert tone="warning" role="status">Доступ к выбранному счёту недоступен. Выдача заблокирована; черновик не перенесён другому пользователю.</Alert>
+              ) : null}
 
               {canIssueAccountabilityFunds ? (
                 <>
@@ -531,6 +749,7 @@ export default function AccountabilityPage(): React.JSX.Element {
                       min="0.01"
                       step="0.01"
                       value={fundingAmount}
+                      disabled={isIssuingFunding}
                       onChange={(event) => setFundingAmount(event.target.value)}
                       placeholder="0.00"
                     />
@@ -541,6 +760,7 @@ export default function AccountabilityPage(): React.JSX.Element {
                     <textarea
                       rows={3}
                       value={fundingComment}
+                      disabled={isIssuingFunding}
                       onChange={(event) => setFundingComment(event.target.value)}
                       placeholder="Например, аванс на хозяйственные расходы"
                     />
@@ -560,15 +780,15 @@ export default function AccountabilityPage(): React.JSX.Element {
                 <div className="ui-detail-field">
                   <div className="ui-detail-label">Статус контура</div>
                   <div className="ui-detail-value">
-                    {reviewView
-                      ? getAccountabilityAccountStatusLabel(reviewView.account.status)
+                    {freshReviewView
+                      ? getAccountabilityAccountStatusLabel(freshReviewView.account.status)
                       : '—'}
                   </div>
                 </div>
                 <div className="ui-detail-field">
                   <div className="ui-detail-label">Текущий остаток</div>
                   <div className="ui-detail-value">
-                    {reviewView?.account.id ? formatMoney(reviewView.summary.currentBalance) : 'Счёт не открыт'}
+                    {freshReviewView ? (freshReviewView.account.id ? formatMoney(freshReviewView.summary.currentBalance) : 'Счёт не открыт') : '—'}
                   </div>
                 </div>
               </div>
@@ -585,27 +805,32 @@ export default function AccountabilityPage(): React.JSX.Element {
                     reviewView?.account.status === 'closing_requested'
                   }
                   onClick={() => {
+                    if (!canIssueAccountabilityFunds || isIssuingFunding) return;
                     void (async () => {
                       setActionError(null);
                       setIsIssuingFunding(true);
+                      const session = getAccessSessionGeneration();
 
                       try {
-                        await issueAccountabilityFunding(selectedUserId, {
+                        const generation = getAccessGeneration();
+                        const result = await issueAccountabilityFunding(selectedUserId, {
                           amount: Number(fundingAmount),
                           comment: fundingComment.trim() || undefined,
                         });
+                        if (getAccessSessionGeneration() !== session) return;
                         setFundingAmount('');
                         setFundingComment('');
+                        if (acknowledgeIfAccessChanged(result, generation, 'Выдача сохранена.')) return;
                         await reloadAfterAccountChange(selectedUserId);
                       } catch (error) {
+                        if (getAccessSessionGeneration() !== session) return;
                         setActionError(
-                          getErrorMessage(
-                            error,
-                            'Не удалось выдать подотчетные средства пользователю.',
-                          ),
+                          error instanceof ApiError && (error.statusCode === 403 || error.code === 'ACCESS_VERSION_CHANGED')
+                            ? 'Право на выдачу изменилось. Проверьте доступ перед повторной отправкой.'
+                            : getErrorMessage(error, 'Не удалось выдать подотчётные средства пользователю.'),
                         );
                       } finally {
-                        setIsIssuingFunding(false);
+                        if (getAccessSessionGeneration() === session) setIsIssuingFunding(false);
                       }
                     })();
                   }}
@@ -617,19 +842,20 @@ export default function AccountabilityPage(): React.JSX.Element {
 
             <details className={`ui-surface ui-surface--padded ui-surface--subtle ${accountabilityStyles.accountabilityAccountDirectory}`}>
               <summary className="ui-section-title">
-                Все подотчётные счета <span className="ui-text-muted">({accountItems.length})</span>
+                Все подотчётные счета <span className="ui-text-muted">({visibleAccountItems.length})</span>
               </summary>
 
-              {accountItems.length === 0 ? (
+              {visibleAccountItems.length === 0 ? (
                 <div className="ui-text-muted">
                   Пока нет пользователей с открытым или ранее использованным подотчетом. Выберите пользователя выше, чтобы проверить его счёт.
                 </div>
               ) : (
                 <div className="record-list">
-                  {accountItems.map((item) => (
+                  {visibleAccountItems.map((item) => (
                     <button
                       key={item.accountId}
                       type="button"
+                      disabled={isIssuingFunding}
                       className="ui-surface ui-surface--compact"
                       style={{
                         display: 'grid',
@@ -641,7 +867,7 @@ export default function AccountabilityPage(): React.JSX.Element {
                           item.user.id === selectedUserId ? 'var(--ui-accent-subtle)' : undefined,
                       }}
                       onClick={() => {
-                        setSelectedUserId(item.user.id);
+                        selectReviewedUser(item.user.id);
                       }}
                     >
                       <div className="ui-section-header" style={{ paddingBottom: 0 }}>
@@ -681,19 +907,20 @@ export default function AccountabilityPage(): React.JSX.Element {
               )}
             </details>
           </Surface>
-        {canReviewAccountability ? (
-          reviewLoading ? (
+        {canDiscoverAccountabilityReview ? <>
+          {reviewLoading ? (
             <Surface padding="md">Загрузка подотчёта пользователя…</Surface>
           ) : reviewError ? (
             <Alert tone="danger" role="alert">
               {reviewError}
             </Alert>
-          ) : reviewView ? (
+          ) : null}
+          {reviewView?.account.user.id === selectedUserId ? (
+            <AccessSnapshotBoundary blocked={reviewLoading || Boolean(reviewError) || reviewViewRevision !== accessRevision || !selectedUser}>
             <AccountabilityAccountPanel
+              key={reviewView.account.user.id}
               title={
-                selectedUser
-                  ? `Подотчет пользователя: ${getUserDisplayName(selectedUser)}`
-                  : 'Подотчет пользователя'
+                `Подотчет пользователя: ${getUserDisplayName(reviewView.account.user)}`
               }
               view={reviewView}
               isOwnView={false}
@@ -710,7 +937,9 @@ export default function AccountabilityPage(): React.JSX.Element {
                 setActionError(null);
 
                 try {
-                  await approveAccountabilityExpense(expenseId);
+                  const generation = getAccessGeneration();
+                  const result = await approveAccountabilityExpense(expenseId);
+                  if (acknowledgeIfAccessChanged(result, generation, 'Расход подтверждён.')) return;
                   await reloadAfterAccountChange(selectedUserId);
                 } catch (error) {
                   setActionError(
@@ -722,12 +951,15 @@ export default function AccountabilityPage(): React.JSX.Element {
                 setActionError(null);
 
                 try {
-                  await rejectAccountabilityExpense(expenseId, comment);
+                  const generation = getAccessGeneration();
+                  const result = await rejectAccountabilityExpense(expenseId, comment);
+                  if (acknowledgeIfAccessChanged(result, generation, 'Расход отклонён.')) return;
                   await reloadAfterAccountChange(selectedUserId);
                 } catch (error) {
                   setActionError(
                     getErrorMessage(error, 'Не удалось отклонить расход пользователя.'),
                   );
+                  throw error;
                 }
               }}
               onRequestClosure={async () => {
@@ -736,7 +968,9 @@ export default function AccountabilityPage(): React.JSX.Element {
               onReverseExternalReceipt={async (fundingId, reason) => {
                 setActionError(null);
                 try {
-                  await reverseExternalAccountabilityReceipt(fundingId, reason);
+                  const generation = getAccessGeneration();
+                  const result = await reverseExternalAccountabilityReceipt(fundingId, reason);
+                  if (acknowledgeIfAccessChanged(result, generation, 'Сторно сохранено.')) return;
                   await reloadAfterAccountChange(reviewView.account.user.id);
                 } catch (error) {
                   setActionError(getErrorMessage(error, 'Не удалось сторнировать внешнее поступление.'));
@@ -744,8 +978,9 @@ export default function AccountabilityPage(): React.JSX.Element {
                 }
               }}
             />
-          ) : <EmptyState title={selectedUserId ? 'Подотчёт пользователя пока не открыт' : 'Выберите пользователя'} description={selectedUserId ? (canIssueAccountabilityFunds ? 'Это не нулевой остаток. Для начала работы используйте выдачу средств выше.' : 'Счёт появляется при начале работы с подотчётом. Выдача средств доступна пользователю с соответствующим правом.') : 'Выберите пользователя выше, чтобы просмотреть его подотчёт.'} />
-        ) : null}
+            </AccessSnapshotBoundary>
+          ) : !reviewLoading && !reviewError ? <EmptyState title={selectedUserId ? 'Подотчёт пользователя пока не открыт' : 'Выберите пользователя'} description={selectedUserId ? (canIssueAccountabilityFunds ? 'Это не нулевой остаток. Для начала работы используйте выдачу средств выше.' : 'Счёт появляется при начале работы с подотчётом. Выдача средств доступна пользователю с соответствующим правом.') : 'Выберите пользователя выше, чтобы просмотреть его подотчёт.'} /> : null}
+        </> : null}
         </section>
         ) : null}
       </div>

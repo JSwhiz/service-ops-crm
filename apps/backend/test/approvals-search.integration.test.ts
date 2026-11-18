@@ -18,11 +18,19 @@ test('approval search covers the full authorized result set before pagination', 
     loginAndGetCookieHeader({ baseUrl, login: 'manager1', password: 'manager123' }),
   ]);
   const marker = `approval-search-${Date.now()}`;
+  const sourceObject = await prisma.object.create({
+    data: {
+      name: `${marker}-source`,
+      address: 'Isolated approval search source',
+      status: 'active',
+      createdByUserId: founder.id,
+    },
+  });
   const matchingRequest = await prisma.approvalRequest.create({
     data: {
       approvalType: 'object_change_confirmation',
       sourceEntityType: 'object',
-      sourceEntityId: `${marker}-source`,
+      sourceEntityId: sourceObject.id,
       status: 'pending',
       createdByUserId: founder.id,
       payloadSnapshot: {

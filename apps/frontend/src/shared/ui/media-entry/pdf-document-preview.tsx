@@ -216,11 +216,11 @@ export function PdfDocumentPreview({ url, title, downloadUrl }: { url: string; t
         {loading ? <div className={styles.viewerState} role="status">Загружаем PDF…</div> : null}
         {error ? <div className={styles.viewerState} role="alert">
           <strong>{error}</strong>
-          <div className="ui-inline"><Button onClick={() => setRetryKey((key) => key + 1)}>Повторить предпросмотр</Button><a href={downloadUrl}>Скачать оригинал</a></div>
+          <div className="ui-inline"><Button onClick={() => setRetryKey((key) => key + 1)}>Повторить предпросмотр</Button>{downloadUrl ? <a href={downloadUrl}>Скачать оригинал</a> : null}</div>
         </div> : null}
         {renderFailed ? <div className={styles.pdfRenderError} role="alert">
           <strong>Не удалось отобразить эту страницу.</strong>
-          <div className="ui-inline"><Button onClick={() => setRetryKey((key) => key + 1)}>Повторить предпросмотр</Button><a href={downloadUrl}>Скачать оригинал</a></div>
+          <div className="ui-inline"><Button onClick={() => setRetryKey((key) => key + 1)}>Повторить предпросмотр</Button>{downloadUrl ? <a href={downloadUrl}>Скачать оригинал</a> : null}</div>
         </div> : null}
         {documentProxy && !error ? <>
           <canvas ref={canvasRef} hidden={renderFailed} role="img" aria-label={`${title}, страница ${pageNumber} из ${pageCount}`} />

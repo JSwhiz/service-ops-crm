@@ -9,7 +9,9 @@ import {
   type GlobalSearchEntityType,
 } from '@/shared/api/global-search';
 import { useAuth } from '@/shared/auth/use-auth';
+import { useOpenAccessRefresh } from '@/shared/auth/use-open-access-refresh';
 import { useCreateNavigation } from '@/shared/create-navigation';
+import { ApiError } from '@/shared/api/fetcher';
 
 import {
   COMMAND_GROUP_ORDER,
@@ -65,6 +67,8 @@ export function GlobalCommandPalette({ open, onOpenChange }: { open: boolean; on
   const router = useRouter();
   const createNavigation = useCreateNavigation();
   const { user } = useAuth();
+  const canSearch = user?.capabilities?.canAccessSearch !== false;
+  useOpenAccessRefresh(open && canSearch);
   const navigation = useMemo(() => resolveGlobalNavigation(user), [user]);
   const actions = useMemo(() => resolveGlobalActions(user), [user]);
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -76,16 +80,18 @@ export function GlobalCommandPalette({ open, onOpenChange }: { open: boolean; on
   const [activeIndex, setActiveIndex] = useState(0);
   const [remoteItems, setRemoteItems] = useState<CommandItem[]>([]);
   const [recent, setRecent] = useState<CommandItem[]>([]);
+  const [recentError, setRecentError] = useState('');
   const [loading, setLoading] = useState(false);
   const normalized = query.trim();
   const normalizedLower = normalized.toLocaleLowerCase('ru');
 
   useEffect(() => {
-    if (open) {
+    if (open && canSearch) {
       restoreFocusRef.current = document.activeElement as HTMLElement | null;
       setQuery('');
       setRemoteItems([]);
       setRecent([]);
+      setRecentError('');
       setActiveIndex(0);
       window.requestAnimationFrame(() => inputRef.current?.focus());
 
@@ -95,10 +101,15 @@ export function GlobalCommandPalette({ open, onOpenChange }: { open: boolean; on
         void resolveGlobalSearchRecent(refs)
           .then((items) => {
             if (requestId !== recentRequestRef.current) return;
+            setRecentError('');
             setRecent(items.map((item) => ({ ...toCommandItem(item), group: 'Недавние' })));
           })
-          .catch(() => {
-            if (requestId === recentRequestRef.current) setRecent([]);
+          .catch((error: unknown) => {
+            if (requestId !== recentRequestRef.current) return;
+            setRecent([]);
+            setRecentError(error instanceof ApiError && error.statusCode === 403
+              ? 'Недавние просмотры недоступны с текущими правами.'
+              : 'Не удалось загрузить недавние просмотры. Откройте поиск ещё раз.');
           });
       }
       return;
@@ -107,7 +118,7 @@ export function GlobalCommandPalette({ open, onOpenChange }: { open: boolean; on
     recentRequestRef.current += 1;
     restoreFocusRef.current?.focus();
     restoreFocusRef.current = null;
-  }, [open, user?.id]);
+  }, [canSearch, open, user?.id, user?.accessVersion]);
 
   useEffect(() => {
     if (!open) return;
@@ -119,7 +130,7 @@ export function GlobalCommandPalette({ open, onOpenChange }: { open: boolean; on
   }, [onOpenChange, open]);
 
   useEffect(() => {
-    if (!open || normalized.length < 2) {
+    if (!open || !canSearch || normalized.length < 2) {
       requestRef.current += 1;
       setRemoteItems([]);
       setLoading(false);
@@ -143,7 +154,7 @@ export function GlobalCommandPalette({ open, onOpenChange }: { open: boolean; on
     }, SEARCH_DEBOUNCE_MS);
 
     return () => window.clearTimeout(timeout);
-  }, [normalized, open]);
+  }, [canSearch, normalized, open, user?.accessVersion]);
 
   const staticMatches = useMemo(() => {
     if (!normalizedLower) return [];
@@ -197,7 +208,7 @@ export function GlobalCommandPalette({ open, onOpenChange }: { open: boolean; on
     else router.push(item.href);
   };
 
-  if (!open) return null;
+  if (!open || !canSearch) return null;
 
   let flatIndex = -1;
   return (
@@ -250,6 +261,7 @@ export function GlobalCommandPalette({ open, onOpenChange }: { open: boolean; on
           <kbd>Esc</kbd>
         </div>
 
+        {!normalized && recentError ? <div className="command-status" role="status">{recentError}</div> : null}
         <div className="command-results" role="listbox">
           {loading ? <div className="command-status">Ищем…</div> : null}
           {!loading && normalized && orderedItems.length === 0 ? (
@@ -301,7 +313,7 @@ export function GlobalCommandPalette({ open, onOpenChange }: { open: boolean; on
   );
 }
 
-export function GlobalCreateMenu({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }): React.JSX.Element {
+export function GlobalCreateMenu({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }): React.JSX.Element | null {
   const createNavigation = useCreateNavigation();
   const { user } = useAuth();
   const actions = useMemo(() => resolveGlobalActions(user), [user]);
@@ -330,6 +342,8 @@ export function GlobalCreateMenu({ open, onOpenChange }: { open: boolean; onOpen
       document.removeEventListener('keydown', keyboard);
     };
   }, [onOpenChange, open]);
+
+  if (actions.length === 0) return null;
 
   return (
     <div className="global-create" ref={rootRef}>

@@ -19,6 +19,7 @@ export interface TimesheetEntry {
 export interface TimesheetRow {
   employeeId: string;
   employeeName: string;
+  capabilities?: { canManualCorrection?: boolean; canRequestCorrection?: boolean };
   advanceTotal: number;
   salaryTotal: number;
   rowTotal: number;
@@ -80,6 +81,7 @@ export interface TimesheetOverviewRow {
   objectName: string;
   employeeId: string;
   employeeName: string;
+  capabilities?: { canManualCorrection?: boolean; canRequestCorrection?: boolean };
   entries: TimesheetOverviewEntry[];
   advanceTotal: number;
   salaryTotal: number;

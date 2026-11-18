@@ -9,6 +9,9 @@ import {
   retryFilePreview,
 } from '@/entities/file/api/file-client';
 import type { FilePreviewItem, FileView } from '@/entities/file/model/file.types';
+import { ApiError } from '@/shared/api/fetcher';
+import { useAccessRevision } from '@/shared/auth/use-access-revision';
+import { useOpenAccessRefresh } from '@/shared/auth/use-open-access-refresh';
 import { MediaActionIcon } from '@/shared/ui/app-shell/media-action-icon';
 import { Button, IconButton } from '@/shared/ui/foundation';
 import { Dialog } from '@/shared/ui/overlays/overlays';
@@ -41,7 +44,13 @@ export function FileViewer({
   onClose?: () => void;
 }): React.JSX.Element {
   const [activeFileId, setActiveFileId] = useState(fileId);
-  const [view, setView] = useState<FileView | null>(null);
+  const accessRevision = useAccessRevision();
+  const [snapshot, setSnapshot] = useState<{ revision: string; view: FileView } | null>(null);
+  const view = snapshot?.revision === accessRevision && snapshot.view.id === activeFileId ? snapshot.view : null;
+  const target = `${accessRevision}:${activeFileId}`;
+  const targetRef = useRef(target);
+  targetRef.current = target;
+  useOpenAccessRefresh(snapshot !== null);
   const [error, setError] = useState<string | null>(null);
   const [textPreview, setTextPreview] = useState<string | null>(null);
   const [textTruncated, setTextTruncated] = useState(false);
@@ -70,7 +79,7 @@ export function FileViewer({
     let cancelled = false;
     let timeoutId: number | null = null;
     let attempts = 0;
-    setView(null);
+    setSnapshot(null);
     setError(null);
     setTextPreview(null);
     setTextTruncated(false);
@@ -86,7 +95,7 @@ export function FileViewer({
       try {
         const nextView = await getFileView(activeFileId);
         if (cancelled) return;
-        setView(nextView);
+        setSnapshot({ revision: accessRevision, view: nextView });
         setError(null);
         if (nextView.previewType === 'image' && (!nextView.inlineContentUrl || nextView.previewStatus === 'failed')) {
           setForceOriginal(true);
@@ -102,7 +111,10 @@ export function FileViewer({
       } catch (loadError) {
         if (!cancelled) {
           setPollTimedOut(true);
-          setError(loadError instanceof Error ? loadError.message : 'Не удалось открыть файл.');
+          setSnapshot(null);
+          setError(loadError instanceof ApiError && (loadError.statusCode === 403 || loadError.statusCode === 404)
+            ? 'Файл не найден или недоступен.'
+            : 'Не удалось открыть файл.');
         }
       }
     };
@@ -111,7 +123,7 @@ export function FileViewer({
       cancelled = true;
       if (timeoutId !== null) window.clearTimeout(timeoutId);
     };
-  }, [activeFileId, pollingRun]);
+  }, [accessRevision, activeFileId, pollingRun]);
 
   useEffect(() => {
     if (!view?.inlineContentUrl || view.previewType !== 'text' || view.previewStatus !== 'ready') return;
@@ -143,19 +155,21 @@ export function FileViewer({
       return;
     }
     try {
-      setView(await retryFilePreview(activeFileId));
-      setPollingRun((current) => current + 1);
-    } catch (retryError) {
-      setError(retryError instanceof Error ? retryError.message : 'Не удалось повторить формирование предпросмотра.');
+      await retryFilePreview(activeFileId);
+      if (targetRef.current === target) setPollingRun((current) => current + 1);
+    } catch {
+      if (targetRef.current === target) setError('Не удалось повторить формирование предпросмотра.');
     }
   };
 
   const inlineUrl = view?.inlineContentUrl ? resolveFileApiUrl(view.inlineContentUrl) : null;
-  const originalUrl = view ? resolveFileApiUrl(ORIGINAL_CONTENT_PATH(view.id)) : null;
-  const downloadUrl = view ? resolveFileApiUrl(view.downloadUrl) : '#';
+  const canPreview = view?.capabilities?.canPreview ?? true;
+  const canDownload = view?.capabilities?.canDownload ?? true;
+  const canRetryPreview = view?.capabilities?.canRetryPreview ?? true;
+  const originalUrl = view && canPreview ? canDownload ? resolveFileApiUrl(ORIGINAL_CONTENT_PATH(view.id)) : inlineUrl : null;
+  const downloadUrl = view && canDownload ? resolveFileApiUrl(view.downloadUrl) : '';
   const isWaiting = view?.previewStatus === 'pending' || view?.previewStatus === 'processing';
-  const activeFile = files?.find((file) => file.id === activeFileId);
-  const displayName = view?.originalName ?? activeFile?.originalName ?? 'Загрузка файла…';
+  const displayName = view?.originalName ?? (error ? 'Файл' : 'Загрузка файла…');
 
   const updateLensPoint = (event: React.PointerEvent<HTMLDivElement>): void => {
     const image = imageRef.current;
@@ -221,12 +235,12 @@ export function FileViewer({
   ) : null;
 
   const toolbarActions = view ? <div className={styles.toolbar}>
-    {view.previewType === 'image' ? <>
+    {view.previewType === 'image' && canPreview ? <>
       <IconButton aria-label="Вписать изображение" title="Вписать изображение" disabled={!oneToOne} onClick={() => { setOneToOne(false); setImageUnavailable(false); setLensGeometry(null); }}><FitToScreenIcon size={18} /></IconButton>
-      <IconButton aria-label="Показать оригинал 1:1" title="Показать оригинал 1:1" disabled={oneToOne} onClick={() => { setOneToOne(true); setImageUnavailable(false); setLensGeometry(null); }}><OneToOneIcon size={18} /></IconButton>
-      <IconButton aria-label={lensEnabled ? 'Выключить лупу' : 'Включить лупу'} title={lensEnabled ? 'Выключить лупу' : 'Включить лупу'} aria-pressed={lensEnabled} className={styles.lensToggle} onClick={() => { setLensEnabled((value) => !value); setLensGeometry(null); }}><SearchIcon size={18} /></IconButton>
+      {canDownload ? <IconButton aria-label="Показать оригинал 1:1" title="Показать оригинал 1:1" disabled={oneToOne} onClick={() => { setOneToOne(true); setImageUnavailable(false); setLensGeometry(null); }}><OneToOneIcon size={18} /></IconButton> : null}
+      {canDownload ? <IconButton aria-label={lensEnabled ? 'Выключить лупу' : 'Включить лупу'} title={lensEnabled ? 'Выключить лупу' : 'Включить лупу'} aria-pressed={lensEnabled} className={styles.lensToggle} onClick={() => { setLensEnabled((value) => !value); setLensGeometry(null); }}><SearchIcon size={18} /></IconButton> : null}
     </> : null}
-    <a className={`ui-icon-button ${styles.downloadAction}`} href={downloadUrl} aria-label="Скачать оригинал" title="Скачать оригинал"><MediaActionIcon name="download" /></a>
+    {downloadUrl ? <a className={`ui-icon-button ${styles.downloadAction}`} href={downloadUrl} aria-label="Скачать оригинал" title="Скачать оригинал"><MediaActionIcon name="download" /></a> : null}
   </div> : null;
 
   const viewer = <>
@@ -255,9 +269,13 @@ export function FileViewer({
         {pollTimedOut ? error ? <span>Автообновление остановлено из-за ошибки.</span> : <Button onClick={() => { setPollTimedOut(false); setPollingRun((value) => value + 1); }}>Обновить статус</Button> : <span>Статус обновится автоматически.</span>}
       </div> : null}
       {view?.previewStatus === 'failed' ? <div className={styles.viewerState}>
-        <strong>{view.previewType === 'unsupported' ? 'Предпросмотр этого формата недоступен' : 'Не удалось сформировать предпросмотр документа'}</strong>
+        <strong>{!canPreview
+          ? 'Предпросмотр недоступен'
+          : view.previewType === 'unsupported'
+            ? 'Предпросмотр этого формата недоступен'
+            : 'Не удалось сформировать предпросмотр документа'}</strong>
         <span>{view.errorMessage || 'Предпросмотр недоступен.'}</span>
-        {view.previewType !== 'unsupported' ? <Button onClick={() => void handleRetry()}>Повторить</Button> : null}
+        {view.previewType !== 'unsupported' && canPreview && canRetryPreview ? <Button onClick={() => void handleRetry()}>Повторить</Button> : null}
         {downloadUrl ? <a href={downloadUrl}>Скачать оригинал</a> : null}
       </div> : null}
       {view?.previewStatus === 'ready' && view.previewType === 'unsupported' ? <div className={styles.viewerState}>

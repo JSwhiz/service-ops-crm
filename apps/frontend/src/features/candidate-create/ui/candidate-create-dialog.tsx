@@ -73,7 +73,7 @@ export function CandidateCreateDialog(): React.JSX.Element {
   const [localSaving, setSaving] = useState(false);
   const saving = localSaving || draft.submitting;
 
-  const canManage = user?.capabilities?.canManageCandidates ?? false;
+  const canCreate = user?.capabilities?.canCreateCandidate ?? false;
 
   const regularReferencesMissing =
     candidateType === 'regular' && (!objectId || managers.length === 0);
@@ -82,13 +82,13 @@ export function CandidateCreateDialog(): React.JSX.Element {
     <FormDialog open title="Новый кандидат" size="regular" busy={saving} dirty={draft.dirty} closeContext={closeContext} clearDraft={draft.clear}
       footer={({ requestClose }) => <div className={createStyles.footer}>
         <Button disabled={saving} onClick={() => void requestClose()}>Отмена</Button>
-        {canManage ? <Button variant="primary" type="submit" form="candidate-create-form" pending={saving} disabled={Boolean(createdId) || fullName.trim().length < 2 || !phoneDraftsValid(phones, true) || !candidateManagersValid(managers, candidateType === 'regular') || regularReferencesMissing}>{createdId ? 'Создано' : 'Создать'}</Button> : null}
+        {canCreate ? <Button variant="primary" type="submit" form="candidate-create-form" pending={saving} disabled={Boolean(createdId) || fullName.trim().length < 2 || !phoneDraftsValid(phones, true) || !candidateManagersValid(managers, candidateType === 'regular') || regularReferencesMissing}>{createdId ? 'Создано' : 'Создать'}</Button> : null}
       </div>}>
-      {canManage ?
+      {canCreate ?
       <form id="candidate-create-form"
         className={styles.form}
         onSubmit={(event) => {
-          if (submitLock.current || saving || createdId || !canManage) { event.preventDefault(); return; }
+          if (submitLock.current || saving || createdId || !canCreate) { event.preventDefault(); return; }
           event.preventDefault();
           if (regularReferencesMissing || !candidateManagersValid(managers, candidateType === 'regular')) {
             setError(

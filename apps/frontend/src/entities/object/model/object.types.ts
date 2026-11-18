@@ -1,3 +1,6 @@
+export type WindowCleaningMode = 'scheduled' | 'on_request' | 'notprovided';
+export type WindowCleaningSeason = 'spring' | 'summer' | 'autumn';
+
 export interface ObjectAssignedUser {
   userId: string;
   login: string;
@@ -63,6 +66,8 @@ export interface ServiceObject {
     paymentScheduleCycleStartDate: string | null;
   } | null;
   summerWindowCleaning: boolean;
+  windowCleaningMode?: WindowCleaningMode | null;
+  windowCleaningSeasons?: WindowCleaningSeason[];
   engineeringRequired: boolean;
   winterTractorMode: 'none' | 'with_removal' | 'without_removal';
   instructionSteps: string[];
@@ -85,6 +90,7 @@ export interface ServiceObject {
   winterScheduleWeekdays: string[];
   winterScheduleCycleStartDate: string | null;
   notes: string | null;
+  counterpartyAccessRestricted?: boolean;
   counterparty: {
     id: string;
     name: string;
@@ -117,9 +123,20 @@ export interface ServiceObject {
     canManageCompensationRates?: boolean;
     canEditMonthlySalary: boolean;
     canChangeStatus: boolean;
+    canFreeze?: boolean;
+    canArchive?: boolean;
+    canRestore?: boolean;
+    canReadContacts?: boolean;
+    canManageContacts?: boolean;
+    canReadMaterials?: boolean;
+    canManageMaterials?: boolean;
     canManageResponsibles: boolean;
     canManageManagers: boolean;
     canCreateTask: boolean;
+    canCreateArrivalPhoto?: boolean;
+    canEditDailyReport?: boolean;
+    canSubmitDailyReport?: boolean;
+    canCreateComment?: boolean;
     canViewBasicProfile: boolean;
     canViewOperationalSections: boolean;
     canViewReportsHistory?: boolean;

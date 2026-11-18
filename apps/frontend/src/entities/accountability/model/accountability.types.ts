@@ -97,6 +97,7 @@ export interface AccountabilityAccountView {
   summary: AccountabilitySummary;
   capabilities: {
     canCreateExpense: boolean;
+    canSubmitExpense: boolean;
     canRequestClosure: boolean;
     canIssueFunding: boolean;
     canReviewExpenses: boolean;
@@ -122,6 +123,7 @@ export interface CreateAccountabilityFundingPayload {
 }
 
 export interface SaveAccountabilityExpensePayload {
+  clientRequestId?: string;
   amount: number;
   description: string;
   oneTimeOrderId?: string;
@@ -148,6 +150,7 @@ export interface OneTimeOrderAccountabilityView {
   visibilityScope: 'own' | 'administrative';
   capabilities: {
     canCreateExpense: boolean;
+    canSubmitExpense: boolean;
     canCreateEmployeePayout: boolean;
     canReviewExpenses: boolean;
   };

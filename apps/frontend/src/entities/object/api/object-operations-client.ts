@@ -1,4 +1,5 @@
-import { fetcher } from '@/shared/api/fetcher';
+import type { SavedWithoutAccess } from '@/shared/api/saved-without-access';
+import { committedWrite, fetcher } from '@/shared/api/fetcher';
 
 import type { ObjectEmployeeOption } from '../model/object.types';
 import type { CompensationMutationResult } from '../model/object-compensation.types';
@@ -157,8 +158,8 @@ export async function getTodayArrivalPhoto(
 export async function upsertTodayArrivalPhoto(
   objectId: string,
   payload: UpsertArrivalPhotoPayload,
-): Promise<ObjectArrivalPhoto> {
-  return fetcher<ObjectArrivalPhoto>(`/objects/${objectId}/arrival-photo`, {
+): Promise<ObjectArrivalPhoto | SavedWithoutAccess> {
+  return committedWrite<ObjectArrivalPhoto>(`/objects/${objectId}/arrival-photo`, {
     method: 'POST',
     body: JSON.stringify(payload),
   });
@@ -184,11 +185,11 @@ export async function stageDailyReportAttachment(
   reportId: string,
   file: File,
   requestId: string,
-): Promise<StagedDailyReportAttachment> {
+): Promise<StagedDailyReportAttachment | SavedWithoutAccess> {
   const formData = new FormData();
   formData.set('requestId', requestId);
   formData.set('file', file);
-  return fetcher<StagedDailyReportAttachment>(
+  return committedWrite<StagedDailyReportAttachment>(
     `/objects/${objectId}/daily-reports/${reportId}/attachments`,
     { method: 'POST', body: formData },
   );
@@ -198,15 +199,15 @@ export async function correctDailyReportAttachments(
   objectId: string,
   reportId: string,
   payload: CorrectDailyReportAttachmentsPayload,
-): Promise<CorrectDailyReportAttachmentsResponse> {
-  return fetcher<CorrectDailyReportAttachmentsResponse>(
+): Promise<CorrectDailyReportAttachmentsResponse | SavedWithoutAccess> {
+  return committedWrite<CorrectDailyReportAttachmentsResponse>(
     `/objects/${objectId}/daily-reports/${reportId}/attachments`,
     { method: 'PATCH', body: JSON.stringify(payload) },
   );
 }
 
-export async function submitTodayDailyReport(objectId: string, expectedRevision: number): Promise<ObjectDailyReport> {
-  return fetcher<ObjectDailyReport>(`/objects/${objectId}/daily-report/today/submit`, { method: 'POST', body: JSON.stringify({ expectedRevision }) });
+export async function submitTodayDailyReport(objectId: string, expectedRevision: number): Promise<ObjectDailyReport | SavedWithoutAccess> {
+  return committedWrite<ObjectDailyReport>(`/objects/${objectId}/daily-report/today/submit`, { method: 'POST', body: JSON.stringify({ expectedRevision }) });
 }
 
 export async function createObjectSubstitution(objectId: string, payload: {
@@ -218,8 +219,8 @@ export async function createObjectSubstitution(objectId: string, payload: {
 export async function upsertTodayDailyReport(
   objectId: string,
   payload: UpsertDailyReportPayload,
-): Promise<ObjectDailyReport> {
-  return fetcher<ObjectDailyReport>(`/objects/${objectId}/daily-report/today`, {
+): Promise<ObjectDailyReport | SavedWithoutAccess> {
+  return committedWrite<ObjectDailyReport>(`/objects/${objectId}/daily-report/today`, {
     method: 'PUT',
     body: JSON.stringify(payload),
   });
@@ -236,8 +237,8 @@ export async function listObjectComments(
 export async function createObjectComment(
   objectId: string,
   payload: CreateObjectCommentPayload,
-): Promise<ObjectComment> {
-  return fetcher<ObjectComment>(`/objects/${objectId}/comments`, {
+): Promise<ObjectComment | SavedWithoutAccess> {
+  return committedWrite<ObjectComment>(`/objects/${objectId}/comments`, {
     method: 'POST',
     body: JSON.stringify(payload),
   });

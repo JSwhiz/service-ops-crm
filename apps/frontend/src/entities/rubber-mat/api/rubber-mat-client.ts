@@ -6,6 +6,7 @@ export interface RubberMatSize {
 }
 export interface RubberMatAggregate {
   canManage: boolean;
+  canReadHistory: boolean;
   items: Array<RubberMatSize & { quantity: number; quantityVersion: number }>;
   knownReplacementCost: string;
   totalReplacementCost: string | null;
@@ -20,6 +21,12 @@ export interface RubberMatCostChange {
   id: string; beforeCost: string | null; afterCost: string | null;
   actorName: string | null; source: string; occurredAt: string;
 }
+export interface RubberMatCatalog {
+  items: RubberMatSize[];
+  canManage: boolean;
+  canEditCost: boolean;
+  canReadHistory: boolean;
+}
 export interface RubberMatAggregateRegistry {
   items: Array<{ object: { id: string; name: string; address: string }; quantity: number; totalReplacementCost: string | null; knownReplacementCost: string }>;
   page: number; total: number; totalPages: number;
@@ -30,10 +37,10 @@ export async function getRubberMatAggregateRegistry(q: string, page: number, lim
 }
 export const matSizeLabel = (size: { lengthCm: number | string; widthCm: number | string }): string => `${size.lengthCm} × ${size.widthCm} см`;
 export const matMoney = (value: string | null): string => value === null ? 'Не указана' : `${value.replace('.', ',')} ₽`;
-export async function getRubberMatCatalog(): Promise<{ items: RubberMatSize[]; canManage: boolean }> {
+export async function getRubberMatCatalog(): Promise<RubberMatCatalog> {
   return fetcher('/rubber-mats/catalog', { method: 'GET' });
 }
-export async function createRubberMatSize(payload: { lengthCm: number; widthCm: number; replacementCost: string | null }): Promise<RubberMatSize> {
+export async function createRubberMatSize(payload: { lengthCm: number; widthCm: number; replacementCost?: string | null }): Promise<RubberMatSize> {
   return fetcher('/rubber-mats/catalog', { method: 'POST', body: JSON.stringify(payload) });
 }
 export async function setRubberMatCost(id: string, payload: { version: number; replacementCost: string | null }): Promise<RubberMatSize> {

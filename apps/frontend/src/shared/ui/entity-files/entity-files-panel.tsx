@@ -33,7 +33,7 @@ export function EntityFilesPanel({
         <span className={styles.panelMeta}>{files.length}</span>
       </div>
 
-      {canUpload ? <MediaActionPicker iconOnly={iconOnlyMediaActions} compactMenu={compactMediaActions} compactLabel={`Добавить вложение к разделу «${title}»`} onPick={onUpload} /> : null}
+      <MediaActionPicker disabled={!canUpload} uploadAllowed={canUpload} iconOnly={iconOnlyMediaActions} compactMenu={compactMediaActions} compactLabel={`Добавить вложение к разделу «${title}»`} onPick={onUpload} />
 
       {files.length === 0 ? (
         <div className={styles.emptyState}>{emptyText}</div>

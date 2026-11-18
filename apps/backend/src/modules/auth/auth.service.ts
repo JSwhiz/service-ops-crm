@@ -17,6 +17,9 @@ import { buildCounterpartyGlobalCapabilities } from "../counterparties/utils/cou
 import { canCreateObject } from "../objects/utils/object-access.util";
 import { PrismaService } from "../prisma/prisma.service";
 import { UsersService } from "../users-access/users.service";
+import { AccessRule } from "../users-access/types/access-policy.type";
+import { applyAccessCapabilities } from "../users-access/utils/auth-access-capabilities.util";
+import { decideAccess } from "../users-access/utils/access-policy.util";
 
 import { LoginDto } from "./dto/login.dto";
 import { MeResponseDto } from "./dto/me-response.dto";
@@ -40,6 +43,8 @@ interface PasswordCheckUserRecord {
 }
 
 interface SanitizedAuthUserRecord {
+  accessVersion?: number;
+  accessRules?: AccessRule[];
   id: string;
   login: string;
   fullName: string;
@@ -77,6 +82,11 @@ export class AuthService {
       throw new UnauthorizedException("Invalid credentials");
     }
 
+    const loginSubject = this.usersService.sanitizeUser(user);
+    if (!decideAccess(loginSubject, 'auth.login', true, {resourceType:'user',resourceId:user.id,ownerUserId:user.id})) {
+      throw new UnauthorizedException("User is not available");
+    }
+
     const safeUser = await this.buildMeResponse(
       this.usersService.sanitizeUser(user),
     );
@@ -102,13 +112,21 @@ export class AuthService {
       throw new UnauthorizedException("Invalid refresh token");
     }
 
+    const refreshSubject = this.usersService.sanitizeUser(user);
+    if (!decideAccess(refreshSubject, 'auth.refresh', true, {resourceType:'user',resourceId:user.id,ownerUserId:user.id})) {
+      await this.authSessionsService.revokeSessionByRawToken(refreshToken);
+      throw new UnauthorizedException("Invalid refresh token");
+    }
+
     const safeUser = await this.buildMeResponse(
       this.usersService.sanitizeUser(user),
     );
+    const accessToken = await this.signAccessToken(safeUser);
     const refreshExpiresAt = this.getRefreshExpiresAt();
     const rotatedSession = await this.authSessionsService.rotateSession(
       refreshToken,
       {
+        actor: safeUser,
         expiresAt: refreshExpiresAt,
         meta,
       },
@@ -119,7 +137,7 @@ export class AuthService {
     }
 
     return {
-      accessToken: await this.signAccessToken(safeUser),
+      accessToken,
       refreshToken: rotatedSession.rawToken,
       accessExpiresAt: this.getAccessExpiresAt(),
       refreshExpiresAt,
@@ -127,14 +145,31 @@ export class AuthService {
     };
   }
 
-  async getMe(userId: string): Promise<MeResponseDto> {
+  async assertIssuedSessionCurrent(session: IssuedAuthSession): Promise<void> {
+    if (await this.hasCurrentAccessRevision(session.user)) return;
+    await this.authSessionsService.revokeSessionByRawToken(session.refreshToken);
+    throw new UnauthorizedException("Access changed. Sign in again.");
+  }
+
+  async getMe(userId: string, confirmLogin = false): Promise<MeResponseDto> {
     const user = await this.usersService.findById(userId);
 
     if (!user || !user.isActive) {
       throw new UnauthorizedException("User is not available");
     }
 
-    return this.buildMeResponse(this.usersService.sanitizeUser(user));
+    const subject = this.usersService.sanitizeUser(user);
+    const context = { resourceType: "user", resourceId: user.id, ownerUserId: user.id };
+    if (!decideAccess(subject, 'auth.me', true, context) ||
+      (confirmLogin && !decideAccess(subject, 'auth.login', true, context))) {
+      throw new UnauthorizedException("User is not available");
+    }
+
+    const profile = await this.buildMeResponse(subject);
+    if (!await this.hasCurrentAccessRevision(profile)) {
+      throw new UnauthorizedException("Access changed. Check your permissions again.");
+    }
+    return profile;
   }
 
   async logout(refreshToken?: string): Promise<void> {
@@ -143,6 +178,14 @@ export class AuthService {
     }
 
     await this.authSessionsService.revokeSessionByRawToken(refreshToken);
+  }
+
+  private async hasCurrentAccessRevision(user: MeResponseDto): Promise<boolean> {
+    const actor = await this.prisma.user.findFirst({
+      where: { id: user.id, isActive: true, deletedAt: null },
+      select: { accessVersion: true },
+    });
+    return actor?.accessVersion === user.accessVersion;
   }
 
   private async validatePassword(
@@ -162,14 +205,15 @@ export class AuthService {
   ): Promise<IssuedAuthSession> {
     const accessExpiresAt = this.getAccessExpiresAt();
     const refreshExpiresAt = this.getRefreshExpiresAt();
+    const accessToken = await this.signAccessToken(user);
     const refreshSession = await this.authSessionsService.createSession({
-      userId: user.id,
+      actor: user,
       expiresAt: refreshExpiresAt,
       meta,
     });
 
     return {
-      accessToken: await this.signAccessToken(user),
+      accessToken,
       refreshToken: refreshSession.rawToken,
       accessExpiresAt,
       refreshExpiresAt,
@@ -262,7 +306,9 @@ export class AuthService {
       isActive: user.isActive,
       roleCode: user.roleCodes[0] ?? "unknown",
       roleCodes: user.roleCodes,
-      capabilities: {
+      accessVersion: user.accessVersion ?? 0,
+      accessRules: user.accessRules ?? [],
+      capabilities: applyAccessCapabilities(user, {
         canAccessCounterparties:
           counterpartyCapabilities.canAccessCounterparties,
         canManageCounterparties:
@@ -297,6 +343,7 @@ export class AuthService {
         canApproveOneTimeOrderAvailability:
           oneTimeOrderCapabilities.canApproveOneTimeOrderAvailability,
         canAccessEmployeesHr: employeeCapabilities.canAccessEmployeesHr,
+        canReadWorkforceSubstitutions: false,
         canManageEmployeesHr: canManageEmployeesHr(user.permissionCodes),
         canCreateEmployee: employeeCapabilities.canCreateEmployee,
         canEditEmployee: employeeCapabilities.canEditEmployee,
@@ -361,7 +408,7 @@ export class AuthService {
         canManageChats: chatCapabilities.canManageChats,
         canCreateDirectChat: chatCapabilities.canCreateDirectChat,
         canCreateGroupChat: chatCapabilities.canCreateGroupChat,
-      },
+      }),
     };
   }
 

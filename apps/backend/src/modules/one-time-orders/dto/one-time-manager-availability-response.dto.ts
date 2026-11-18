@@ -1,4 +1,7 @@
+import type { ManagerAvailabilityCapabilities } from '../utils/one-time-manager-availability-capabilities.util';
+
 export class OneTimeManagerAvailabilityResponseDto {
+  capabilities!: ManagerAvailabilityCapabilities;
   id!: string;
   userId!: string;
   entryType!: string;

@@ -1,4 +1,5 @@
 import { fetcher } from '@/shared/api/fetcher';
+import type { SavedWithoutAccess } from '@/shared/api/saved-without-access';
 
 import type {
   CreateTaskPayload,
@@ -6,6 +7,7 @@ import type {
   TaskCompletionListResponse,
   TaskHistoryEvent,
   TaskItem,
+  TaskMutationResult,
   TaskListQuery,
   TaskListResponse,
   UpdateTaskPayload,
@@ -46,8 +48,8 @@ export async function getTaskById(id: string): Promise<TaskItem> {
   return fetcher<TaskItem>(`/tasks/${id}`, { method: 'GET' });
 }
 
-export async function createTask(payload: CreateTaskPayload): Promise<TaskItem> {
-  return fetcher<TaskItem>('/tasks', {
+export async function createTask(payload: CreateTaskPayload): Promise<TaskMutationResult> {
+  return fetcher<TaskMutationResult>('/tasks', {
     method: 'POST',
     body: JSON.stringify(payload),
   });
@@ -56,8 +58,8 @@ export async function createTask(payload: CreateTaskPayload): Promise<TaskItem> 
 export async function updateTask(
   id: string,
   payload: UpdateTaskPayload,
-): Promise<TaskItem> {
-  return fetcher<TaskItem>(`/tasks/${id}`, {
+): Promise<TaskMutationResult> {
+  return fetcher<TaskMutationResult>(`/tasks/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(payload),
   });
@@ -65,7 +67,7 @@ export async function updateTask(
 
 export async function createTaskCompletionDraft(
   id: string,
-): Promise<{ id: string; workCycle: number }> {
+): Promise<{ id: string; workCycle: number } | SavedWithoutAccess> {
   return fetcher(`/tasks/${id}/assignees/me/completion-draft`, {
     method: 'POST',
   });
@@ -74,15 +76,15 @@ export async function createTaskCompletionDraft(
 export async function completeTaskAssignment(
   id: string,
   payload: { completionId?: string; completionText?: string },
-): Promise<TaskItem> {
-  return fetcher<TaskItem>(`/tasks/${id}/assignees/me/complete`, {
+): Promise<TaskMutationResult> {
+  return fetcher<TaskMutationResult>(`/tasks/${id}/assignees/me/complete`, {
     method: 'POST',
     body: JSON.stringify(payload),
   });
 }
 
-export async function undoTaskCompletion(id: string): Promise<TaskItem> {
-  return fetcher<TaskItem>(`/tasks/${id}/assignees/me/undo-completion`, {
+export async function undoTaskCompletion(id: string): Promise<TaskMutationResult> {
+  return fetcher<TaskMutationResult>(`/tasks/${id}/assignees/me/undo-completion`, {
     method: 'POST',
   });
 }
@@ -90,8 +92,8 @@ export async function undoTaskCompletion(id: string): Promise<TaskItem> {
 export async function addTaskAssignees(
   id: string,
   userIds: string[],
-): Promise<TaskItem> {
-  return fetcher<TaskItem>(`/tasks/${id}/assignees`, {
+): Promise<TaskMutationResult> {
+  return fetcher<TaskMutationResult>(`/tasks/${id}/assignees`, {
     method: 'POST',
     body: JSON.stringify({ userIds }),
   });
@@ -100,8 +102,8 @@ export async function addTaskAssignees(
 export async function removeTaskAssignee(
   id: string,
   userId: string,
-): Promise<TaskItem> {
-  return fetcher<TaskItem>(`/tasks/${id}/assignees/${userId}`, {
+): Promise<TaskMutationResult> {
+  return fetcher<TaskMutationResult>(`/tasks/${id}/assignees/${userId}`, {
     method: 'DELETE',
   });
 }
@@ -110,22 +112,22 @@ async function runTaskAction(
   id: string,
   action: string,
   reason?: string,
-): Promise<TaskItem> {
-  return fetcher<TaskItem>(`/tasks/${id}/${action}`, {
+): Promise<TaskMutationResult> {
+  return fetcher<TaskMutationResult>(`/tasks/${id}/${action}`, {
     method: 'POST',
     ...(reason ? { body: JSON.stringify({ reason }) } : {}),
   });
 }
 
-export const confirmTask = (id: string): Promise<TaskItem> =>
+export const confirmTask = (id: string): Promise<TaskMutationResult> =>
   runTaskAction(id, 'confirm');
-export const completeTaskNow = (id: string): Promise<TaskItem> =>
+export const completeTaskNow = (id: string): Promise<TaskMutationResult> =>
   runTaskAction(id, 'complete-now');
-export const returnTaskToWork = (id: string, reason: string): Promise<TaskItem> =>
+export const returnTaskToWork = (id: string, reason: string): Promise<TaskMutationResult> =>
   runTaskAction(id, 'return-to-work', reason);
-export const reopenTask = (id: string, reason: string): Promise<TaskItem> =>
+export const reopenTask = (id: string, reason: string): Promise<TaskMutationResult> =>
   runTaskAction(id, 'reopen', reason);
-export const cancelTask = (id: string, reason: string): Promise<TaskItem> =>
+export const cancelTask = (id: string, reason: string): Promise<TaskMutationResult> =>
   runTaskAction(id, 'cancel', reason);
 
 export async function listTaskHistory(id: string): Promise<TaskHistoryEvent[]> {

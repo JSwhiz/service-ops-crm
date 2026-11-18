@@ -1,0 +1,11 @@
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-space-3);
+}
+
+.form {
+  display: grid;
+  gap: var(--ui-space-4);
+  min-width: 0;
+}

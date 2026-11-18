@@ -1,4 +1,7 @@
-import { fetcher } from "@/shared/api/fetcher";
+import { committedWrite, fetcher } from "@/shared/api/fetcher";
+
+import type { SavedWithoutAccess } from "@/shared/api/saved-without-access";
+export type VisitPlanMutationResponse = VisitPlan | SavedWithoutAccess;
 
 export interface VisitPlan {
   id: string;
@@ -27,7 +30,7 @@ export interface PlanHistory {
 }
 export interface VisitPlanDay {
   plan: VisitPlan | null;
-  capabilities: { canManage: boolean };
+  capabilities: { canManage: boolean; canManageVisits?: boolean; canManageReports?: boolean };
 }
 export const getVisitPlan = (
   date: string,
@@ -69,8 +72,8 @@ export const createVisitPlan = (payload: {
   managerUserId: string;
   planDate: string;
   reportDueAt?: string;
-}): Promise<VisitPlan> =>
-  fetcher("/visit-plans", { method: "POST", body: JSON.stringify(payload) });
+}): Promise<VisitPlanMutationResponse> =>
+  committedWrite<VisitPlan>("/visit-plans", { method: "POST", body: JSON.stringify(payload) });
 export const addVisitPlanEntry = (
   id: string,
   payload: {
@@ -79,8 +82,8 @@ export const addVisitPlanEntry = (
     clientName?: string;
     isUnplanned: boolean;
   },
-): Promise<VisitPlan> =>
-  fetcher(`/visit-plans/${id}/entries`, {
+): Promise<VisitPlanMutationResponse> =>
+  committedWrite<VisitPlan>(`/visit-plans/${id}/entries`, {
     method: "POST",
     body: JSON.stringify(payload),
   });
@@ -88,16 +91,16 @@ export const recordPlanVisit = (
   id: string,
   entryId: string,
   payload: { expectedVersion: number; visited: boolean; visitReport?: string },
-): Promise<VisitPlan> =>
-  fetcher(`/visit-plans/${id}/entries/${entryId}/visit`, {
+): Promise<VisitPlanMutationResponse> =>
+  committedWrite<VisitPlan>(`/visit-plans/${id}/entries/${entryId}/visit`, {
     method: "PATCH",
     body: JSON.stringify(payload),
   });
 export const savePlanReport = (
   id: string,
   payload: { expectedVersion: number; report: string; closeReport: boolean },
-): Promise<VisitPlan> =>
-  fetcher(`/visit-plans/${id}/report`, {
+): Promise<VisitPlanMutationResponse> =>
+  committedWrite<VisitPlan>(`/visit-plans/${id}/report`, {
     method: "PATCH",
     body: JSON.stringify(payload),
   });

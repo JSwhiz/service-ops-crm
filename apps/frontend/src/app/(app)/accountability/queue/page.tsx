@@ -14,6 +14,8 @@ import type {
   AccountabilityFundingEntry,
 } from '@/entities/accountability/model/accountability.types';
 import { useAuth } from '@/shared/auth/use-auth';
+import { useAccessRevision } from '@/shared/auth/use-access-revision';
+import { ApiError } from '@/shared/api/fetcher';
 import {
   getAccountabilityExpenseStatusLabel,
   getAccountabilityFundingTypeLabel,
@@ -46,15 +48,17 @@ function formatDate(value: string): string {
 
 export default function AccountabilityQueuePage(): React.JSX.Element {
   const { user } = useAuth();
+  const accessRevision = useAccessRevision();
   const searchParams = useSearchParams();
   const view = parseView(searchParams.get('view'));
-  const canReview = user?.capabilities?.canReviewAccountability ?? false;
+  const canDiscover = user?.capabilities?.canDiscoverAccountabilityReview ?? false;
   const [accounts, setAccounts] = useState<AccountabilityAccountView[]>([]);
+  const [accountsRevision, setAccountsRevision] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!canReview) {
+    if (!canDiscover) {
       setLoading(false);
       setAccounts([]);
       return;
@@ -63,15 +67,24 @@ export default function AccountabilityQueuePage(): React.JSX.Element {
     let cancelled = false;
     setLoading(true);
     setError(null);
+    setAccounts([]);
 
+    // The directory and each detail are independently authorized by the API;
+    // no role or global self-review flag grants visibility to foreign accounts.
     void listAccountabilityAccounts()
-      .then((items) => Promise.all(items.map((item) => getAccountabilityAccountByUserId(item.user.id))))
+      .then((items) => cancelled ? [] : Promise.all(items.map((item) => getAccountabilityAccountByUserId(item.user.id))))
       .then((details) => {
-        if (!cancelled) setAccounts(details);
+        if (!cancelled) {
+          setAccounts(details);
+          setAccountsRevision(accessRevision);
+        }
       })
       .catch((loadError: unknown) => {
         if (!cancelled) {
-          setError(loadError instanceof Error ? loadError.message : 'Не удалось загрузить финансовую очередь.');
+          setAccounts([]);
+          setError(loadError instanceof ApiError && loadError.statusCode === 403
+            ? 'У вас нет права просмотра этой финансовой очереди.'
+            : loadError instanceof Error ? loadError.message : 'Не удалось загрузить финансовую очередь.');
         }
       })
       .finally(() => {
@@ -81,31 +94,31 @@ export default function AccountabilityQueuePage(): React.JSX.Element {
     return () => {
       cancelled = true;
     };
-  }, [canReview]);
+  }, [canDiscover, accessRevision]);
 
   const submitted = useMemo<ExpenseRow[]>(
-    () => accounts.flatMap((account) => account.expenses
+    () => (accountsRevision === accessRevision ? accounts : []).flatMap((account) => account.expenses
       .filter((expense) => expense.status === 'submitted')
       .map((expense) => ({ account, expense }))),
-    [accounts],
+    [accounts, accountsRevision, accessRevision],
   );
 
   const closing = useMemo(
-    () => accounts
+    () => (accountsRevision === accessRevision ? accounts : [])
       .filter((account) => account.account.status === 'closing_requested')
       .map((account) => ({
         account,
         closure: account.closures.find((item) => item.status === 'requested') ?? account.closures[0] ?? null,
       })),
-    [accounts],
+    [accounts, accountsRevision, accessRevision],
   );
 
   const receipts = useMemo<FundingRow[]>(
-    () => accounts.flatMap((account) => account.fundings
+    () => (accountsRevision === accessRevision ? accounts : []).flatMap((account) => account.fundings
       .filter((funding) => funding.fundingType === 'one_time_order_receipt' && funding.entryDirection === 'credit')
       .map((funding) => ({ account, funding })))
       .sort((a, b) => b.funding.issuedAt.localeCompare(a.funding.issuedAt)),
-    [accounts],
+    [accounts, accountsRevision, accessRevision],
   );
 
   const title = view === 'closing'
@@ -121,8 +134,8 @@ export default function AccountabilityQueuePage(): React.JSX.Element {
       ? submitted.reduce((sum, item) => sum + Number(item.expense.amount), 0)
       : null;
 
-  if (!canReview) {
-    return <div className={styles.notice}>У вас нет права просмотра общей финансовой очереди.</div>;
+  if (!canDiscover) {
+    return <div className={styles.notice}>{error ?? 'У вас нет права просмотра финансовой очереди.'}</div>;
   }
 
   return (

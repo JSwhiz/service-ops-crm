@@ -8,12 +8,15 @@ import { Prisma } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { canViewObjectByScope, hasWideObjectAccess } from '../objects/utils/object-access.util';
-import { delegatedObjectIds } from '../user-substitutions/object-delegation.context';
+import { hasDelegatedObjectAction } from '../user-substitutions/object-delegation.context';
+import type { AccessSubject } from '../users-access/types/access-policy.type';
+import { decideAccess } from '../users-access/utils/access-policy.util';
+import { matObjectPolicyWhere } from './rubber-mat-policy.util';
 
 import { RegisterRubberMatDto, UpdateRubberMatDto } from './dto/rubber-mat.dto';
 import { ListRubberMatsQueryDto } from './dto/list-rubber-mats-query.dto';
 
-interface RubberMatUser {
+interface RubberMatUser extends AccessSubject {
   id: string;
   roleCode: string;
   roleCodes?: string[];
@@ -52,16 +55,7 @@ export class RubberMatsService {
   async listRegistry(user: RubberMatUser, query: ListRubberMatsQueryDto) {
     if (!user.isActive) throw new ForbiddenException('Активный пользователь обязателен');
     const roleCodes = user.roleCodes ?? [user.roleCode];
-    const objectScope: Prisma.ObjectWhereInput = {
-      deletedAt: null,
-      ...(hasWideObjectAccess(roleCodes)
-        ? {}
-        : { OR: [
-          { id: { in: delegatedObjectIds(user.id, 'view') } },
-          { createdByUserId: user.id },
-          { assignments: { some: { userId: user.id, isActive: true } } },
-        ] }),
-    };
+    const objectScope = matObjectPolicyWhere(user);
     const visibleObjects = await this.prisma.object.findMany({
       where: objectScope,
       select: { id: true },
@@ -73,7 +67,7 @@ export class RubberMatsService {
     const scopeFilter: Prisma.RubberMatWhereInput = {
       OR: [
         { objectId: { in: visibleObjectIds } },
-        ...(hasWideObjectAccess(roleCodes) ? [{ objectId: null }] : []),
+        ...(hasWideObjectAccess(roleCodes) && decideAccess(user, 'mats.read', true) ? [{ objectId: null }] : []),
       ],
     };
     const filters: Prisma.RubberMatWhereInput[] = [scopeFilter];
@@ -157,11 +151,10 @@ export class RubberMatsService {
   }
 
   async getHistory(user: RubberMatUser, objectId: string, matId: string) {
-    await this.assertObjectAccess(user, objectId);
+    await this.assertObjectAccess(user, objectId, 'mats.history');
     const objectHistoryScope: Prisma.RubberMatEventWhereInput = {
       rubberMatId: matId,
       OR: [
-        { action: 'registered' },
         { fromObjectId: objectId },
         { toObjectId: objectId },
       ],
@@ -182,17 +175,17 @@ export class RubberMatsService {
       action: event.action,
       fromObjectId: event.fromObjectId === objectId ? event.fromObjectId : null,
       toObjectId: event.toObjectId === objectId ? event.toObjectId : null,
-      fromCondition: event.fromCondition,
-      toCondition: event.toCondition,
-      fromZone: event.fromZone,
-      toZone: event.toZone,
+      fromCondition: event.fromObjectId === objectId ? event.fromCondition : null,
+      toCondition: event.toObjectId === objectId ? event.toCondition : null,
+      fromZone: event.fromObjectId === objectId ? event.fromZone : null,
+      toZone: event.toObjectId === objectId ? event.toZone : null,
       note: event.note,
       occurredAt: event.occurredAt,
       actor: event.actor,
     }));
   }
 
-  private async assertObjectAccess(user: RubberMatUser, objectId: string): Promise<void> {
+  private async assertObjectAccess(user: RubberMatUser, objectId: string, code = 'mats.read'): Promise<void> {
     if (!user.isActive) throw new ForbiddenException('Активный пользователь обязателен');
     const object = await this.prisma.object.findFirst({
       where: { id: objectId, deletedAt: null },
@@ -203,11 +196,12 @@ export class RubberMatsService {
       },
     });
     if (!object) throw new NotFoundException('Объект не найден');
-    if (!canViewObjectByScope({
-      currentUserId: user.id,
-      roleCodes: user.roleCodes ?? [user.roleCode],
-      object,
-    })) throw new ForbiddenException('Нет доступа к коврам этого объекта');
+    const context = { resourceType: 'object', resourceId: object.id, ownerUserId: object.createdByUserId, assignedUserIds: object.assignments.map(a => a.userId) };
+    const policyContext = { ...context, parents: [{ actionCode: 'objects.read', context }] };
+    const own = canViewObjectByScope({ currentUserId: user.id, roleCodes: user.roleCodes ?? [user.roleCode], object, subject: user, ownScopeOnly: true });
+    const read = own || hasDelegatedObjectAction(user.id, objectId, 'view', false, 'mats.read', policyContext);
+    const action = own || hasDelegatedObjectAction(user.id, objectId, 'view', false, code, policyContext);
+    if (!decideAccess(user, 'mats.read', read, policyContext) || !decideAccess(user, code, action, policyContext)) throw new ForbiddenException('Нет доступа к коврам этого объекта');
   }
 
   private assertRegistryManager(user: RubberMatUser): void {

@@ -1,11 +1,14 @@
-import { ForbiddenException, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 
 import { TaskListResponseDto, TaskResponseDto } from '../tasks/dto/task-response.dto';
 import { TasksService } from '../tasks/tasks.service';
 import { UserAbsencesService } from '../user-absences/user-absences.service';
 import { PrismaService } from '../prisma/prisma.service';
 
-interface CurrentAuthUser {
+import type { AccessSubject } from '../users-access/types/access-policy.type';
+import { assertDashboardAccess, dashboardAbsenceCount, dashboardUpcomingAbsences, dashboardCandidateWhere, dashboardEmployeeWhere, dashboardSection } from './dashboard-access.util';
+
+interface CurrentAuthUser extends AccessSubject {
   id: string;
   login: string;
   fullName: string;
@@ -114,9 +117,7 @@ export class HrDashboardService {
 
   async getDashboard(user: CurrentAuthUser): Promise<HrDashboardResponse> {
     const roles = user.roleCodes?.length ? user.roleCodes : [user.roleCode];
-    if (!roles.includes('hr')) {
-      throw new ForbiddenException('HR dashboard is not available for this role');
-    }
+    assertDashboardAccess(user,'hr',roles.includes('hr'));
 
     const now = new Date();
     const today = moscowClock().date;
@@ -133,27 +134,28 @@ export class HrDashboardService {
       tasksResult,
     ] = await Promise.all([
       this.prisma.employee.count({
-        where: { deletedAt: null, employmentStatus: 'active' },
+        where: { AND:[dashboardEmployeeWhere(user)], deletedAt: null, employmentStatus: 'active' },
       }),
       this.prisma.employee.count({
         where: {
+          AND:[dashboardEmployeeWhere(user)],
           deletedAt: null,
           employmentStatus: 'active',
           objectAssignments: { none: { isActive: true } },
         },
       }),
       this.prisma.candidate.count({
-        where: { deletedAt: null, status: 'new' },
+        where: { AND:[dashboardCandidateWhere(user)], deletedAt: null, status: 'new' },
       }),
       this.prisma.candidate.count({
-        where: { deletedAt: null, status: 'in_progress' },
+        where: { AND:[dashboardCandidateWhere(user)], deletedAt: null, status: 'in_progress' },
       }),
       this.prisma.candidateManagerAssignment.findMany({
         where: {
           endedAt: null,
           firstRespondedAt: null,
           responseDueAt: { lt: now },
-          candidate: { deletedAt: null },
+          candidate: dashboardCandidateWhere(user),
         },
         select: {
           id: true,
@@ -166,7 +168,7 @@ export class HrDashboardService {
         take: 20,
       }),
       this.prisma.candidate.findMany({
-        where: { deletedAt: null, status: { in: ['new', 'in_progress'] } },
+        where: { AND:[dashboardCandidateWhere(user)], deletedAt: null, status: { in: ['new', 'in_progress'] } },
         select: {
           id: true,
           fullName: true,
@@ -189,6 +191,7 @@ export class HrDashboardService {
       }),
       this.prisma.employee.findMany({
         where: {
+          AND:[dashboardEmployeeWhere(user)],
           deletedAt: null,
           employmentStatus: 'active',
           objectAssignments: { none: { isActive: true } },
@@ -205,14 +208,14 @@ export class HrDashboardService {
         orderBy: { fullName: 'asc' },
         take: 5,
       }),
-      this.userAbsencesService.countTodayForLeadership(today),
-      this.userAbsencesService.listUpcomingForLeadership(today, 5),
-      this.tasksService.listTasks(user, {
+      dashboardAbsenceCount(this.userAbsencesService,this.prisma,user,today),
+      user.accessRules?.length ? dashboardUpcomingAbsences(this.userAbsencesService,this.prisma,user,today).then(items=>items.slice(0,5)) : this.userAbsencesService.listUpcomingForLeadership(today, 5),
+      dashboardSection(()=>this.tasksService.listTasks(user, {
         page: 1,
         limit: 100,
         sortBy: 'dueAt',
         sortDirection: 'asc',
-      }),
+      }), []),
     ]);
 
     const tasks = Array.isArray(tasksResult)

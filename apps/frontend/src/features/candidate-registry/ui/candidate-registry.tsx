@@ -27,6 +27,7 @@ import type {
   CandidateType,
 } from '@/entities/candidate/model/candidate.types';
 import { useAuth } from '@/shared/auth/use-auth';
+import { useAccessRevision } from '@/shared/auth/use-access-revision';
 import { formatRegistryDate } from '@/shared/lib/registry-presentation';
 import {
   SearchableSelect,
@@ -68,6 +69,7 @@ export function CandidateRegistry({
   fixedType?: CandidateType;
 }): React.JSX.Element {
   const { user } = useAuth();
+  const accessRevision = useAccessRevision();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -95,13 +97,19 @@ export function CandidateRegistry({
   const [managerFilterActive, setManagerFilterActive] = useState(
     Boolean(managerUserId),
   );
-  const [result, setResult] = useState(EMPTY);
+  const [snapshot, setSnapshot] = useState<{
+    revision: string;
+    result: CandidateListResponse;
+  } | null>(null);
+  const result = snapshot?.revision === accessRevision ? snapshot.result : EMPTY;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [, setClock] = useState(0);
   const canAccess = user?.capabilities?.canAccessCandidates ?? false;
-  const canManage = user?.capabilities?.canManageCandidates ?? false;
-  const scope = searchParams.get('scope') === 'all' ? 'all' : searchParams.get('scope') === 'mine' ? 'mine' : canManage ? 'all' : 'mine';
+  const canCreate = user?.capabilities?.canCreateCandidate ?? false;
+  // "all" removes only the assignment filter; the API still applies candidate
+  // read scope, including selected grants. Preserve an explicit "mine" choice.
+  const scope = searchParams.get('scope') === 'mine' ? 'mine' : 'all';
 
   const replaceQuery = (updates: Record<string, string | null>): void => {
     const next = new URLSearchParams(searchParams.toString());
@@ -127,7 +135,7 @@ export function CandidateRegistry({
     return () => window.clearTimeout(timer);
   }, [q, search]);
   useEffect(() => {
-    if (!managerUserId) {
+    if (!canAccess || !managerUserId) {
       setManager(null);
       return;
     }
@@ -152,13 +160,14 @@ export function CandidateRegistry({
     return () => {
       active = false;
     };
-  }, [managerUserId]);
+  }, [accessRevision, canAccess, managerUserId]);
   useEffect(() => {
+    const sequence = ++sequenceRef.current;
     if (!canAccess) {
+      setSnapshot(null);
       setLoading(false);
       return;
     }
-    const sequence = ++sequenceRef.current;
     setLoading(true);
     setError(null);
     void listCandidates({
@@ -173,7 +182,8 @@ export function CandidateRegistry({
       limit: pageSize,
     })
       .then((next) => {
-        if (sequence === sequenceRef.current) setResult(next);
+        if (sequence === sequenceRef.current)
+          setSnapshot({ revision: accessRevision, result: next });
       })
       .catch(() => {
         if (sequence === sequenceRef.current)
@@ -182,12 +192,15 @@ export function CandidateRegistry({
       .finally(() => {
         if (sequence === sequenceRef.current) setLoading(false);
       });
-  }, [archiveState, canAccess, managerUserId, page, pageSize, q, scope, slaState, status, type]);
+    return () => {
+      if (sequence === sequenceRef.current) sequenceRef.current += 1;
+    };
+  }, [accessRevision, archiveState, canAccess, managerUserId, page, pageSize, q, scope, slaState, status, type]);
 
   const activeRegistryFilters = [
     {
       id: 'scope', label: 'Кандидаты', value: scope,
-      options: [{ value: 'mine', label: 'Мои' }, { value: 'all', label: 'Все' }],
+      options: [{ value: 'mine', label: 'Мои' }, { value: 'all', label: 'Все доступные' }],
       onChange: (value: string) => replaceQuery({ scope: value, page: null }),
       onRemove: () => replaceQuery({ scope: null, page: null }),
     },
@@ -350,7 +363,7 @@ export function CandidateRegistry({
         activeFilters={activeRegistryFilters}
         availableFilters={availableRegistryFilters}
         actions={
-          canManage && !fixedType ? (
+          canCreate && !fixedType ? (
             <CreateNavigationLink className="ui-button ui-button--primary" href="/candidates/new">
               <span className="ui-button__icon" aria-hidden="true"><PlusIcon /></span>
               Добавить кандидата

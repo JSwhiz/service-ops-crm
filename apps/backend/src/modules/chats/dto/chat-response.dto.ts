@@ -20,9 +20,13 @@ export class ChatRoomResponseDto {
   participantCount!: number;
   capabilities!: {
     canWrite: boolean;
+    canSearch: boolean;
+    canReadReceipts: boolean;
+    canForwardToRoom: boolean;
     canManage: boolean;
     canManageMembers: boolean;
     canHide: boolean;
+    canUnhide: boolean;
     canLeave: boolean;
     canCloseGlobally: boolean;
   };
@@ -35,6 +39,10 @@ export class ChatRoomParticipantResponseDto {
   lastReadAt!: string | null;
   leftAt!: string | null;
   user!: ChatUserSummaryDto;
+  membershipSource!: 'automatic' | 'manual' | 'excluded';
+  automaticEligible!: boolean;
+  canRemove!: boolean;
+  canRestoreAutomatic!: boolean;
 }
 
 export class ChatMessageReplyPreviewDto {

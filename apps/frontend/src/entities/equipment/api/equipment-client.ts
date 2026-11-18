@@ -1,4 +1,5 @@
-import { fetcher } from '@/shared/api/fetcher';
+import { fetcher, postCommittedWrite } from '@/shared/api/fetcher';
+import type { SavedWithoutAccess } from '@/shared/api/saved-without-access';
 
 import type {
   CreateEquipmentCatalogItemPayload,
@@ -61,9 +62,8 @@ export async function listEquipmentUnits(
 
 export async function createEquipmentUnit(
   payload: CreateEquipmentUnitPayload,
-): Promise<EquipmentUnit> {
-  return fetcher<EquipmentUnit>('/equipment/units', {
-    method: 'POST',
+): Promise<EquipmentUnit | SavedWithoutAccess> {
+  return postCommittedWrite<EquipmentUnit>('/equipment/units', {
     body: JSON.stringify(payload),
   });
 }
@@ -91,9 +91,8 @@ export async function listEquipmentMovements(
 export async function createEquipmentMovement(
   unitId: string,
   payload: CreateEquipmentMovementPayload,
-): Promise<EquipmentMovement> {
-  return fetcher<EquipmentMovement>(`/equipment/units/${unitId}/movements`, {
-    method: 'POST',
+): Promise<EquipmentMovement | SavedWithoutAccess> {
+  return postCommittedWrite<EquipmentMovement>(`/equipment/units/${unitId}/movements`, {
     body: JSON.stringify(payload),
   });
 }

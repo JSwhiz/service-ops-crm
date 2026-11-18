@@ -4,6 +4,7 @@ import Link from 'next/link';
 import React from 'react';
 
 import type { ServiceObject } from '@/entities/object/model/object.types';
+import { windowCleaningSummary } from '@/entities/object/lib/window-cleaning';
 import {
   getUserDisplayName,
   getUserSecondaryLabel,
@@ -68,12 +69,12 @@ export function ObjectSummaryCard({ item }: ObjectSummaryCardProps): React.JSX.E
         <div className="ui-detail-field">
           <div className="ui-detail-label">Контрагент</div>
           <div className="ui-detail-value">
-            {item.counterparty ? (
+            {item.counterpartyAccessRestricted ? 'Связанный контрагент недоступен' : item.counterparty ? (
               item.counterparty.canOpenCounterparty ? (
                 <Link href={`/counterparties/${item.counterparty.id}`}>{item.counterparty.name}</Link>
               ) : item.counterparty.name
             ) : 'Не привязан'}
-            {item.counterparty?.legalName ? (
+            {!item.counterpartyAccessRestricted && item.counterparty?.legalName ? (
               <span className="identity-secondary">{item.counterparty.legalName}</span>
             ) : null}
           </div>
@@ -123,10 +124,8 @@ export function ObjectSummaryCard({ item }: ObjectSummaryCardProps): React.JSX.E
         <summary>Инструкции и особенности объекта</summary>
       <div className="object-summary__season-profile">
         <div>
-          <span>Лето</span>
-          <strong>{[
-            item.summerWindowCleaning ? 'Мыть окна' : null,
-          ].filter(Boolean).join(' · ') || 'Мытьё окон не предусмотрено'}</strong>
+          <span>Мытьё окон</span>
+          <strong>{windowCleaningSummary(item)}</strong>
         </div>
         <div>
           <span>Зима</span>

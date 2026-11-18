@@ -47,6 +47,7 @@ export interface TaskCapabilities {
   canEdit: boolean;
   canManageAssignees: boolean;
   canCompleteMyAssignment: boolean;
+  canCreateCompletionDraft?: boolean;
   canUndoMyCompletion: boolean;
   canConfirm: boolean;
   canCompleteNow: boolean;
@@ -194,3 +195,4 @@ export interface TaskCompletionListQuery {
   page?: number;
   limit?: number;
 }
+export type TaskMutationResult = TaskItem | { outcome: 'saved_without_access' };

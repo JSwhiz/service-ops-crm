@@ -5,6 +5,7 @@ import {
   canReviewAccountability,
   canViewOwnAccountability,
 } from './accountability-access.util';
+import { type AccessContext, type AccessSubject, decideAccess } from '../../users-access/utils/access-policy.util';
 
 export interface AccountabilityGlobalCapabilities {
   canAccessAccountability: boolean;
@@ -40,7 +41,12 @@ export function buildAccountabilityGlobalCapabilities(params: {
 }
 
 export function buildAccountabilityExpenseCapabilities(params: {
+  subject?: AccessSubject;
+  ownerUserId?: string;
+  createdByUserId?: string;
   isOwnExpense: boolean;
+  legacyOwnExpenseAllowed: boolean;
+  accountStatus: string;
   status: string;
   roleCodes: string[];
   permissionCodes?: string[];
@@ -53,11 +59,24 @@ export function buildAccountabilityExpenseCapabilities(params: {
   const canReview = canApproveAccountabilityExpense(params);
   const isDraft = params.status === 'draft';
   const isSubmitted = params.status === 'submitted';
+  const ownDraft = params.isOwnExpense && isDraft && params.accountStatus === 'active';
+  const ownContext: AccessContext = {
+    resourceType: 'user',
+    resourceId: params.ownerUserId,
+    ownerUserId: params.ownerUserId,
+    parents: [{ actionCode: 'accountability.read' }],
+  };
 
   return {
-    canEdit: params.isOwnExpense && isDraft,
-    canSubmit: params.isOwnExpense && isDraft,
-    canApprove: canReview && isSubmitted,
-    canReject: canReview && isSubmitted,
+    canEdit: ownDraft && (params.subject
+      ? decideAccess(params.subject, 'accountability.expenses.update', params.legacyOwnExpenseAllowed, ownContext)
+      : params.legacyOwnExpenseAllowed),
+    canSubmit: ownDraft && (params.subject
+      ? decideAccess(params.subject, 'accountability.expenses.submit', params.legacyOwnExpenseAllowed, ownContext)
+      : params.legacyOwnExpenseAllowed),
+    canApprove: isSubmitted && !params.isOwnExpense && (!params.subject || params.subject.id !== params.createdByUserId) && (params.subject
+      ? decideAccess(params.subject, 'accountability.expenses.approve', canReview, ownContext) : canReview),
+    canReject: isSubmitted && (params.subject
+      ? decideAccess(params.subject, 'accountability.expenses.reject', canReview, ownContext) : canReview),
   };
 }

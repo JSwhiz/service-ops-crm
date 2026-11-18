@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
+import { useAccessRevision } from '@/shared/auth/use-access-revision';
+import { AccessSnapshotBoundary } from '@/shared/auth/access-snapshot-boundary';
 import { cancelCompensationVersion, getObjectCompensation } from '@/entities/object/api/object-compensation-client';
 import { getPayContours, getStaffingPositions } from '@/entities/object/api/object-scheduling-client';
 import { listObjectCompensationRates } from '@/entities/object/api/object-operations-client';
@@ -22,7 +24,9 @@ export const compensationMoney = (value: number): string => `${value.toLocaleStr
 export const adjustmentLabels: Record<string, string> = { extra_work: 'Допработа', extra_work_correction: 'Исправление допработы', shift_override: 'Изменение цены выхода', replacement: 'Оплата сменщику вместо основного', holiday_exception: 'Исключение оплаты праздника', confirm_shift: 'Подтверждение прошлого выхода', cancel_shift: 'Отмена прошлого выхода' };
 const states: Record<string, string> = { pending: 'Ожидает согласования', applied: 'Применено', rejected: 'Отклонено', cancelled: 'Отменено' };
 
-export function TeamCompensationPanel({ objectId, writable, financialRevision = 0 }: { objectId: string; writable: boolean; financialRevision?: number }): React.JSX.Element {
+export function TeamCompensationPanel({ objectId, writable, financialRevision = 0, onSavedWithoutAccess }: { objectId: string; writable: boolean; financialRevision?: number; onSavedWithoutAccess?: () => void }): React.JSX.Element {
+  const accessRevision = useAccessRevision();
+  const [loadedAccessRevision, setLoadedAccessRevision] = useState<string | null>(null);
   const [snapshot, setSnapshot] = useState<{ objectId: string; value: ObjectCompensation } | null>(null);
   const data = snapshot?.objectId === objectId ? snapshot.value : null;
   const [positions, setPositions] = useState<StaffingPosition[]>([]);
@@ -57,11 +61,12 @@ export function TeamCompensationPanel({ objectId, writable, financialRevision = 
   useEffect(() => {
     let active = true;
     setLoading(true); setError(null); setReferenceError(null);
-    setSnapshot(null); setPositions([]); setContours([]); setLines([]);
-    void Promise.allSettled([getObjectCompensation(objectId), getStaffingPositions(objectId), getPayContours(objectId), listObjectCompensationRates(objectId)]).then(([compensation, staffing, pay, rates]) => {
+    void getObjectCompensation(objectId).then(async (compensation) => {
       if (!active) return;
-      if (compensation.status === 'fulfilled') setSnapshot({ objectId, value: compensation.value });
-      else setError(getErrorMessage(compensation.reason, 'Командная оплата недоступна.'));
+      setSnapshot({ objectId, value: compensation });
+      if (compensation.capabilities.canReadRates === false) { setPositions([]); setContours([]); setLines([]); setLoadedAccessRevision(accessRevision); return; }
+      const [staffing, pay, rates] = await Promise.allSettled([getStaffingPositions(objectId), getPayContours(objectId), listObjectCompensationRates(objectId)]);
+      if (!active) return;
       if (staffing.status === 'fulfilled') setPositions(staffing.value.positions);
       if (pay.status === 'fulfilled') setContours(pay.value.contours);
       const failed = [staffing, pay, rates].find((result) => result.status === 'rejected');
@@ -71,15 +76,19 @@ export function TeamCompensationPanel({ objectId, writable, financialRevision = 
         ...(pay.status === 'fulfilled' ? pay.value.contours.filter((c) => c.isActive).map((c) => ({ key: c.id, name: c.name, scope: 'contour' as const, scopeId: c.id })) : []),
         ...(rates.status === 'fulfilled' ? rates.value.filter((r) => r.isActive).map((r) => ({ key: r.id, name: r.name, scope: 'rate' as const, scopeId: r.id })) : []),
       ]);
-      setLoading(false);
-    });
+      setLoadedAccessRevision(accessRevision);
+    }).catch((caught: unknown) => { if (active) setError(getErrorMessage(caught, 'Командная оплата недоступна.')); })
+      .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [objectId, refresh]);
+  }, [objectId, refresh, accessRevision]);
   useEffect(() => { setEditing(null); setCancelTarget(null); setCorrection(null); setCorrectionResult(null); setReason(''); setCancelError(null); setSuccess(null); }, [objectId]);
   const saved = (): void => { setEditing(null); setSuccess('Условия сохранены. Прежние начисления не изменены.'); setRefresh((v) => v + 1); };
   const currentFund = data?.teamFunds.filter((f) => f.effectiveFrom <= moscowToday()).sort((a, b) => b.effectiveFrom.localeCompare(a.effectiveFrom))[0];
-  const canEdit = writable && data?.capabilities.manageRates && !loading && !error && !referenceError;
-  const canEditFund = writable && data?.capabilities.manageTeamFund && !loading && !error && !referenceError;
+  const canReadRates = data?.capabilities.canReadRates !== false;
+  const canReadFund = data?.capabilities.canReadTeamFund !== false;
+  const canReadAdjustments = data?.capabilities.canReadAdjustments !== false;
+  const canEdit = writable && canReadRates && data?.capabilities.manageRates && !error && !referenceError;
+  const canEditFund = writable && canReadFund && canReadRates && data?.capabilities.manageTeamFund && !error && !referenceError;
   const positionName = (id: string, date: string): string => positions.find((p) => p.id === id)?.revisions.filter((r) => r.effectiveFrom <= date).sort((a, b) => b.effectiveFrom.localeCompare(a.effectiveFrom) || b.version - a.version)[0]?.name ?? 'Название позиции недоступно';
   const lineName = (v: CompensationVersion): string => lines.find((l) => l.scope === v.scope && l.scopeId === v.scopeId)?.name ?? 'Сохранённое условие оплаты';
   return <Surface padding="md" as="section" id="compensation-versions"><div className={styles.content}>
@@ -90,7 +99,11 @@ export function TeamCompensationPanel({ objectId, writable, financialRevision = 
     {referenceError ? <Alert tone="warning">{referenceError}</Alert> : null}
     {success ? <Alert tone="success" role="status">{success}</Alert> : null}
     {correctionResult ? <Alert tone={correctionResult.status === 'applied' ? 'success' : 'info'} role="status">{correctionResult.status === 'pending' ? 'Исправление допработы ожидает согласования. Прежняя сумма остаётся действующей.' : correctionResult.status === 'applied' ? 'Исправление допработы применено. Основная оплата выхода не изменена.' : correctionResult.status === 'rejected' ? 'Исправление допработы отклонено.' : 'Запрос исправления допработы отменён.'} {correctionResult.approvalRequestId ? <a href={`/approvals?${new URLSearchParams({ sourceEntityType: 'object_compensation_adjustment', sourceEntityId: correctionResult.adjustmentId })}`}>Открыть согласование</a> : null}</Alert> : null}
+    <AccessSnapshotBoundary blocked={loadedAccessRevision !== accessRevision || !!error}>
+    {!loading && !referenceError && editing === 'fund' && !canEditFund ? <Alert tone="warning" role="status">Изменение фонда команды недоступно. Черновик сохранён; отправка заблокирована. Проверьте доступ перед повторным действием.</Alert> : null}
+    {!loading && !referenceError && editing && editing !== 'fund' && !canEdit ? <Alert tone="warning" role="status">Изменение условий оплаты недоступно. Черновик сохранён; отправка заблокирована. Проверьте доступ перед повторным действием.</Alert> : null}
     {data ? <>
+      {canReadFund ? <>
       <FactStrip items={[{ label: 'Фонд команды за месяц', value: currentFund ? compensationMoney(currentFund.monthlyAmount) : 'Не задан' }, { label: 'Действует с', value: currentFund ? formatUiDate(currentFund.effectiveFrom) : '—' }]} />
       {canEditFund ? <div><Button onClick={() => { setSuccess(null); setEditing('fund'); }}>Задать фонд и распределение</Button></div> : null}
       <details><summary>План и история распределения фонда ({data.teamFunds.length})</summary>
@@ -101,7 +114,9 @@ export function TeamCompensationPanel({ objectId, writable, financialRevision = 
           <p className="ui-text-muted">Автор: {f.createdBy?.fullName ?? 'Имя недоступно'}</p>
         </section>) : <p>Распределение ещё не задано.</p>}
       </details>
-      <section className={styles.section} aria-label="Датированные условия">
+      {!canReadRates && data.capabilities.manageTeamFund ? <Alert tone="info">Просмотр фонда доступен. Для редактирования распределения также требуется доступ к условиям оплаты.</Alert> : null}
+      </> : <Alert tone="info">Просмотр фонда команды недоступен: нет права чтения бюджета. Это не означает, что фонд не задан.</Alert>}
+      {canReadRates ? <section className={styles.section} aria-label="Датированные условия">
         <h4 className="ui-section-title">Условия оплаты с датой начала</h4>
         <p className="ui-text-muted">Условия выбираются по дате выхода. Новые условия не меняют уже сохранённые суммы.</p>
         {lines.map((line) => {
@@ -117,8 +132,8 @@ export function TeamCompensationPanel({ objectId, writable, financialRevision = 
           <p className="ui-text-muted">Автор: {v.createdBy?.fullName ?? 'Имя недоступно'}</p>
           {canEdit && !v.cancelledAt && v.effectiveFrom > moscowToday() ? <OverflowMenu triggerLabel={`Действия с будущими условиями · ${lineName(v)} · ${formatUiDate(v.effectiveFrom)}`} items={[{ key: 'cancel', label: 'Отменить будущую версию', tone: 'danger', onSelect: () => { setCancelTarget(v); setReason(''); setCancelError(null); } }]} /> : null}
         </div>)}</details>
-      </section>
-      <details><summary>Изменения начислений · последние {data.adjustments.length}</summary>
+      </section> : <Alert tone="info">Просмотр условий оплаты недоступен: нет права чтения ставок. Сохранённые условия не показаны.</Alert>}
+      {canReadAdjustments ? <details><summary>Изменения начислений · последние {data.adjustments.length}</summary>
         <p>Прошлые суммы меняются после согласования другим пользователем руководящего круга. До решения сохраняется прежнее начисление.</p>
         {data.adjustments.map((a) => { const correctionPending = data.adjustments.some((item) => item.kind === 'extra_work_correction' && item.status === 'pending' && item.payload.sourceAdjustmentId === a.id); return <div key={a.id} className={styles.section}>
           <strong>{adjustmentLabels[a.kind] ?? 'Изменение начисления'} · {formatUiDate(a.operationDate)} · {states[a.status] ?? 'Неизвестное состояние'}</strong>
@@ -133,19 +148,22 @@ export function TeamCompensationPanel({ objectId, writable, financialRevision = 
           ]} /> : null}
           <a href={`/approvals?${new URLSearchParams({ sourceEntityType: 'object_compensation_adjustment', sourceEntityId: a.id })}`}>Решение и история согласования</a>
         </div>; })}
-      </details>
+      </details> : <Alert tone="info">История изменений и расшифровка начислений недоступны: требуется чтение ставок и бюджета. Отсутствие доступа не означает отсутствие начислений.</Alert>}
     </> : null}
-    {editing === 'fund' && data && canEditFund ? <TeamFundDialog objectId={objectId} funds={data.teamFunds} versions={data.versions} positions={positions} contours={contours} onClose={() => setEditing(null)} onSaved={saved} /> : editing && editing !== 'fund' && data && canEdit ? <CompensationVersionDialog objectId={objectId} line={editing} versions={data.versions} onClose={() => setEditing(null)} onSaved={saved} /> : null}
-    {correction && data && writable && data.capabilities.requestExtraWork ? <ExtraWorkCorrectionDialog key={`${objectId}:${correction.adjustment.id}:${correction.cancel}`} objectId={objectId} adjustment={correction.adjustment} cancel={correction.cancel} returnFocusRef={correctionTrigger(correction.adjustment.id)} onClose={() => setCorrection(null)} onSaved={(result) => {
+    {editing === 'fund' && data ? <AccessSnapshotBoundary blocked={!canEditFund}><TeamFundDialog objectId={objectId} funds={data.teamFunds} versions={data.versions} positions={positions} contours={contours} onClose={() => setEditing(null)} onSaved={saved} /></AccessSnapshotBoundary> : editing && editing !== 'fund' && data ? <AccessSnapshotBoundary blocked={!canEdit}><CompensationVersionDialog objectId={objectId} line={editing} versions={data.versions} onClose={() => setEditing(null)} onSaved={saved} onSavedWithoutAccess={onSavedWithoutAccess} /></AccessSnapshotBoundary> : null}
+    {correction && data ? <AccessSnapshotBoundary blocked={!canReadAdjustments || !writable || !data.capabilities.requestExtraWork}><ExtraWorkCorrectionDialog key={`${objectId}:${correction.adjustment.id}:${correction.cancel}`} objectId={objectId} adjustment={correction.adjustment} cancel={correction.cancel} returnFocusRef={correctionTrigger(correction.adjustment.id)} onClose={() => setCorrection(null)} onSaved={(result) => {
       setCorrection(null); setCorrectionResult(result); setRefresh((value) => value + 1);
       queueMicrotask(() => titleRef.current?.focus({ preventScroll: true }));
-    }} /> : null}
+    }} /></AccessSnapshotBoundary> : null}
+    <AccessSnapshotBoundary blocked={!canEdit}>
     <ReasonDialog open={!!cancelTarget} onOpenChange={(open) => { if (!open && !pending) setCancelTarget(null); }} title="Отменить будущие условия?" description="Отмена сохранится в истории. Прошлые и текущие условия останутся прежними." reason={reason} onReasonChange={setReason} reasonRequired pending={pending} error={cancelError} confirmLabel="Отменить условия" onConfirm={async (value) => {
-      if (!cancelTarget || pending) return;
+      if (!cancelTarget || pending || !canEdit) return;
       setPending(true); setCancelError(null);
       try { await cancelCompensationVersion(objectId, cancelTarget.id, { expectedVersion: cancelTarget.version, reason: value }); setCancelTarget(null); setRefresh((v) => v + 1); }
       catch (caught) { setCancelError(getErrorMessage(caught, 'Не удалось отменить версию. Обновите список при конфликте.')); }
       finally { setPending(false); }
     }} />
+    </AccessSnapshotBoundary>
+    </AccessSnapshotBoundary>
   </div></Surface>;
 }

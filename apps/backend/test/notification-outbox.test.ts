@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import type { Prisma } from '@prisma/client';
 
 import { NotificationsService } from '../src/modules/notifications/notifications.service';
 
@@ -25,7 +26,7 @@ test('notification outbox retries with a bounded delay after database errors', a
   }
 });
 
-test('notification outbox publishes a user-addressed realtime event then marks it sent', async () => {
+test('notification outbox publishes an eligible generic user-addressed realtime event then marks it sent', async () => {
   const createdAt = new Date('2026-10-09T00:00:00.000Z');
   const record = {
     id: 'outbox-id',
@@ -37,9 +38,9 @@ test('notification outbox publishes a user-addressed realtime event then marks i
     type: 'task.overdue',
     title: 'Срок задачи истёк',
     body: 'Проверить объект',
-    entityType: 'task',
-    entityId: 'task-id',
-    targetUrl: '/tasks?taskId=task-id',
+    entityType: null,
+    entityId: null,
+    targetUrl: null,
     createdAt,
   };
   const sentFrames: Array<{ channel: string; message: string }> = [];
@@ -52,9 +53,18 @@ test('notification outbox publishes a user-addressed realtime event then marks i
   };
   const prisma = {
     $transaction: async (work: (client: typeof tx) => Promise<unknown>) => work(tx),
-    notification: { findFirst: async ({ where }: { where: { id: string; dismissedAt: null } }) => {
-      assert.equal(where.id, notification.id);
-      assert.equal(where.dismissedAt, null);
+    user: { findFirst: async () => ({ id: record.recipientUserId, isActive: true, accessVersion: 0,
+      accessRules: [], roles: [{ role: { code: 'manager', permissions: [] } }], permissions: [] }) },
+    notification: {
+      // This transport test uses an explicitly source-less notice. Positive
+      // domain-source membership is exercised by isolated integration fixtures.
+      findMany: async () => [],
+      findFirst: async ({ where }: { where: Prisma.NotificationWhereInput }) => {
+      assert.ok(Array.isArray(where.AND));
+      assert.deepEqual(where.AND[1], { id: notification.id });
+      assert.ok(JSON.stringify(where.AND[0]).includes(record.recipientUserId));
+      assert.ok(JSON.stringify(where.AND[0]).includes('dismissedAt'));
+      assert.ok(JSON.stringify(where.AND[0]).includes('entityType'));
       return notification;
     } },
     notificationOutbox: {

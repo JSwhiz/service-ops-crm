@@ -44,7 +44,7 @@ export class OneTimeOrderCompletionResponseDto {
   status!: string;
   clientRequestId!: string | null;
   payments!: OneTimeOrderCompletionPaymentResponseDto[];
-  visibleTotalAmount!: number;
+  visibleTotalAmount!: number | null;
   fullTotalAmountVisible!: boolean;
   createdAt!: string | null;
   updatedAt!: string | null;

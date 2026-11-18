@@ -11,6 +11,11 @@ export interface UserAbsenceItem {
   createdByUserId: string;
   createdAt: string;
   updatedAt: string;
+  capabilities: {
+    canUpdate: boolean;
+    canDelete: boolean;
+    canViewPrivateReasons: boolean;
+  };
 }
 
 export interface UserAbsenceListResponse {
@@ -27,4 +32,8 @@ export interface UserAbsenceUserOption {
   id: string;
   login: string;
   fullName: string;
+  capabilities: {
+    canCreate: boolean;
+    canViewPrivateReasons: boolean;
+  };
 }

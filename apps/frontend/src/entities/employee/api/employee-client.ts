@@ -1,4 +1,5 @@
-import { fetcher } from '@/shared/api/fetcher';
+import { committedWrite, fetcher } from '@/shared/api/fetcher';
+import type { SavedWithoutAccess } from '@/shared/api/saved-without-access';
 
 import type {
   EmployeeAttendanceMonth,
@@ -202,8 +203,8 @@ export async function deleteEmployeeAssignmentAsError(
   employeeId: string,
   historyId: string,
   reason: string,
-): Promise<EmployeeDetail> {
-  return fetcher<EmployeeDetail>(
+): Promise<EmployeeDetail | SavedWithoutAccess> {
+  return committedWrite<EmployeeDetail>(
     `/employees/${employeeId}/object-assignment-history/${historyId}/delete-as-error`,
     {
       method: 'POST',

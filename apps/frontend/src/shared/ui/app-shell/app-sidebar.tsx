@@ -94,6 +94,15 @@ export function AppSidebar({ expanded, onToggle }: AppSidebarProps): React.JSX.E
   const canAccessCandidates = user?.capabilities?.canAccessCandidates ?? false;
   const canAccessCounterparties =
     user?.capabilities?.canAccessCounterparties ?? false;
+  const canAccessDashboard = user?.capabilities?.canAccessDashboard ?? true;
+  const canAccessObjects = user?.capabilities?.canAccessObjects ?? true;
+  const canAccessMats = user?.capabilities?.canAccessMats ?? true;
+  const canAccessTasks = user?.capabilities?.canAccessTasks ?? true;
+  const canAccessTimesheet = user?.capabilities?.canAccessTimesheet ?? true;
+  const canAccessUserAbsences = user?.capabilities?.canAccessUserAbsences ?? true;
+  const canAccessVisitPlans = user?.capabilities?.canAccessVisitPlans ?? true;
+  const canAccessUserSubstitutions = user?.capabilities?.canAccessUserSubstitutions ?? true;
+  const canManageUserAccess = user?.capabilities?.canManageUserAccess ?? false;
 
   return (
     <aside className="app-sidebar" aria-label="Основная навигация">
@@ -118,9 +127,9 @@ export function AppSidebar({ expanded, onToggle }: AppSidebarProps): React.JSX.E
 
       <nav className="app-sidebar__nav">
         <div className="app-sidebar__nav-main">
-          <NavLink href="/dashboard" label="Рабочий стол" icon={<Icon name="workspace" />} />
+          {canAccessDashboard ? <NavLink href="/dashboard" label="Рабочий стол" icon={<Icon name="workspace" />} /> : null}
           {canAccessApprovals ? <NavLink href="/approvals" label="Согласования" icon={<Icon name="approvals" />} /> : null}
-          <NavLink href="/objects" label="Объекты" icon={<Icon name="objects" />} />
+          {canAccessObjects ? <NavLink href="/objects" label="Объекты" icon={<Icon name="objects" />} /> : null}
           {canAccessCounterparties ? (
             <NavLink href="/counterparties" label="Контрагенты" icon={<Icon name="counterparties" />} />
           ) : null}
@@ -129,19 +138,19 @@ export function AppSidebar({ expanded, onToggle }: AppSidebarProps): React.JSX.E
           ) : null}
           {canAccessAccountability ? <NavLink href="/accountability" label="Подотчёт" icon={<Icon name="accountability" />} /> : null}
           {canAccessInventory ? <NavLink href="/inventory" label="Расходники" icon={<Icon name="inventory" />} /> : null}
-          <NavLink href="/rubber-mats" label="Ковры" icon={<Icon name="mats" />} />
+          {canAccessMats ? <NavLink href="/rubber-mats" label="Ковры" icon={<Icon name="mats" />} /> : null}
           {canAccessEquipment ? <NavLink href="/equipment" label="Оборудование" icon={<Icon name="equipment" />} /> : null}
-          <NavLink href="/tasks" label="Задачи" icon={<Icon name="tasks" />} />
-          <NavLink href="/timesheet" label="Табель" icon={<Icon name="timesheet" />} />
-          <NavLink href="/user-absences" label="Календарь" icon={<Icon name="calendar" />} />
-          <NavLink href="/visit-plans" label="План на день" icon={<Icon name="tasks" />} />
-          <NavLink href="/user-substitutions" label="Замещения" icon={<Icon name="substitutions" />} />
+          {canAccessTasks ? <NavLink href="/tasks" label="Задачи" icon={<Icon name="tasks" />} /> : null}
+          {canAccessTimesheet ? <NavLink href="/timesheet" label="Табель" icon={<Icon name="timesheet" />} /> : null}
+          {canAccessUserAbsences ? <NavLink href="/user-absences" label="Календарь" icon={<Icon name="calendar" />} /> : null}
+          {canAccessVisitPlans ? <NavLink href="/visit-plans" label="План на день" icon={<Icon name="tasks" />} /> : null}
+          {canAccessUserSubstitutions ? <NavLink href="/user-substitutions" label="Замещения" icon={<Icon name="substitutions" />} /> : null}
           {canAccessCandidates ? <NavLink href="/candidates" label="Кандидаты" icon={<Icon name="candidates" />} /> : null}
           {canAccessEmployeesHr ? <NavLink href="/employees" label="Сотрудники" icon={<Icon name="employees" />} /> : null}
         </div>
 
         <div className="app-sidebar__nav-bottom">
-          <NavLink href="/settings" label="Настройки" icon={<Icon name="settings" />} />
+          {canManageUserAccess ? <NavLink href="/settings" label="Пользователи и доступы" icon={<Icon name="settings" />} /> : null}
         </div>
       </nav>
     </aside>

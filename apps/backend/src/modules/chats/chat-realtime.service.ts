@@ -1,3 +1,4 @@
+import {isChatMessageSourceAllowed} from '../../common/access/chat-message-source-access';
 import {
   Injectable,
   Logger,
@@ -14,6 +15,11 @@ import type { RedisClientType } from 'redis';
 import { ACCESS_TOKEN_COOKIE } from '../auth/constants/auth.constants';
 import { RedisService } from '../redis/redis.service';
 import { UsersService } from '../users-access/users.service';
+import { PrismaService } from '../prisma/prisma.service';
+import { decideAccess } from '../users-access/utils/access-policy.util';
+import { resourceAccessTarget } from '../../common/access/resource-access-context';
+import { notificationAccessWhere } from '../../common/access/notification-access';
+import { resolveRoomMembership } from './utils/chat-membership.util';
 
 import { CHAT_REDIS_CHANNEL } from './constants/chat.constants';
 
@@ -62,18 +68,23 @@ export class ChatRealtimeService implements OnModuleInit, OnModuleDestroy {
   private readonly clients = new Set<RealtimeClient>();
   private subscriber: ReturnType<RedisClientType['duplicate']> | null = null;
   private isAttached = false;
+  private deliveryQueue: Promise<void> = Promise.resolve();
 
   constructor(
     private readonly redisService: RedisService,
     private readonly jwtService: JwtService,
     private readonly usersService: UsersService,
+    private readonly prisma: PrismaService,
   ) {}
 
   async onModuleInit(): Promise<void> {
     this.subscriber = this.redisService.getClient().duplicate();
     await this.subscriber.connect();
     await this.subscriber.subscribe(CHAT_REDIS_CHANNEL, (message) => {
-      this.handleRedisEvent(message);
+      // Async permission checks must preserve Redis event order.
+      this.deliveryQueue = this.deliveryQueue.then(() => this.handleRedisEvent(message)).catch((error) => {
+        this.logger.warn(`Realtime delivery skipped: ${error instanceof Error ? error.message : 'unknown error'}`);
+      });
     });
   }
 
@@ -190,9 +201,9 @@ export class ChatRealtimeService implements OnModuleInit, OnModuleDestroy {
     }
 
     const payload = await this.jwtService.verifyAsync<{ sub: string }>(token);
-    const user = await this.usersService.findById(payload.sub);
+    const user = await this.loadRealtimeActor(payload.sub);
 
-    if (!user || !user.isActive) {
+    if (!user) {
       throw new UnauthorizedException('Realtime user is not available');
     }
 
@@ -201,13 +212,13 @@ export class ChatRealtimeService implements OnModuleInit, OnModuleDestroy {
     };
   }
 
-  private handleRedisEvent(message: string): void {
+  private async handleRedisEvent(message: string): Promise<void> {
     try {
       const event = JSON.parse(message) as RealtimeEvent;
       const recipients = new Set(event.recipientUserIds);
 
       for (const client of this.clients) {
-        if (recipients.has(client.userId)) {
+        if (recipients.has(client.userId) && await this.canDeliver(client.userId, event)) {
           this.send(client, event);
         }
       }
@@ -216,6 +227,72 @@ export class ChatRealtimeService implements OnModuleInit, OnModuleDestroy {
         `Invalid chat realtime event: ${error instanceof Error ? error.message : 'unknown error'}`,
       );
     }
+  }
+
+  private async loadRealtimeActor(userId: string) {
+    const record = await this.usersService.findById(userId);
+    if (!record?.isActive) return null;
+    const subject = this.usersService.sanitizeUser(record);
+    return decideAccess(subject, 'auth.access', true, {
+      resourceType: 'user', resourceId: userId, ownerUserId: userId,
+    }) ? subject : null;
+  }
+
+  private async canDeliver(userId: string, event: RealtimeEvent): Promise<boolean> {
+    // Never trust the JWT or a recipient list produced before a revocation.
+    const subject = await this.loadRealtimeActor(userId);
+    if (!subject) return false;
+    if (event.type === 'notification.created') {
+      const stillVisible = await this.prisma.notification.findFirst({ where: {
+        AND: [await notificationAccessWhere(this.prisma, userId, 'notifications.realtime'), { id: event.payload.id }],
+      }, select: { id: true } });
+      if (!stillVisible) return false;
+      const target = event.payload.entityType && event.payload.entityId
+        ? await resourceAccessTarget(this.prisma, event.payload.entityType, event.payload.entityId) : null;
+      if (target && !decideAccess(subject, target.actionCode, true, target.context)) return false;
+      return decideAccess(subject, 'notifications.read', true, {
+        resourceType: 'notification', resourceId: event.payload.id, ownerUserId: userId,
+        parents: target ? [target] : [],
+      }) && decideAccess(subject, 'notifications.realtime', true, {
+        resourceType: 'notification', resourceId: event.payload.id, ownerUserId: userId,
+        parents: target ? [target] : [],
+      });
+    }
+    // This control event contains no room title/message. A removed member must
+    // receive it so an already-open UI can discard its old room snapshot.
+    if (event.type === 'chat.room_left') {
+      if (event.payload.roomId !== event.roomId || Object.keys(event.payload).some(key => key !== 'roomId')) return false;
+      const membership = await this.prisma.chatRoomParticipant.findUnique({ where: { chatRoomId_userId: { chatRoomId: event.roomId, userId } }, select: { leftAt: true, membershipOverride: true } });
+      return !!membership && (membership.leftAt !== null || membership.membershipOverride === 'exclude');
+    }
+    let messageCreatedAt: Date | null = null;
+    if(event.type==='chat.message_created'||event.type==='chat.message_updated'){
+      const id=event.payload.messageId;
+      if(typeof id!=='string')return false;
+      const message=await this.prisma.chatMessage.findFirst({where:{id,chatRoomId:event.roomId},select:{messageType:true,metadata:true,createdAt:true}});
+      if(!message||!await isChatMessageSourceAllowed(this.prisma,subject,message))return false;
+      messageCreatedAt = message.createdAt;
+    }
+    const room = await this.prisma.chatRoom.findUnique({ where: { id: event.roomId }, select: {
+      id: true, deletedAt: true, createdByUserId: true, visibilityType: true,
+      participants: { where: { leftAt: null }, select: { userId: true, joinedAt: true } },
+    } });
+    if (!room) return false;
+    const participant = room.participants.find((entry) => entry.userId === userId);
+    // A current membership must not reveal an old queued message excluded by
+    // the same joinedAt boundary used by direct/history/file reads.
+    if (messageCreatedAt && participant && messageCreatedAt < participant.joinedAt) return false;
+    const assignedUserIds = room.participants.map(participant => participant.userId);
+    const eligible = (await resolveRoomMembership(this.prisma, subject, room)).allowed;
+    // A grant does not fabricate explicit membership or reopen a closed room.
+    const context = { resourceType: 'chat_room', resourceId: room.id,
+      ownerUserId: room.createdByUserId ?? undefined, assignedUserIds,
+      invariantAllowed: eligible && (!room.deletedAt || event.type === 'chat.room_closed'),
+      parents: room.visibilityType === 'objects_scope' ? [{ actionCode: 'objects.access', context: {} }]
+        : room.visibilityType === 'one_time_orders_scope' ? [{ actionCode: 'one_time_orders.access', context: {} }] : [],
+    };
+    return decideAccess(subject, 'chat.read', eligible, context) &&
+      decideAccess(subject, 'chat.messages.read', eligible, context) && decideAccess(subject, 'chat.realtime', eligible, context);
   }
 
   private send(client: RealtimeClient, payload: unknown): void {

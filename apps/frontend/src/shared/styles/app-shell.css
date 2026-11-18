@@ -716,6 +716,12 @@
     grid-template-columns: 58px minmax(0, 1fr);
   }
 
+  .app-shell .app-sidebar {
+    /* A percentage width becomes viewport-wide when entering the desktop
+     * width transition. Keep the existing mobile rail explicit instead. */
+    width: 58px;
+  }
+
   .app-sidebar__brand-row {
     justify-content: center;
     padding-inline: 7px;

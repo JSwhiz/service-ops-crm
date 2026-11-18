@@ -1,4 +1,5 @@
-import { fetcher } from "@/shared/api/fetcher";
+import { committedWrite, fetcher } from "@/shared/api/fetcher";
+import type { SavedWithoutAccess } from "@/shared/api/saved-without-access";
 
 export interface ObjectContact {
   id: string;
@@ -44,16 +45,16 @@ export const saveObjectContact = (
   id: string,
   contactId: string | null,
   payload: ContactInput,
-): Promise<ObjectContact> =>
-  fetcher(`/objects/${id}/contacts${contactId ? `/${contactId}` : ""}`, {
+): Promise<ObjectContact | SavedWithoutAccess> =>
+  committedWrite<ObjectContact>(`/objects/${id}/contacts${contactId ? `/${contactId}` : ""}`, {
     method: contactId ? "PATCH" : "POST",
     body: JSON.stringify(payload),
   });
 export const deleteObjectContact = (
   id: string,
   contact: ObjectContact,
-): Promise<unknown> =>
-  fetcher(`/objects/${id}/contacts/${contact.id}`, {
+): Promise<{ success: boolean } | SavedWithoutAccess> =>
+  committedWrite<{ success: boolean }>(`/objects/${id}/contacts/${contact.id}`, {
     method: "DELETE",
     body: JSON.stringify({ expectedVersion: contact.version }),
   });
@@ -62,8 +63,8 @@ export const getObjectPlanning = (id: string): Promise<ObjectPlanning> =>
 export const saveObjectPlanning = (
   id: string,
   payload: PlanningInput,
-): Promise<ObjectPlanning> =>
-  fetcher(`/objects/${id}/planning`, {
+): Promise<ObjectPlanning | SavedWithoutAccess> =>
+  committedWrite(`/objects/${id}/planning`, {
     method: "PATCH",
     body: JSON.stringify(payload),
   });

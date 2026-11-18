@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client';
 import { delegatedTaskScopes } from '../../user-substitutions/object-delegation.context';
+import { taskPolicyWhere } from './task-policy.util';
 
 export const TASK_LEADERSHIP_ROLE_CODES = [
   'founder',
@@ -22,6 +23,7 @@ export function hasWideTaskAccess(roleCodes: string[]): boolean {
 export function buildTaskAccessWhere(params: {
   currentUserId: string;
   roleCodes: string[];
+  policyActionCode?: string;
 }): Prisma.TaskWhereInput {
   if (hasWideTaskAccess(params.roleCodes)) {
     return {};
@@ -29,14 +31,17 @@ export function buildTaskAccessWhere(params: {
 
   return {
     OR: [
-      ...delegatedTaskScopes(params.currentUserId).map((grant): Prisma.TaskWhereInput => ({
+      ...delegatedTaskScopes(params.currentUserId, params.policyActionCode ?? 'tasks.read').map((grant): Prisma.TaskWhereInput => ({ AND: [{
         objectId: grant.objectId, oneTimeOrderId: null,
         ...(grant.taskWideAccess ? {} : { OR: [
           { visibilityType: 'target_participants' }, { createdByUserId: grant.principalUserId },
           { assignees: { some: { userId: grant.principalUserId, isActive: true } } },
           { visibilityUsers: { some: { userId: grant.principalUserId } } },
         ] }),
-      })),
+      }, ...[grant.principalSubject, grant.replacementSubject].filter(subject => subject !== undefined).map(subject =>
+        // The coarse branch above remains authoritative. These predicates only
+        // subtract actual source/replacement task/object denies from that branch.
+        taskPolicyWhere(subject, {}, params.policyActionCode ?? 'tasks.read'))] })),
       { createdByUserId: params.currentUserId },
       {
         assignees: {

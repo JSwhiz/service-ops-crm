@@ -1,10 +1,9 @@
 'use client';
 
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import {
-  createUserAbsence,
   deleteUserAbsence,
   listUserAbsences,
   listUserAbsenceUsers,
@@ -16,7 +15,10 @@ import type {
   UserAbsenceUserOption,
 } from '@/entities/user-absence/model/user-absence.types';
 import { useAuth } from '@/shared/auth/use-auth';
-import { Alert, Button, Field } from '@/shared/ui/foundation';
+import { useOpenAccessRefresh } from '@/shared/auth/use-open-access-refresh';
+import { useAccessRevision } from '@/shared/auth/use-access-revision';
+import { toUpdateUserAbsencePayload } from '@/features/user-absence-create/model/create-user-absence-payload';
+import { Alert, Button, ButtonLink, EmptyState, Field, LoadingState } from '@/shared/ui/foundation';
 import { MonthPeriodPicker } from '@/shared/ui/month-period-picker/month-period-picker';
 import { ConfirmDialog } from '@/shared/ui/overlays';
 import { useCreateNavigation } from '@/shared/create-navigation';
@@ -73,7 +75,18 @@ function eventLabel(item: UserAbsenceItem): string {
 }
 
 export default function UserAbsencesPage(): React.JSX.Element {
+  const { user, isLoading } = useAuth();
+  if (isLoading) return <div className="ui-page"><LoadingState label="Проверка доступа…" /></div>;
+  if (user?.capabilities?.canAccessUserAbsences === false) return <div className="ui-page">
+    <EmptyState title="Доступ к календарю закрыт" description="Для просмотра календаря необходимо разрешение. Если доступ нужен для работы, обратитесь к учредителю." action={<ButtonLink href="/dashboard">На рабочий стол</ButtonLink>} />
+  </div>;
+  return <UserAbsencesContent />;
+}
+
+function UserAbsencesContent(): React.JSX.Element {
   const { user } = useAuth();
+  useOpenAccessRefresh(Boolean(user));
+  const accessRevision = useAccessRevision();
   const router = useRouter();
   const pathname = usePathname();
   const createNavigation = useCreateNavigation();
@@ -87,10 +100,6 @@ export default function UserAbsencesPage(): React.JSX.Element {
   const monthDays = useMemo(() => isoMonthDays(bounds.year, bounds.month), [bounds.month, bounds.year]);
   const [items, setItems] = useState<UserAbsenceItem[]>([]);
   const [users, setUsers] = useState<UserAbsenceUserOption[]>([]);
-  const [canManage, setCanManage] = useState(false);
-  const [canManageAll, setCanManageAll] = useState(false);
-  const [canViewAll, setCanViewAll] = useState(false);
-  const [canViewPrivateReasons, setCanViewPrivateReasons] = useState(false);
   const [loading, setLoading] = useState(true);
   const [revision, setRevision] = useState(0);
   const [loadFailed, setLoadFailed] = useState(false);
@@ -99,13 +108,34 @@ export default function UserAbsencesPage(): React.JSX.Element {
   const [editorOpen, setEditorOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<UserAbsenceItem | null>(null);
   const [deletePending, setDeletePending] = useState(false);
+  const [savePending, setSavePending] = useState(false);
+  const mutationLock = useRef(false);
+  const requestSequence = useRef(0);
+  const [loadedScope, setLoadedScope] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [selectedUserId, setSelectedUserId] = useState('');
   const [selectedType, setSelectedType] = useState<UserAbsenceType | ''>('');
+  const scope = JSON.stringify([accessRevision, bounds.from, bounds.to, selectedUserId, selectedType]);
+  const currentScope = useRef(scope);
+  currentScope.current = scope;
+  const accessCurrent = loadedScope === scope && !loading && !loadFailed;
+  const checkingAccess = loading || (loadedScope !== scope && !loadFailed);
+  const selectedTarget = accessCurrent ? users.find((entry) => entry.id === selectedUserId) : undefined;
+  const canCreate = accessCurrent && (selectedUserId
+    ? selectedTarget?.capabilities?.canCreate === true
+    : users.some((entry) => entry.capabilities?.canCreate === true));
+  const canChooseUser = accessCurrent && users.some((entry) => entry.id !== user?.id);
+  const currentEditing = accessCurrent ? items.find((item) => item.id === editing?.id) : undefined;
+  const canUpdate = currentEditing?.capabilities?.canUpdate === true;
+  const showEditorComment = currentEditing?.capabilities?.canViewPrivateReasons === true;
+  const currentDeleteTarget = accessCurrent ? items.find((item) => item.id === deleteTarget?.id) : undefined;
+  const canDelete = currentDeleteTarget?.capabilities?.canDelete === true;
   const [form, setForm] = useState({
     userId: user?.id ?? '', absenceType: 'vacation' as UserAbsenceType,
     startDate: today, endDate: today, comment: '',
   });
+  const [commentTouched, setCommentTouched] = useState(false);
+  const editorComment = commentTouched ? form.comment : currentEditing?.comment ?? '';
 
   useEffect(() => {
     if (pathname !== '/user-absences') return;
@@ -119,33 +149,36 @@ export default function UserAbsencesPage(): React.JSX.Element {
     }
   }, [monthKey, pathname, router, searchParams]);
 
-  const load = async (): Promise<void> => {
+  const load = useCallback(async (): Promise<void> => {
+    if (currentScope.current !== scope) return;
+    const request = ++requestSequence.current;
     setLoading(true);
     setLoadFailed(false);
     setError(null);
     try {
-      const response = await listUserAbsences({
+      const [response, options] = await Promise.all([listUserAbsences({
         from: bounds.from,
         to: bounds.to,
         userId: selectedUserId || undefined,
         absenceType: selectedType || undefined,
-      });
+      }), listUserAbsenceUsers()]);
+      if (request !== requestSequence.current || currentScope.current !== scope) return;
       setItems(response.items);
-      setCanManage(response.capabilities.canManage);
-      setCanManageAll(response.capabilities.canManageAll);
-      setCanViewAll(response.capabilities.canViewAll);
-      setCanViewPrivateReasons(response.capabilities.canViewPrivateReasons);
-      const options = await listUserAbsenceUsers();
       setUsers(options);
+      setLoadedScope(scope);
     } catch (caught) {
+      if (request !== requestSequence.current || currentScope.current !== scope) return;
       setLoadFailed(true);
       setError(caught instanceof Error ? caught.message : 'Не удалось загрузить календарь.');
     } finally {
-      setLoading(false);
+      if (request === requestSequence.current && currentScope.current === scope) setLoading(false);
     }
-  };
+  }, [bounds.from, bounds.to, selectedUserId, selectedType, scope]);
 
-  useEffect(() => { void load(); }, [bounds.from, bounds.to, selectedUserId, selectedType, revision]);
+  useEffect(() => {
+    void load();
+    return () => { requestSequence.current += 1; };
+  }, [load, revision]);
 
   useEffect(() => {
     const onCreated = (): void => setRevision((value) => value + 1);
@@ -157,11 +190,10 @@ export default function UserAbsencesPage(): React.JSX.Element {
     const query = search.trim().toLocaleLowerCase('ru-RU');
     return users.filter((entry) => {
       if (selectedUserId && entry.id !== selectedUserId) return false;
-      if (!canViewAll && entry.id !== user?.id) return false;
       if (!query) return true;
       return `${entry.fullName} ${entry.login}`.toLocaleLowerCase('ru-RU').includes(query);
     });
-  }, [canViewAll, search, selectedUserId, user?.id, users]);
+  }, [search, selectedUserId, users]);
 
   const visibleItems = useMemo(() => items.filter((item) =>
     visibleUsers.some((entry) => entry.id === item.userId),
@@ -178,51 +210,53 @@ export default function UserAbsencesPage(): React.JSX.Element {
   };
 
   const openCreate = (day = today, targetUserId = selectedUserId): void => {
+    if (!accessCurrent) return;
+    const target = targetUserId
+      ? users.find((entry) => entry.id === targetUserId)
+      : users.find((entry) => entry.id === user?.id && entry.capabilities?.canCreate === true)
+        ?? users.find((entry) => entry.capabilities?.canCreate === true);
+    if (target?.capabilities?.canCreate !== true) return;
     setEditorOpen(false);
     setEditing(null);
     const params = new URLSearchParams();
     params.set('date', day);
-    if (canManageAll && targetUserId) params.set('forUser', targetUserId);
+    params.set('forUser', target.id);
     createNavigation.open(`/user-absences/new?${params.toString()}`);
   };
 
   const openEdit = (item: UserAbsenceItem): void => {
+    if (!accessCurrent || item.capabilities?.canUpdate !== true || mutationLock.current) return;
     setEditing(item);
+    setCommentTouched(false);
     setForm({
       userId: item.userId, absenceType: item.absenceType,
-      startDate: item.startDate, endDate: item.endDate, comment: item.comment ?? '',
+      startDate: item.startDate, endDate: item.endDate,
+      comment: item.capabilities.canViewPrivateReasons ? item.comment ?? '' : '',
     });
     setEditorOpen(true);
   };
 
   const save = async (): Promise<void> => {
-    if (!form.userId || !form.startDate || !form.endDate) return;
+    if (mutationLock.current || !accessCurrent || !canUpdate || !editing || !currentEditing || !form.userId || !form.startDate || !form.endDate) return;
+    mutationLock.current = true;
+    setSavePending(true);
     setError(null);
     try {
-      if (editing) {
-        await updateUserAbsence(editing.id, {
-          absenceType: form.absenceType,
-          startDate: form.startDate,
-          endDate: form.endDate,
-          ...(editing.userId === user?.id || canViewPrivateReasons ? { comment: form.comment || null } : {}),
-        });
-      } else {
-        await createUserAbsence({
-          userId: canManageAll ? form.userId : user?.id ?? form.userId,
-          absenceType: form.absenceType, startDate: form.startDate, endDate: form.endDate,
-          comment: form.comment || null,
-        });
-      }
+      await updateUserAbsence(editing.id, toUpdateUserAbsencePayload(form, currentEditing, commentTouched));
       setEditorOpen(false);
       setEditing(null);
       await load();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Не удалось сохранить отсутствие.');
+    } finally {
+      mutationLock.current = false;
+      setSavePending(false);
     }
   };
 
   const confirmDelete = async (): Promise<void> => {
-    if (!deleteTarget) return;
+    if (mutationLock.current || !accessCurrent || !canDelete || !deleteTarget) return;
+    mutationLock.current = true;
     setDeletePending(true);
     try {
       await deleteUserAbsence(deleteTarget.id);
@@ -231,6 +265,7 @@ export default function UserAbsencesPage(): React.JSX.Element {
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Не удалось удалить запись.');
     } finally {
+      mutationLock.current = false;
       setDeletePending(false);
     }
   };
@@ -252,7 +287,7 @@ export default function UserAbsencesPage(): React.JSX.Element {
           <span className={styles.periodAnnouncement} aria-live="polite">{monthTitle}</span>
         </div>
         <div className={styles.filters}>
-          {canViewAll ? (
+          {canChooseUser ? (
             <Field label="Пользователь">
               <Select value={selectedUserId} onChange={(event) => setSelectedUserId(event.target.value)}>
                 <option value="">Все пользователи</option>
@@ -260,7 +295,7 @@ export default function UserAbsencesPage(): React.JSX.Element {
               </Select>
             </Field>
           ) : null}
-          {canViewAll ? (
+          {canChooseUser ? (
             <Field label="Поиск пользователя" className={styles.searchField}>
               <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Имя или логин" />
             </Field>
@@ -271,7 +306,7 @@ export default function UserAbsencesPage(): React.JSX.Element {
               {Object.entries(TYPE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
             </Select>
           </Field>
-          {canManage ? <Button size="lg" variant="primary" icon={<PlusIcon />} onClick={() => openCreate()}>Добавить отсутствие</Button> : null}
+          <Button size="lg" variant="primary" icon={<PlusIcon />} disabled={!canCreate || savePending || deletePending} onClick={() => openCreate()}>Добавить отсутствие</Button>
         </div>
       </section>
 
@@ -284,29 +319,31 @@ export default function UserAbsencesPage(): React.JSX.Element {
         ))}
       </div>
 
-      {!loading && !loadFailed ? <div className={styles.summary}>
+      {accessCurrent ? <div className={styles.summary}>
         <div className={styles.summaryItem}><strong>{todayCount}</strong><span>отсутствуют сегодня</span></div>
         <div className={styles.summaryItem}><strong>{upcomingCount}</strong><span>запланировано в месяце</span></div>
       </div> : null}
 
       {error ? <Alert tone="warning" role="alert">{error}</Alert> : null}
+      {checkingAccess ? <p role="status">Обновляем календарь и права доступа…</p> : accessCurrent && !canCreate ? <Alert tone="info">{selectedUserId ? 'Создание отсутствий для выбранного пользователя недоступно. Права изменения и удаления проверяются отдельно для каждой записи.' : 'Нет пользователей, для которых разрешено создание отсутствий. Доступные действия показаны у каждой записи.'}</Alert> : null}
 
-      {editorOpen && editing && canManage ? (
+      {editorOpen && editing ? (
         <section className={styles.editor} aria-labelledby="absence-editor-title">
           <div className={styles.editorHeading}><h2 id="absence-editor-title">{editing ? 'Изменить отсутствие' : 'Новое отсутствие'}</h2><span>* — обязательные поля</span></div>
           <div className={styles.editorGrid}>
-            {canManageAll ? <Field label="Пользователь" required><Select value={form.userId} disabled={Boolean(editing)} onChange={(event) => setForm((value) => ({ ...value, userId: event.target.value }))}>{users.map((entry) => <option key={entry.id} value={entry.id}>{entry.fullName || entry.login}</option>)}</Select></Field> : null}
-            <Field label="Тип отсутствия" required><Select value={form.absenceType} onChange={(event) => setForm((value) => ({ ...value, absenceType: event.target.value as UserAbsenceType }))}><option value="vacation">Отпуск</option><option value="sick_leave">Больничный</option><option value="day_off">Отгул</option></Select></Field>
-            <Field label="С" required><DatePicker value={form.startDate} onChange={(nextValue) => setForm((value) => ({ ...value, startDate: nextValue, endDate: value.endDate < nextValue ? nextValue : value.endDate }))} /></Field>
-            <Field label="По" required><DatePicker min={form.startDate} value={form.endDate} onChange={(nextValue) => setForm((value) => ({ ...value, endDate: nextValue }))} /></Field>
-            {form.userId !== user?.id && !canViewPrivateReasons ? null : <Field label="Комментарий"><input value={form.comment} onChange={(event) => setForm((value) => ({ ...value, comment: event.target.value }))} placeholder="Необязательно" /></Field>}
+            {currentEditing ? <Field label="Пользователь"><Select value={form.userId} disabled><option value={form.userId}>{currentEditing.user.fullName || currentEditing.user.login}</option></Select></Field> : null}
+            <Field label="Тип отсутствия" required><Select value={form.absenceType} disabled={!canUpdate || savePending || deletePending} onChange={(event) => setForm((value) => ({ ...value, absenceType: event.target.value as UserAbsenceType }))}><option value="vacation">Отпуск</option><option value="sick_leave">Больничный</option><option value="day_off">Отгул</option></Select></Field>
+            <Field label="С" required><DatePicker value={form.startDate} disabled={!canUpdate || savePending || deletePending} onChange={(nextValue) => setForm((value) => ({ ...value, startDate: nextValue, endDate: value.endDate < nextValue ? nextValue : value.endDate }))} /></Field>
+            <Field label="По" required><DatePicker min={form.startDate} value={form.endDate} disabled={!canUpdate || savePending || deletePending} onChange={(nextValue) => setForm((value) => ({ ...value, endDate: nextValue }))} /></Field>
+            {showEditorComment ? <Field label="Комментарий"><input value={editorComment} disabled={!canUpdate || savePending || deletePending} onChange={(event) => { setCommentTouched(true); setForm((value) => ({ ...value, comment: event.target.value })); }} placeholder="Необязательно" /></Field> : null}
           </div>
-          <div className={styles.editorActions}><Button variant="primary" onClick={() => void save()}>Сохранить</Button><Button onClick={() => setEditorOpen(false)}>Отмена</Button></div>
+          {!canUpdate ? <Alert tone="warning" role="status">{checkingAccess ? 'Проверяем доступ к записи. Черновик сохранён.' : 'Изменение этой записи недоступно. Черновик сохранён; обновите календарь для проверки доступа.'}</Alert> : null}
+          <div className={styles.editorActions}><Button variant="primary" disabled={!canUpdate || savePending || deletePending} pending={savePending} onClick={() => void save()}>Сохранить</Button><Button disabled={savePending} onClick={() => setEditorOpen(false)}>Отмена</Button><Button disabled={checkingAccess || savePending || deletePending} onClick={() => void load()}>Обновить доступ</Button></div>
         </section>
       ) : null}
 
-      <section className={styles.calendarSurface} aria-label={`Календарь отсутствий: ${monthTitle}`} aria-busy={loading}>
-        {loading ? <div className={styles.empty}>Загрузка календаря…</div> : loadFailed ? <div className={styles.empty}><Button onClick={() => void load()}>Повторить загрузку календаря</Button></div> : visibleUsers.length === 0 ? <div className={styles.empty}>Пользователи не найдены.</div> : (
+      <section className={styles.calendarSurface} aria-label={`Календарь отсутствий: ${monthTitle}`} aria-busy={checkingAccess}>
+        {checkingAccess ? <div className={styles.empty}>Загрузка календаря…</div> : loadFailed ? <div className={styles.empty}><Button onClick={() => void load()}>Повторить загрузку календаря</Button></div> : visibleUsers.length === 0 ? <div className={styles.empty}>Пользователи не найдены.</div> : (
           <div className={styles.gridScroll} role="region" aria-label="Календарь по дням; прокручивайте по горизонтали">
             <table className={styles.calendarGrid}>
               <thead><tr><th scope="col" className={styles.personHeader}>Пользователь</th>{monthDays.map((date) => {
@@ -318,11 +355,13 @@ export default function UserAbsencesPage(): React.JSX.Element {
                 <th scope="row" className={styles.personCell}><strong>{entry.fullName || entry.login}</strong><small>{entry.login}</small></th>
                 {monthDays.map((date) => {
                   const item = eventForDay(visibleItems, entry.id, date);
-                  const canEdit = canManage && (canManageAll || entry.id === user?.id);
+                  const canEdit = accessCurrent && item?.capabilities?.canUpdate === true;
+                  const canCreateForUser = accessCurrent && entry.capabilities?.canCreate === true;
+                  const comment = item?.capabilities?.canViewPrivateReasons ? item.comment : null;
                   const weekday = new Date(`${date}T00:00:00Z`).getUTCDay();
                   return <td key={date} className={`${styles.dayCell} ${weekday === 0 || weekday === 6 ? styles.weekend : ''} ${date === today ? styles.today : ''}`}>
-                    {item ? <button type="button" className={`${styles.event} ${styles[item.absenceType]}`} title={`${eventLabel(item)}${item.comment ? `\n${item.comment}` : ''}`} aria-label={`${entry.fullName}, ${date}, ${eventLabel(item)}${item.comment ? `, ${item.comment}` : ''}${canEdit ? ', изменить' : ''}`} onClick={() => canEdit ? openEdit(item) : undefined} disabled={!canEdit}><span>{item.startDate === date ? TYPE_LABELS[item.absenceType] : ' '}</span></button>
-                      : canEdit ? <button type="button" className={styles.addDay} aria-label={`Добавить отсутствие: ${entry.fullName}, ${formatDay(date)}`} onClick={() => openCreate(date, entry.id)}>+</button> : null}
+                    {item ? <button type="button" className={`${styles.event} ${styles[item.absenceType]}`} title={`${eventLabel(item)}${comment ? `\n${comment}` : ''}`} aria-label={`${entry.fullName}, ${date}, ${eventLabel(item)}${comment ? `, ${comment}` : ''}${canEdit ? ', изменить' : ''}`} onClick={() => canEdit ? openEdit(item) : undefined} disabled={!canEdit || savePending || deletePending}><span>{item.startDate === date ? TYPE_LABELS[item.absenceType] : ' '}</span></button>
+                      : canCreateForUser ? <button type="button" className={styles.addDay} disabled={savePending || deletePending} aria-label={`Добавить отсутствие: ${entry.fullName}, ${formatDay(date)}`} onClick={() => openCreate(date, entry.id)}>+</button> : null}
                   </td>;
                 })}
               </tr>)}</tbody>
@@ -333,20 +372,22 @@ export default function UserAbsencesPage(): React.JSX.Element {
 
       <section className={styles.agenda} aria-labelledby="absence-agenda-title">
         <h2 id="absence-agenda-title">Записи за месяц</h2>
-        {loading ? <p className={styles.agendaEmpty}>Загрузка записей…</p> : loadFailed ? <p className={styles.agendaEmpty}>Записи не загружены.</p> : visibleItems.length === 0 ? <p className={styles.agendaEmpty}>По текущим условиям отсутствий не найдено.</p> : visibleItems.map((item) => {
-          const canEdit = canManage && (canManageAll || item.userId === user?.id);
+        {checkingAccess ? <p className={styles.agendaEmpty}>Загрузка записей…</p> : loadFailed ? <p className={styles.agendaEmpty}>Записи не загружены.</p> : visibleItems.length === 0 ? <p className={styles.agendaEmpty}>По текущим условиям отсутствий не найдено.</p> : visibleItems.map((item) => {
+          const canEdit = accessCurrent && item.capabilities?.canUpdate === true;
+          const canDeleteItem = accessCurrent && item.capabilities?.canDelete === true;
           return <article className={styles.agendaRow} key={item.id}>
-            <div><strong>{item.user.fullName}</strong><span>{TYPE_LABELS[item.absenceType]} · {formatDay(item.startDate)} — {formatDay(item.endDate)}</span>{item.comment ? <p>{item.comment}</p> : null}</div>
-            {canEdit ? <div className={styles.agendaActions}><Button size="sm" onClick={() => openEdit(item)}>Изменить</Button><Button size="sm" variant="ghost" onClick={() => setDeleteTarget(item)}>Удалить</Button></div> : null}
+            <div><strong>{item.user.fullName}</strong><span>{TYPE_LABELS[item.absenceType]} · {formatDay(item.startDate)} — {formatDay(item.endDate)}</span>{item.capabilities?.canViewPrivateReasons && item.comment ? <p>{item.comment}</p> : null}</div>
+            {canEdit || canDeleteItem ? <div className={styles.agendaActions}>{canEdit ? <Button size="sm" disabled={savePending || deletePending} onClick={() => openEdit(item)}>Изменить</Button> : null}{canDeleteItem ? <Button size="sm" variant="ghost" disabled={savePending || deletePending} onClick={() => setDeleteTarget(item)}>Удалить</Button> : null}</div> : null}
           </article>;
         })}
       </section>
 
+      {deleteTarget && !canDelete ? <Alert tone="warning" role="status">Удаление недоступно, пока право на эту запись не подтверждено. <Button disabled={deletePending} onClick={() => setDeleteTarget(null)}>Отмена удаления</Button></Alert> : null}
       <ConfirmDialog
-        open={Boolean(deleteTarget)}
+        open={Boolean(deleteTarget) && canDelete}
         onOpenChange={(open) => { if (!open && !deletePending) setDeleteTarget(null); }}
         title="Удалить отсутствие?"
-        consequence={deleteTarget ? `${deleteTarget.user.fullName}: ${eventLabel(deleteTarget)}. Запись будет скрыта из календаря, но останется в истории.` : ''}
+        consequence={currentDeleteTarget ? `${currentDeleteTarget.user.fullName}: ${eventLabel(currentDeleteTarget)}. Запись будет скрыта из календаря, но останется в истории.` : ''}
         confirmLabel="Удалить запись"
         tone="danger"
         pending={deletePending}

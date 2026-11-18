@@ -76,6 +76,18 @@ export interface UserAbsenceResponseDto {
   createdByUserId: string;
   createdAt: string;
   updatedAt: string;
+  capabilities: {
+    canUpdate: boolean;
+    canDelete: boolean;
+    canViewPrivateReasons: boolean;
+  };
+}
+
+export interface UserAbsenceUserOptionDto {
+  id: string;
+  login: string;
+  fullName: string;
+  capabilities: { canCreate: boolean; canViewPrivateReasons: boolean };
 }
 
 export interface UserAbsenceCapabilitiesDto {

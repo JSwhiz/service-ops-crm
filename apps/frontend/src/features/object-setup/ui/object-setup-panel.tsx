@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useContext, useEffect, useRef, useState } from 'react';
 import { getObjectSetup, saveObjectSetup } from '@/entities/object/api/object-setup-client';
 import type { ObjectSetupData, ObjectSetupResponse } from '@/entities/object/model/object-setup.types';
 import { listSystemUsers } from '@/entities/user/api/user-client';
@@ -13,15 +13,28 @@ import { getErrorMessage } from '@/shared/lib/error-message';
 import { budgetCategories, setupDraft, setupPayload, type SetupDraft } from '../model/setup-draft';
 import { ObjectSetupEditor } from './object-setup-editor';
 import styles from './object-setup.module.css';
+import { AccessSnapshotBoundary, AccessSnapshotBlockedContext } from '@/shared/auth/access-snapshot-boundary';
+import { useAccessRevision } from '@/shared/auth/use-access-revision';
+import { useAuth } from '@/shared/auth/use-auth';
+import { getAccessGeneration, isAccessGenerationCurrent } from '@/shared/auth/access-generation';
+
 
 function money(value: number | null): string { return value === null ? 'не задано' : `${value.toLocaleString('ru-RU')} ₽`; }
 function sourceLabel(value: string): string { return value.replaceAll('TimesheetDayEntry.dayValue', 'Табель').replaceAll('InventoryMovement', 'Склад').replace(/\bapplied\b/g, 'проведённые'); }
 
 export function ObjectSetupPanel({ objectId }: { objectId: string }): React.JSX.Element {
+  const accessRevision = useAccessRevision();
+  const { capabilitiesRefreshError } = useAuth();
+  const ancestorBlocked = useContext(AccessSnapshotBlockedContext);
+  const [loadedSnapshot, setLoadedSnapshot] = useState<string | null>(null);
+  const snapshotKey = `${objectId}:${accessRevision}`;
+  const latest = useRef({ snapshotKey, capabilitiesRefreshError });
+  latest.current = { snapshotKey, capabilitiesRefreshError };
   const [data, setData] = useState<ObjectSetupResponse | null>(null);
   const [baseline, setBaseline] = useState<ObjectSetupResponse | null>(null);
   const [draft, setDraft] = useState<SetupDraft | null>(null);
   const [loading, setLoading] = useState(true);
+  const [readDenied, setReadDenied] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -30,12 +43,14 @@ export function ObjectSetupPanel({ objectId }: { objectId: string }): React.JSX.
   const [confirm, dialog] = useConfirm();
   useEffect(() => {
     let active = true;
+    const requestKey = snapshotKey;
     setLoading(true); setError(null);
-    void getObjectSetup(objectId).then((response) => { if (active) setData(response); })
-      .catch((caught) => { if (active) setError(getErrorMessage(caught, 'Не удалось загрузить сведения объекта.')); })
+    if (capabilitiesRefreshError) return () => { active = false; };
+    void getObjectSetup(objectId).then((response) => { if (active && latest.current.snapshotKey === requestKey && !latest.current.capabilitiesRefreshError) { setData(response); setLoadedSnapshot(requestKey); setReadDenied(false); } })
+      .catch((caught) => { if (active) { setReadDenied(true); setError(caught instanceof ApiError && [403, 404].includes(caught.statusCode) ? 'Доступ к сведениям объекта не подтверждён. Черновик сохранён.' : getErrorMessage(caught, 'Не удалось загрузить сведения объекта.')); } })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [objectId]);
+  }, [objectId, snapshotKey, capabilitiesRefreshError]);
   useEffect(() => {
     const selectedId = data?.data.salesResponsibleUserId;
     if (!selectedId) { setSalesUser(null); return; }
@@ -46,39 +61,58 @@ export function ObjectSetupPanel({ objectId }: { objectId: string }): React.JSX.
     }).catch(() => { if (active) setSalesUser({ value: selectedId, label: 'Назначен пользователь' }); });
     return () => { active = false; };
   }, [objectId, data?.data.salesResponsibleUserId]);
+  const accessBlocked = ancestorBlocked || loading || readDenied || !!capabilitiesRefreshError || loadedSnapshot !== snapshotKey;
   const refresh = async (): Promise<void> => {
     setError(null);
-    try { setData(await getObjectSetup(objectId)); }
-    catch (caught) { setError(getErrorMessage(caught, 'Не удалось обновить сведения.')); }
+    try {
+      const requestKey = snapshotKey;
+      const response = await getObjectSetup(objectId);
+      if (latest.current.snapshotKey === requestKey && !latest.current.capabilitiesRefreshError) { setData(response); setLoadedSnapshot(requestKey); setReadDenied(false); }
+    }
+    catch (caught) { if (caught instanceof ApiError && [403, 404].includes(caught.statusCode)) setReadDenied(true); setError(getErrorMessage(caught, 'Не удалось обновить сведения.')); }
   };
   const begin = (snapshot = data): void => {
-    if (!snapshot) return;
+    if (!snapshot || accessBlocked) return;
     setBaseline(snapshot); setDraft(setupDraft(snapshot.data)); setConflict(false); setError(null); setSuccess(false);
   };
   const save = async (event: React.FormEvent): Promise<void> => {
     event.preventDefault();
     if (pending || !draft || !baseline || conflict) return;
+    if (accessBlocked) { setError('Доступ к сведениям не подтверждён. Черновик сохранён.'); return; }
+    const generation = getAccessGeneration();
+    const requestKey = snapshotKey;
     setPending(true); setError(null); setSuccess(false);
     try {
       const before = setupPayload(setupDraft(baseline.data), baseline.capabilities);
       const next = setupPayload(draft, baseline.capabilities);
       const changes = Object.fromEntries(Object.entries(next).filter(([key, value]) => JSON.stringify(before[key as keyof ObjectSetupData]) !== JSON.stringify(value)));
       if (Object.keys(changes).length === 0) { setDraft(null); return; }
+      const fresh = await getObjectSetup(objectId);
+      if (!isAccessGenerationCurrent(generation) || latest.current.snapshotKey !== requestKey || latest.current.capabilitiesRefreshError) return;
+      setData(fresh);
+      const permitted = setupPayload(draft, fresh.capabilities);
+      if (Object.keys(changes).some((key) => !Object.hasOwn(permitted, key))) {
+        throw new Error('Право изменения части черновика отозвано. Восстановите доступ или отмените эти изменения; черновик сохранён.');
+      }
       const saved = await saveObjectSetup(objectId, { ...changes, expectedVersion: baseline.version });
+      if (!isAccessGenerationCurrent(generation) || latest.current.snapshotKey !== requestKey) return;
       setData(saved); setDraft(null); setBaseline(null); setSuccess(true);
     } catch (caught) {
-      setError(getErrorMessage(caught, 'Не удалось сохранить настройки.'));
+      if (caught instanceof ApiError && [403, 404].includes(caught.statusCode)) setReadDenied(true);
+      setError(caught instanceof ApiError && [403, 404].includes(caught.statusCode) ? 'Доступ к сведениям объекта не подтверждён. Черновик сохранён.' : getErrorMessage(caught, 'Не удалось сохранить настройки.'));
       setConflict(caught instanceof ApiError && caught.statusCode === 409);
     } finally { setPending(false); }
   };
   const caps = data?.capabilities;
-  const canEdit = caps && (caps.canEditCore || caps.canEditContractAmount || caps.canEditBudgets || caps.canEditCoefficient);
+  const canEdit = !accessBlocked && caps && (caps.canEditCore || caps.canEditContractAmount || caps.canEditBudgets || caps.canEditCoefficient);
   return <Surface padding="md">
+    {loading ? <LoadingState label="Проверка доступа к сведениям" /> : null}
+    {error ? <Alert tone="danger">{error}<Button disabled={pending} onClick={() => { void refresh(); }}>Обновить данные</Button></Alert> : null}
+    <AccessSnapshotBoundary blocked={accessBlocked}>
     {dialog}
     <div className={styles.content}>
       <div className="ui-section-header"><h3 className="ui-section-title">Сведения, договор и плановые статьи</h3>{canEdit && !draft ? <Button onClick={() => begin()}>Изменить сведения</Button> : null}</div>
       {loading ? <LoadingState label="Загрузка сведений объекта" /> : null}
-      {error ? <Alert tone="danger">{error}<div><Button disabled={pending} onClick={() => { void refresh(); }}>Обновить данные</Button></div></Alert> : null}
       {success ? <Alert tone="success">Сведения сохранены.</Alert> : null}
       {conflict ? <Alert tone="warning">Настройки изменены. Черновик сохранён и не перезаписывается при обновлении. Сравните его со свежими сведениями ниже.
         <div><Button disabled={pending} onClick={async () => {
@@ -90,9 +124,9 @@ export function ObjectSetupPanel({ objectId }: { objectId: string }): React.JSX.
         }}>Загрузить данные в редактор</Button></div>
       </Alert> : null}
       {draft && baseline ? <form className={styles.editor} onSubmit={(event) => { void save(event); }}>
-        <ObjectSetupEditor value={draft} onChange={setDraft} capabilities={baseline.capabilities} disabled={pending} selectedSalesUser={salesUser}
+        <ObjectSetupEditor value={draft} onChange={setDraft} capabilities={data?.capabilities ?? baseline.capabilities} disabled={pending || accessBlocked} selectedSalesUser={salesUser}
           searchUsers={async (q) => (await listSystemUsers({ purpose: 'object_responsible', objectId, q, limit: 20 })).map((user) => ({ value: user.id, label: getUserDisplayName(user) }))} />
-        <div className="ui-inline"><Button type="submit" variant="primary" pending={pending} disabled={conflict}>Сохранить сведения</Button><Button disabled={pending} onClick={async () => { if (await confirm({ title: 'Закрыть редактор?', consequence: 'Несохранённые сведения будут потеряны.', confirmLabel: 'Закрыть' })) setDraft(null); }}>Отмена</Button></div>
+        <div className="ui-inline"><Button type="submit" variant="primary" pending={pending} disabled={conflict || !canEdit}>Сохранить сведения</Button><Button disabled={pending} onClick={async () => { if (await confirm({ title: 'Закрыть редактор?', consequence: 'Несохранённые сведения будут потеряны.', confirmLabel: 'Закрыть' })) setDraft(null); }}>Отмена</Button></div>
       </form> : null}
       {data ? <section className={styles.section} aria-label="Сохранённые сведения">
         {draft ? <h4 className="ui-section-title">Сохранённые сведения для сравнения</h4> : null}
@@ -113,5 +147,6 @@ export function ObjectSetupPanel({ objectId }: { objectId: string }): React.JSX.
         </> : null}
       </section> : null}
     </div>
+    </AccessSnapshotBoundary>
   </Surface>;
 }

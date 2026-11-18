@@ -2,6 +2,7 @@ import { Transform, Type } from 'class-transformer';
 import { ObjectSetupDto } from './object-setup.dto';
 import { SaveObjectContactDto } from './object-planning.dto';
 import { CreateContourDto, CreatePositionDto } from '../../object-scheduling/scheduling.dto';
+import { WINDOW_CLEANING_MODES, WINDOW_CLEANING_SEASONS, type WindowCleaningMode } from '../utils/object-window-cleaning.util';
 import {
   ArrayUnique,
   ArrayMaxSize,
@@ -18,6 +19,7 @@ import {
   Min,
   MinLength,
   ValidateNested,
+  ValidateIf,
 } from 'class-validator';
 
 export class InitialObjectPlanningDto {
@@ -67,6 +69,15 @@ export class CreateObjectDto {
   @IsOptional()
   @IsBoolean()
   summerWindowCleaning?: boolean;
+
+  @IsOptional()
+  @IsIn(WINDOW_CLEANING_MODES)
+  windowCleaningMode?: WindowCleaningMode | null;
+
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsArray()
+  @IsIn(WINDOW_CLEANING_SEASONS, { each: true })
+  windowCleaningSeasons?: string[];
 
   @IsOptional()
   @IsBoolean()

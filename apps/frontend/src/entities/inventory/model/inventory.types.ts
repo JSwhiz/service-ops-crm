@@ -26,7 +26,7 @@ export interface InventoryItem {
     returnsCount: number;
     writeoffsCount: number;
     adjustmentsCount: number;
-  };
+  } | null;
   archiveState: {
     canArchive: boolean;
     pendingMovementsCount: number;
@@ -42,6 +42,7 @@ export interface InventoryItem {
   };
   capabilities: {
     canEditCatalog: boolean;
+    canRestore?: boolean;
     canDelete: boolean;
     canCreateMovement: boolean;
     canCreateReceipt: boolean;
@@ -51,6 +52,7 @@ export interface InventoryItem {
     canWriteoff: boolean;
     canAdjust: boolean;
     canViewReports: boolean;
+    canViewMovements?: boolean;
   };
 }
 
@@ -68,6 +70,12 @@ export interface InventoryMovementListResponse {
   page: number;
   limit: number;
   totalPages: number;
+}
+
+export interface OneTimeOrderInventory extends InventoryMovementListResponse {
+  availableItems: InventoryItem[];
+  availableReturnItems: InventoryItem[];
+  capabilities: { canIssueInventoryToOrder: boolean; canReturnInventoryFromOrder: boolean };
 }
 
 export interface InventoryReportSummary {
@@ -121,6 +129,8 @@ export interface InventoryMovement {
     status: string;
   } | null;
   projection: {
+    canAttachStandalonePhoto?: boolean;
+    canCorrectMovement: boolean;
     hasEvidence: boolean;
     requiresApprovalBridge: boolean;
     approvalBridgeType: string | null;
@@ -148,12 +158,14 @@ export interface InventoryObjectReference {
   id: string;
   name: string;
   status: string;
+  capabilities?: { canIssueToObject: boolean };
 }
 
 export interface InventoryOneTimeOrderReference {
   id: string;
   title: string;
   status: string;
+  capabilities?: { canIssueToOneTimeOrder: boolean; canLinkMovement: boolean };
 }
 
 export interface CreateInventoryItemPayload {
@@ -217,3 +229,5 @@ export interface ListInventoryMovementsParams {
   page?: number;
   limit?: number;
 }
+
+export type InventoryMovementWriteResult = InventoryMovement | { outcome: 'saved_without_access' };

@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useEffect, useId, useRef } from 'react';
+import React, { useContext, useEffect, useId, useRef } from 'react';
+import { AccessSnapshotBlockedContext } from '@/shared/auth/access-snapshot-boundary';
 
 import { Alert, Button, Field, IconButton } from '@/shared/ui/foundation';
 
@@ -67,6 +68,8 @@ function OverlayFrame({
   children,
   ...props
 }: OverlayFrameProps): React.JSX.Element {
+  const accessBlocked = useContext(AccessSnapshotBlockedContext);
+  const suspendedCloseEvents = useRef(0);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const triggerRef = useRef<HTMLElement | null>(null);
   const returnFocusRefLatest = useRef(returnFocusRef);
@@ -91,7 +94,7 @@ function OverlayFrame({
       return;
     }
 
-    if (open && !dialog.open) {
+    if (open && !accessBlocked && !dialog.open) {
       triggerRef.current =
         document.activeElement instanceof HTMLElement
           ? document.activeElement
@@ -109,10 +112,11 @@ function OverlayFrame({
       return;
     }
 
-    if (!open && dialog.open) {
+    if ((!open || accessBlocked) && dialog.open) {
+      if (accessBlocked) suspendedCloseEvents.current += 1;
       dialog.close();
     }
-  }, [initialFocusRef, open]);
+  }, [initialFocusRef, open, accessBlocked]);
 
   const restoreFocus = (): void => {
     const trigger = triggerRef.current;
@@ -151,6 +155,12 @@ function OverlayFrame({
         }
       }}
       onClose={(event) => {
+        if (event.target === event.currentTarget && suspendedCloseEvents.current > 0) {
+          suspendedCloseEvents.current -= 1;
+          event.stopPropagation();
+          return;
+        }
+        if (accessBlocked) return;
         if (event.target !== event.currentTarget) return;
         // Ignore a queued close event if the dialog has already reopened.
         if (event.currentTarget.open) return;
@@ -161,6 +171,7 @@ function OverlayFrame({
         restoreFocus();
       }}
       {...props}
+      style={accessBlocked ? { ...props.style, display: 'none' } : props.style}
     >
       <div className={styles.header}>
         <div className={styles.heading}>
@@ -215,6 +226,8 @@ export interface ReasonDialogProps {
   reasonRequired?: boolean;
   confirmLabel?: string;
   pending?: boolean;
+  confirmDisabled?: boolean;
+  confirmDisabledReason?: React.ReactNode;
   error?: React.ReactNode;
   returnFocusRef?: React.RefObject<HTMLElement>;
 }
@@ -231,9 +244,12 @@ export function ReasonDialog({
   reasonRequired = true,
   confirmLabel = 'Подтвердить',
   pending = false,
+  confirmDisabled = false,
+  confirmDisabledReason,
   error,
   returnFocusRef,
 }: ReasonDialogProps): React.JSX.Element {
+  const accessBlocked = useContext(AccessSnapshotBlockedContext);
   const canConfirm = !reasonRequired || Boolean(reason.trim());
 
   return (
@@ -257,8 +273,8 @@ export function ReasonDialog({
             variant="danger"
             pending={pending}
             pendingLabel="Сохранение…"
-            disabled={!canConfirm}
-            onClick={() => onConfirm(reason)}
+            disabled={!canConfirm || confirmDisabled}
+            onClick={() => { if (!confirmDisabled && !accessBlocked) onConfirm(reason); }}
           >
             {confirmLabel}
           </Button>
@@ -266,6 +282,7 @@ export function ReasonDialog({
       }
     >
       <div className={styles.formStack}>
+        {confirmDisabledReason ? <Alert tone="warning" role="status">{confirmDisabledReason}</Alert> : null}
         {error ? (
           <Alert tone="danger" role="alert" title="Не удалось выполнить действие">
             {error}
@@ -275,6 +292,7 @@ export function ReasonDialog({
         <Field label={reasonLabel} required={reasonRequired}>
           <textarea
             data-dialog-initial-focus
+            disabled={!open || pending || accessBlocked}
             className={styles.textarea}
             rows={4}
             value={reason}

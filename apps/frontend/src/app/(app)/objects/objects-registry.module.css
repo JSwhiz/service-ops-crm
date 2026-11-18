@@ -4,3 +4,15 @@
   min-width: 0;
   gap: 14px;
 }
+
+.panel {
+  display: grid;
+  min-width: 0;
+  gap: var(--ui-space-3);
+}
+
+/* Registry controls stay in normal flow; sticky detail tabs can cover them
+   when the app-content overflow container becomes their scroll ancestor. */
+.tabs > [role='tablist'] {
+  position: static;
+}

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { ObjectEmployeeOption } from '@/entities/object/model/object.types';
 import styles from './object-attendance.module.css';
@@ -58,6 +58,9 @@ export function ObjectAttendancePanel({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [compensationResult, setCompensationResult] = useState<CompensationMutationResult | null>(null);
+  const dirty = useRef(false);
+  const draftScope = useRef(`${objectId}:${operationDate}`);
+  const [savedRevision, setSavedRevision] = useState(0);
   useEffect(() => { setCompensationResult(null); }, [operationDate, objectId]);
   const safeEmployees = useMemo(() => employees ?? [], [employees]);
   const employeeById = useMemo(
@@ -82,6 +85,9 @@ export function ObjectAttendancePanel({
   }, [employeeById]);
 
   useEffect(() => {
+    const scope = `${objectId}:${operationDate}`;
+    if (draftScope.current !== scope) { draftScope.current = scope; dirty.current = false; }
+    if (dirty.current) return;
     setSelectedIds(initialEmployeeIds);
     setWorkedHoursById((current) => {
       const next = { ...current };
@@ -118,6 +124,8 @@ export function ObjectAttendancePanel({
     initialFactsSignature,
     operationDate,
     getDefaultWorkedHours,
+    objectId,
+    savedRevision,
   ]);
 
   const toggleEmployee = (employeeId: string): void => {
@@ -153,6 +161,7 @@ export function ObjectAttendancePanel({
         }),
       });
       if (result) setCompensationResult(result);
+      if (!result || result.status !== 'pending') { dirty.current = false; setSavedRevision((value) => value + 1); }
     } catch (caughtError) {
       setError(
         caughtError instanceof Error && caughtError.message
@@ -179,7 +188,7 @@ export function ObjectAttendancePanel({
       {safeEmployees.length === 0 ? (
         <div className="ui-text-muted">Для объекта пока не задан состав сотрудников.</div>
       ) : (
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} onChangeCapture={() => { dirty.current = true; }}>
           <div className={`record-list ${styles.attendanceList}`}>
             {safeEmployees.map((employee) => (
               <Surface padding="sm"

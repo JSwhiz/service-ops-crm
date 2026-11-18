@@ -1,0 +1,119 @@
+.stack {
+  display: grid;
+  gap: var(--ui-space-4);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.stack[hidden] {
+  display: none;
+}
+
+/* Workspace tabs use the page-header offset outside contextual dialogs. */
+.dialogBody > [role='tablist'] {
+  position: static;
+  top: auto;
+  z-index: auto;
+  background: var(--ui-surface);
+}
+
+.filters {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 260px);
+  gap: var(--ui-space-3);
+}
+
+.fullName {
+  display: block;
+  min-width: 160px;
+  overflow-wrap: anywhere;
+}
+
+.login {
+  display: block;
+  color: var(--ui-text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--ui-space-3);
+}
+
+.footer > span {
+  flex: 1 1 180px;
+}
+
+.group {
+  border-bottom: 1px solid var(--ui-border);
+  padding-block: var(--ui-space-3);
+}
+
+.group > summary {
+  font-size: var(--ui-text-lg);
+  font-weight: 600;
+  cursor: pointer;
+  padding-block: var(--ui-space-2);
+}
+
+.contextList,
+.changes,
+.selections {
+  display: grid;
+  gap: var(--ui-space-3);
+  list-style: none;
+  padding: 0;
+  margin: var(--ui-space-3) 0 0;
+}
+
+.contextList > li,
+.changes > li {
+  display: grid;
+  gap: var(--ui-space-1);
+  min-width: 0;
+  padding-block: var(--ui-space-3);
+  border-bottom: 1px solid var(--ui-border);
+}
+
+.selections > li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-space-3);
+}
+
+.selections > li > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.reason {
+  margin: 0;
+}
+
+.preview {
+  padding: var(--ui-space-4);
+  border: 1px solid var(--ui-border-strong);
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-surface-subtle);
+}
+
+.technical {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: var(--ui-font-mono);
+  font-size: var(--ui-text-xs);
+}
+
+@media (max-width: 760px) {
+  .filters {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .group > summary {
+    min-height: 44px;
+  }
+}

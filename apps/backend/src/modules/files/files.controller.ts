@@ -1,3 +1,4 @@
+import type { SavedWithoutAccess } from '../../common/access/project-committed-write';
 import {
   BadRequestException,
   Body,
@@ -121,7 +122,7 @@ export class FilesController {
   retryPreview(
     @CurrentUser() user: CurrentAuthUser,
     @Param('id') id: string,
-  ): Promise<FileViewResponseDto> {
+  ): Promise<FileViewResponseDto | SavedWithoutAccess> {
     return this.filesService.retryPreview(user, id);
   }
 
@@ -179,6 +180,6 @@ export class FilesController {
 
   private setPrivateContentHeaders(response: Response): void {
     response.setHeader('X-Content-Type-Options', 'nosniff');
-    response.setHeader('Cache-Control', 'private, max-age=300');
+    response.setHeader('Cache-Control', 'private, no-store');
   }
 }

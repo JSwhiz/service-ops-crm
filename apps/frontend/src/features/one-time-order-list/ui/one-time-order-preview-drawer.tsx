@@ -1,7 +1,11 @@
 'use client';
 
 import Link from 'next/link';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useAccessRevision } from '@/shared/auth/use-access-revision';
+import { useAuth } from '@/shared/auth/use-auth';
+import { getAccessGeneration, isAccessGenerationCurrent } from '@/shared/auth/access-generation';
+import { AccessSnapshotBoundary } from '@/shared/auth/access-snapshot-boundary';
 
 import {
   changeOneTimeOrderStatus,
@@ -24,7 +28,7 @@ import {
   getOneTimeOrderStatusLabel,
   ONE_TIME_ORDER_STATUS_OPTIONS,
 } from '@/shared/lib/one-time-order-presentation';
-import { ConfirmDialog, useConfirm } from '@/shared/ui/overlays';
+import { ConfirmDialog } from '@/shared/ui/overlays';
 
 import { CloseIcon } from '@/shared/ui/icons/icons';
 import styles from './one-time-order-preview-drawer.module.css';
@@ -81,8 +85,17 @@ export function OneTimeOrderPreviewDrawer({
   item: OneTimeOrderListItem | null;
   onClose: () => void;
 }): React.JSX.Element | null {
+  const accessRevision = useAccessRevision();
+  const { capabilitiesRefreshError } = useAuth();
+  const scope = `${item?.id ?? ''}:${accessRevision}:${capabilitiesRefreshError ?? ''}`;
+  const [loadedScope, setLoadedScope] = useState<string | null>(null);
+  const [accessRetry, setAccessRetry] = useState(0);
   const [details, setDetails] = useState<OneTimeOrderItem | null>(null);
-  const [confirm, confirmDialog] = useConfirm();
+  const [conflictPrompt, setConflictPrompt] = useState<{
+    conflicts: Parameters<typeof ScheduleConflictList>[0]['conflicts'];
+    isCurrent: () => boolean;
+    resolve: (accepted: boolean) => void;
+  } | null>(null);
   const [comments, setComments] = useState<OneTimeOrderCommentItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -98,11 +111,34 @@ export function OneTimeOrderPreviewDrawer({
   const [clearReviewConfirmOpen, setClearReviewConfirmOpen] = useState(false);
   const [reviewFormOpen, setReviewFormOpen] = useState(false);
   const [commentFormOpen, setCommentFormOpen] = useState(false);
+  const itemRef = useRef(item);
+  itemRef.current = item;
+  const draftItemId = useRef<string | null>(null);
+  const itemGeneration = useRef(0);
+  const reviewFormOpenRef = useRef(reviewFormOpen);
+  reviewFormOpenRef.current = reviewFormOpen;
+  const liveContext = useRef({ scope, ready: false, details });
+  liveContext.current = { scope, ready: loadedScope === scope && !capabilitiesRefreshError && !loading, details };
+  useEffect(() => {
+    if (conflictPrompt && !conflictPrompt.isCurrent()) {
+      conflictPrompt.resolve(false);
+      setConflictPrompt(null);
+      setSavingStatus(false);
+    }
+  }, [conflictPrompt, scope, details, loading, error]);
+  useEffect(() => () => { liveContext.current = { ...liveContext.current, ready: false }; }, []);
 
   const close = useCallback(() => onClose(), [onClose]);
 
   useEffect(() => {
-    if (!item) {
+    const item = itemRef.current;
+    const nextItemId = item?.id ?? null;
+    if (draftItemId.current !== nextItemId) {
+      draftItemId.current = nextItemId;
+      itemGeneration.current += 1;
+      // Only an access refresh for the same order may retain unsaved inputs.
+      reviewFormOpenRef.current = false;
+      setLoadedScope(null);
       setDetails(null);
       setComments([]);
       setError(null);
@@ -112,28 +148,30 @@ export function OneTimeOrderPreviewDrawer({
       setReviewRatingDraft(null);
       setReviewFormOpen(false);
       setCommentFormOpen(false);
-      return;
+      setNextStatus('');
+      setStatusMenuOpen(false);
+      setClearReviewConfirmOpen(false);
+      setSavingComment(false);
+      setSavingReview(false);
+      setSavingStatus(false);
     }
+    if (!item) { setLoading(false); return; }
+    if (capabilitiesRefreshError) { setLoadedScope(null); return; }
 
     let cancelled = false;
     setLoading(true);
     setError(null);
     setNotice(null);
-    setDetails(null);
-    setComments([]);
-    setNextStatus('');
-
-    void Promise.all([
-      getOneTimeOrderById(item.id),
-      listOneTimeOrderComments(item.id).catch(() => []),
-    ]).then(([order, orderComments]) => {
+    void getOneTimeOrderById(item.id).then(async (order) => {
+      const orderComments = order.capabilities.canReadComments === false ? [] : await listOneTimeOrderComments(item.id);
       if (cancelled) return;
       setDetails(order);
       setComments(orderComments);
-      setReviewDraft(order.capabilities.canEditReview ? order.reviewText ?? '' : '');
-      setReviewRatingDraft(order.reviewRating);
-      setReviewFormOpen(false);
-      setCommentFormOpen(false);
+      if (!reviewFormOpenRef.current) {
+        setReviewDraft(order.capabilities.canEditReview ? order.reviewText ?? '' : '');
+        setReviewRatingDraft(order.reviewRating);
+      }
+      setLoadedScope(scope);
     }).catch(() => {
       if (cancelled) return;
       setError('Не удалось загрузить данные заказа. Откройте полную карточку и попробуйте снова.');
@@ -142,7 +180,7 @@ export function OneTimeOrderPreviewDrawer({
     });
 
     return () => { cancelled = true; };
-  }, [item]);
+  }, [scope, accessRetry]);
 
   useEffect(() => {
     if (!item) return;
@@ -176,32 +214,45 @@ export function OneTimeOrderPreviewDrawer({
   const canEditOperationalFields = order?.capabilities.canEditOperationalFields ?? item.capabilities.canEditOperationalFields;
   const canChangeStatus = order?.capabilities.canChangeStatus ?? item.capabilities.canChangeStatus;
   const canEditReview = order?.capabilities.canEditReview ?? false;
-  const reviewText = (canEditReview ? order?.reviewText : item.reviewPreview)?.trim() || '';
+  const canDeleteReview = order ? order.capabilities.canDeleteReview ?? order.capabilities.canEditReview : false;
+  const reviewText = order?.reviewText?.trim() || '';
   const allowedStatuses = ONE_TIME_ORDER_STATUS_OPTIONS.filter(
     (option) => option.value !== status && option.value !== 'completed',
   );
 
+  const captureItemOperation = (): (() => boolean) => {
+    const generation = itemGeneration.current;
+    const accessGeneration = getAccessGeneration();
+    return () => generation === itemGeneration.current && itemRef.current?.id === item.id &&
+      isAccessGenerationCurrent(accessGeneration) && liveContext.current.ready && liveContext.current.scope === scope;
+  };
+
   const saveComment = async (): Promise<void> => {
     const content = commentDraft.trim();
-    if (!content || !canComment || savingComment) return;
+    if (!content || !canComment || savingComment || loadedScope !== scope) return;
+    const isCurrentItem = captureItemOperation();
     setSavingComment(true);
     setError(null);
     setNotice(null);
     try {
       await createOneTimeOrderComment(item.id, { content });
+      if (!isCurrentItem()) return;
       const refreshed = await listOneTimeOrderComments(item.id);
+      if (!isCurrentItem()) return;
       setComments(refreshed);
       setCommentDraft('');
       setNotice('Комментарий добавлен.');
     } catch {
+      if (!isCurrentItem()) return;
       setError('Не удалось добавить комментарий. Проверьте права доступа и попробуйте ещё раз.');
     } finally {
-      setSavingComment(false);
+      if (isCurrentItem()) setSavingComment(false);
     }
   };
 
   const saveReview = async (): Promise<void> => {
-    if (!canEditReview || !order || savingReview) return;
+    if (!canEditReview || !order || savingReview || loadedScope !== scope) return;
+    const isCurrentItem = captureItemOperation();
     const text = reviewDraft.trim();
     if (!text) {
       setError('Введите текст отзыва.');
@@ -215,38 +266,47 @@ export function OneTimeOrderPreviewDrawer({
         reviewText: text || null,
         reviewRating: reviewRatingDraft,
       });
+      if (!isCurrentItem()) return;
       setDetails(updated);
       setReviewDraft(updated.reviewText ?? '');
       setReviewRatingDraft(updated.reviewRating);
       setNotice('Отзыв сохранён.');
     } catch (saveError) {
+      if (!isCurrentItem()) return;
       setError(getReviewFailureMessage(saveError, 'сохранить'));
     } finally {
-      setSavingReview(false);
+      if (isCurrentItem()) setSavingReview(false);
     }
   };
 
   const clearReview = async (): Promise<void> => {
-    if (!canEditReview || !order || savingReview) return;
+    if (!canDeleteReview || !order || savingReview || loadedScope !== scope) return;
+    const isCurrentItem = captureItemOperation();
     setSavingReview(true);
     setError(null);
     setNotice(null);
     try {
       const updated = await clearOneTimeOrderReview(order.id);
+      if (!isCurrentItem()) return;
       setDetails(updated);
       setReviewDraft('');
       setReviewRatingDraft(null);
       setNotice('Отзыв удалён.');
       setClearReviewConfirmOpen(false);
     } catch (clearError) {
+      if (!isCurrentItem()) return;
       setError(getReviewFailureMessage(clearError, 'удалить'));
     } finally {
-      setSavingReview(false);
+      if (isCurrentItem()) setSavingReview(false);
     }
   };
 
   const applyStatus = async (): Promise<void> => {
-    if (!nextStatus || !canChangeStatus || !order || savingStatus) return;
+    if (!nextStatus || !canChangeStatus || !order || savingStatus || loadedScope !== scope) return;
+    const isCurrentItem = captureItemOperation();
+    const isCurrentStatus = (): boolean => isCurrentItem() && liveContext.current.details?.capabilities.canChangeStatus === true &&
+      liveContext.current.details === order && liveContext.current.details.status === order.status;
+    if (!isCurrentStatus()) return;
     setSavingStatus(true);
     setError(null);
     setNotice(null);
@@ -265,48 +325,57 @@ export function OneTimeOrderPreviewDrawer({
           managerUserIds: order.managers.map((manager) => manager.userId),
           excludeOrderId: order.id,
         });
+        if (!isCurrentItem() || !isCurrentStatus()) return;
         if (result.hasConflicts) {
-          const confirmed = await confirm({
-            title: 'Есть конфликты расписания',
-            consequence: <ScheduleConflictList conflicts={result.conflicts} />,
-            confirmLabel: 'Изменить статус',
-          });
-          if (!confirmed) return;
+          const confirmed = await new Promise<boolean>((resolve) => setConflictPrompt({ conflicts: result.conflicts, isCurrent: isCurrentStatus, resolve }));
+          if (!confirmed || !isCurrentItem() || !isCurrentStatus()) return;
           conflictFingerprint = result.conflictFingerprint;
         }
       }
+      if (!isCurrentItem() || !isCurrentStatus()) return;
       const updated = await changeOneTimeOrderStatus(order.id, nextStatus, conflictFingerprint);
+      if (!isCurrentItem()) return;
       setDetails(updated);
       setNextStatus('');
       setStatusMenuOpen(false);
       setNotice(`Статус изменён: ${getOneTimeOrderStatusLabel(updated.status)}.`);
     } catch {
+      if (!isCurrentItem()) return;
       setError('Не удалось изменить статус. Возможно, заказ уже обновлён или требуется проверить расписание.');
     } finally {
-      setSavingStatus(false);
+      if (isCurrentItem()) setSavingStatus(false);
     }
   };
 
   return (
     <>
-    {confirmDialog}
+    <ConfirmDialog
+      open={conflictPrompt !== null && conflictPrompt.isCurrent()}
+      onOpenChange={(open) => { if (!open) { conflictPrompt?.resolve(false); setConflictPrompt(null); } }}
+      title="Есть конфликты расписания"
+      consequence={conflictPrompt ? <ScheduleConflictList conflicts={conflictPrompt.conflicts} /> : null}
+      confirmLabel="Изменить статус"
+      onConfirm={() => { conflictPrompt?.resolve(conflictPrompt.isCurrent()); setConflictPrompt(null); }}
+    />
     <div className={styles.backdrop} role="presentation" onMouseDown={close}>
       <aside
         className={styles.drawer}
         role="dialog"
         aria-modal="true"
-        aria-label={`Быстрый просмотр заказа ${item.title}`}
+        aria-label={loadedScope === scope ? `Быстрый просмотр заказа ${item.title}` : 'Проверка доступа к заказу'}
         onMouseDown={(event) => event.stopPropagation()}
       >
         <header className={styles.header}>
           <div className={styles.titleWrap}>
             <span className={styles.eyebrow}>Разовый заказ</span>
-            <h2 className={styles.title}>{item.title}</h2>
-            <span className={styles.address}>{item.executionAddress || 'Адрес не указан'}</span>
+            <h2 className={styles.title}>{loadedScope === scope ? item.title : 'Проверка доступа…'}</h2>
+            {loadedScope === scope ? <span className={styles.address}>{item.executionAddress || 'Адрес не указан'}</span> : null}
           </div>
           <IconButton aria-label="Закрыть быстрый просмотр" title="Закрыть" onClick={close}><CloseIcon size={18} /></IconButton>
         </header>
 
+        {loadedScope !== scope ? <div className={styles.notice} role="status">{error || 'Обновляем доступ к заказу…'}{error ? <Button onClick={() => setAccessRetry((value) => value + 1)}>Повторить проверку доступа</Button> : null}</div> : null}
+        <AccessSnapshotBoundary blocked={loadedScope !== scope}>
         <div className={styles.statusRow}>
           <span className={styles.status} data-status={status}>
             <span className={styles.statusDot} aria-hidden="true" />
@@ -443,7 +512,7 @@ export function OneTimeOrderPreviewDrawer({
           ) : null}
         </section>
 
-        {order ? (
+        {order && order.capabilities.canReadFinance !== false ? (
           <section className={styles.section} aria-label="Условия оплаты">
             <h3 className={styles.sectionTitle}>Условия оплаты</h3>
             <div className={styles.factGrid}>
@@ -461,6 +530,7 @@ export function OneTimeOrderPreviewDrawer({
           <div className={styles.reviewHeading}>
             <h3 className={styles.sectionTitle}>Отзыв клиента</h3>
             {canEditReview ? <Button onClick={() => setReviewFormOpen((open) => !open)} aria-expanded={reviewFormOpen} aria-controls="one-time-order-preview-review-form">{reviewFormOpen ? 'Скрыть форму' : reviewText ? 'Изменить отзыв' : 'Добавить отзыв'}</Button> : null}
+            {canDeleteReview && !reviewFormOpen && order && (order.reviewText !== null || order.reviewRating !== null) ? <Button disabled={savingReview} onClick={() => setClearReviewConfirmOpen(true)}>Удалить отзыв</Button> : null}
           </div>
           {reviewText ? <p className={styles.review}>{reviewText}</p> : <p className={styles.muted}>Текст отзыва пока не добавлен.</p>}
           {canEditReview && reviewFormOpen ? (
@@ -485,7 +555,7 @@ export function OneTimeOrderPreviewDrawer({
                 <Button variant="primary" type="submit" disabled={savingReview || !reviewDraft.trim()}>
                   {savingReview ? 'Сохраняю…' : 'Сохранить отзыв'}
                 </Button>
-                {order && (order.reviewText !== null || order.reviewRating !== null) ? (
+                {canDeleteReview && order && (order.reviewText !== null || order.reviewRating !== null) ? (
                   <Button disabled={savingReview} onClick={() => setClearReviewConfirmOpen(true)}>
                     Удалить отзыв
                   </Button>
@@ -501,7 +571,9 @@ export function OneTimeOrderPreviewDrawer({
           {canEditOperationalFields ? <Link className={styles.secondaryAction} href={`/one-time-orders/${item.id}?section=overview&edit=1`} onClick={close}>Редактировать</Link> : null}
           <Link className={styles.primaryAction} href={`/one-time-orders/${item.id}`} onClick={close}>Открыть заказ</Link>
         </footer>
+        </AccessSnapshotBoundary>
       </aside>
+      <AccessSnapshotBoundary blocked={loadedScope !== scope}>
       <ConfirmDialog
         open={clearReviewConfirmOpen}
         onOpenChange={setClearReviewConfirmOpen}
@@ -512,6 +584,7 @@ export function OneTimeOrderPreviewDrawer({
         pending={savingReview}
         onConfirm={() => void clearReview()}
       />
+      </AccessSnapshotBoundary>
     </div>
     </>
   );

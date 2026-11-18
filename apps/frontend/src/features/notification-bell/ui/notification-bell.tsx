@@ -7,6 +7,7 @@ import { buildChatRealtimeUrl } from '@/entities/chat/api/chat-client';
 import { dismissNotification, getNotificationUnreadCount, listNotifications, markAllNotificationsRead, markNotificationRead } from '@/entities/notification/api/notification-client';
 import type { AppNotification } from '@/entities/notification/model/notification.types';
 import { ApiError, fetcher } from '@/shared/api/fetcher';
+import { useOpenAccessRefresh } from '@/shared/auth/use-open-access-refresh';
 import { Alert, Button, IconButton } from '@/shared/ui/foundation';
 import { CloseIcon } from '@/shared/ui/icons/icons';
 import { getSafeLocalTarget } from '@/shared/lib/safe-local-target';
@@ -34,10 +35,34 @@ function BellIcon(): React.JSX.Element {
   );
 }
 
+const BROWSER_NOTIFICATIONS_PREFERENCE = 'crm-browser-notifications';
+
+export function readBrowserNotificationsPreference(): boolean {
+  try {
+    return window.localStorage.getItem(BROWSER_NOTIFICATIONS_PREFERENCE) === 'true';
+  } catch {
+    return false;
+  }
+}
+
+function persistBrowserNotificationsPreference(enabled: boolean): void {
+  try {
+    window.localStorage.setItem(BROWSER_NOTIFICATIONS_PREFERENCE, String(enabled));
+  } catch {
+    // The choice can still apply in this tab when storage is unavailable.
+  }
+}
+
+function isUnavailable(error: unknown): boolean {
+  return error instanceof ApiError && (error.statusCode === 403 || error.statusCode === 404);
+}
+
 export function NotificationBell(): React.JSX.Element {
   const router = useRouter();
   const rootRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
+  const [hasNativeNotifications, setHasNativeNotifications] = useState(false);
+  useOpenAccessRefresh(open || hasNativeNotifications, undefined, hasNativeNotifications);
   const [count, setCount] = useState(0);
   const [items, setItems] = useState<AppNotification[]>([]);
   const [loading, setLoading] = useState(false);
@@ -64,17 +89,28 @@ export function NotificationBell(): React.JSX.Element {
       return;
     }
     setBrowserPermission(window.Notification.permission);
-    setBrowserNotificationsEnabled(window.localStorage.getItem('crm-browser-notifications') === 'true');
+    setBrowserNotificationsEnabled(readBrowserNotificationsPreference());
   }, []);
 
   useEffect(() => {
     let stopped = false;
     let retryTimer: number | undefined;
     let socket: WebSocket | null = null;
+    const nativeNotifications = new Map<Notification, number>();
+    setHasNativeNotifications(false);
+    const closeNative = (notification: Notification): void => {
+      const timer = nativeNotifications.get(notification);
+      if (timer === undefined) return;
+      window.clearTimeout(timer);
+      nativeNotifications.delete(notification);
+      if (!stopped && nativeNotifications.size === 0) setHasNativeNotifications(false);
+      notification.close();
+    };
     const connect = (): void => {
       if (stopped) return;
       socket = new WebSocket(buildChatRealtimeUrl());
       socket.onmessage = (message): void => {
+        if (stopped) return;
         try {
           const event = JSON.parse(String(message.data)) as {
             type?: string;
@@ -92,10 +128,19 @@ export function NotificationBell(): React.JSX.Element {
             window.setTimeout(() => setToasts((current) => current.filter((entry) => entry.id !== item.id)), 6_000);
             if (document.hidden && browserNotificationsEnabled && window.Notification.permission === 'granted') {
               const browserNotification = new window.Notification(item.title, { body: item.body ?? undefined });
+              const expiry = window.setTimeout(() => closeNative(browserNotification), 30_000);
+              nativeNotifications.set(browserNotification, expiry);
+              setHasNativeNotifications(true);
+              browserNotification.onclose = () => {
+                window.clearTimeout(expiry);
+                nativeNotifications.delete(browserNotification);
+                if (!stopped && nativeNotifications.size === 0) setHasNativeNotifications(false);
+              };
               browserNotification.onclick = () => {
+                if (stopped || !nativeNotifications.has(browserNotification)) return;
                 window.focus();
                 openNotification(item);
-                browserNotification.close();
+                closeNative(browserNotification);
               };
             }
           }
@@ -113,6 +158,8 @@ export function NotificationBell(): React.JSX.Element {
       stopped = true;
       if (retryTimer !== undefined) window.clearTimeout(retryTimer);
       socket?.close();
+      // The header remounts this component when the access revision changes.
+      for (const notification of nativeNotifications.keys()) closeNative(notification);
     };
   }, [browserNotificationsEnabled, router]);
 
@@ -154,8 +201,16 @@ export function NotificationBell(): React.JSX.Element {
     void (async () => {
       try {
         if (!item.readAt) {
-          const read = await markNotificationRead(item.id);
-          setItems((current) => current.map((entry) => entry.id === item.id ? read : entry));
+          try {
+            const read = await markNotificationRead(item.id);
+            setItems((current) => current.map((entry) => entry.id === item.id ? read : entry));
+          } catch (caught) {
+            setOpen(true);
+            setError(isUnavailable(caught)
+              ? 'У вас нет права отметить это уведомление прочитанным или оно больше недоступно.'
+              : 'Не удалось отметить уведомление прочитанным. Попробуйте ещё раз.');
+            return;
+          }
           void getNotificationUnreadCount().then((value) => setCount(value.count)).catch(() => undefined);
         }
         const target = item.targetUrl ? getSafeLocalTarget(item.targetUrl) : null;
@@ -168,7 +223,7 @@ export function NotificationBell(): React.JSX.Element {
         }
       } catch (caught) {
         setOpen(true);
-        setError(caught instanceof ApiError && (caught.statusCode === 403 || caught.statusCode === 404)
+        setError(isUnavailable(caught)
           ? 'Карточка недоступна: у вас нет доступа или запись удалена.'
           : 'Не удалось открыть уведомление. Попробуйте ещё раз.');
       } finally {
@@ -196,7 +251,7 @@ export function NotificationBell(): React.JSX.Element {
     if (!('Notification' in window)) return;
     if (browserNotificationsEnabled) {
       setBrowserNotificationsEnabled(false);
-      window.localStorage.setItem('crm-browser-notifications', 'false');
+      persistBrowserNotificationsPreference(false);
       return;
     }
     const request = window.Notification.permission === 'default'
@@ -206,7 +261,7 @@ export function NotificationBell(): React.JSX.Element {
       setBrowserPermission(permission);
       const enabled = permission === 'granted';
       setBrowserNotificationsEnabled(enabled);
-      window.localStorage.setItem('crm-browser-notifications', String(enabled));
+      persistBrowserNotificationsPreference(enabled);
     });
   };
 

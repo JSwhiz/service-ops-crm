@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useContext, useMemo, useRef, useState } from 'react';
+import { AccessSnapshotBlockedContext } from '@/shared/auth/access-snapshot-boundary';
 import Link from 'next/link';
 
 import type {
@@ -21,9 +22,10 @@ import { RegistryToolbar } from '@/shared/ui/registry-filters/registry-toolbar';
 import type { ActiveRegistryFilter, AvailableRegistryFilter } from '@/shared/ui/registry-filters/registry-toolbar';
 import { WorkspaceTabs } from '@/shared/ui/workspace-tabs/workspace-tabs';
 
+import { getExpenseMoneyBreakdown } from '../model/expense-money-breakdown';
 import { AccountabilityExpenseForm } from './accountability-expense-form';
 import { DatePicker } from '@/shared/ui/date-picker/date-picker';
-import { Button, EmptyState, Stack, StatusBadge, Surface } from '@/shared/ui/foundation';
+import { Alert, Button, EmptyState, Stack, StatusBadge, Surface } from '@/shared/ui/foundation';
 import accountabilityStyles from '@/features/accountability/ui/accountability-ui.module.css';
 
 function formatMoney(value: number): string {
@@ -57,6 +59,7 @@ export function AccountabilityAccountPanel({
   idPrefix: string;
   onSaveExpense: (payload: {
     expenseId?: string;
+    clientRequestId?: string;
     amount: number;
     description: string;
     files: File[];
@@ -68,12 +71,16 @@ export function AccountabilityAccountPanel({
   onRequestClosure: () => Promise<void>;
   onReverseExternalReceipt: (fundingId: string, reason: string) => Promise<void>;
 }): React.JSX.Element {
+  const [createRequest, setCreateRequest] = useState(0);
   const [editingExpense, setEditingExpense] =
     useState<AccountabilityExpenseItem | null>(null);
   const [rejectingExpenseId, setRejectingExpenseId] = useState<string | null>(
     null,
   );
   const [expenseRejectComment, setExpenseRejectComment] = useState('');
+  const [rejectPending, setRejectPending] = useState(false);
+  const rejectionLock = useRef(false);
+  const accessBlocked = useContext(AccessSnapshotBlockedContext);
   const [reversingFundingId, setReversingFundingId] = useState<string | null>(null);
   const [fundingReversalReason, setFundingReversalReason] = useState('');
   const [orderFilter, setOrderFilter] = useState('');
@@ -81,6 +88,9 @@ export function AccountabilityAccountPanel({
   const [dateTo, setDateTo] = useState('');
   const [periodFilterActive, setPeriodFilterActive] = useState(false);
   const latestClosure = view.closures[0] ?? null;
+  const liveEditingExpense = editingExpense
+    ? view.expenses.find((expense) => expense.id === editingExpense.id)
+    : null;
 
   const orderIds = useMemo(
     () =>
@@ -163,22 +173,20 @@ export function AccountabilityAccountPanel({
       ),
     [activeOrderFilter, dateFrom, dateTo, view.expenses],
   );
-  const submittedAmount = useMemo(
-    () =>
-      view.expenses
-        .filter((expense) => expense.status === 'submitted')
-        .reduce((sum, expense) => sum + expense.amount, 0),
-    [view.expenses],
+  const { confirmedPayouts, submittedAmount, draftAmount } = useMemo(
+    () => getExpenseMoneyBreakdown(view.expenses), [view.expenses],
   );
-
-  const overviewCards = useMemo(
-    () => [
-      { label: 'Текущий остаток', value: formatMoney(view.summary.currentBalance) },
-      { label: 'Прогнозный остаток', value: formatMoney(view.summary.forecastBalance) },
-      { label: 'На подтверждении', value: formatMoney(submittedAmount) },
-    ],
-    [submittedAmount, view.summary],
-  );
+  const overviewCards = [
+    { label: 'Поступило', value: formatMoney(view.summary.totalCredits) },
+    { label: 'Остаток', value: formatMoney(view.summary.currentBalance) },
+    { label: 'Прогноз', value: formatMoney(view.summary.forecastBalance) },
+  ];
+  const secondaryTotals = [
+    { label: 'Выплачено сотрудникам', value: formatMoney(confirmedPayouts) },
+    { label: 'Прочие подтверждённые расходы', value: formatMoney(view.summary.totalApprovedExpenses + view.summary.totalReconciledExpenses - confirmedPayouts) },
+    { label: 'На проверке', value: formatMoney(submittedAmount) },
+    { label: 'Черновики', value: formatMoney(draftAmount) },
+  ];
   const accountSections = useMemo(
     () => [
       { value: 'overview', label: 'Обзор' },
@@ -243,14 +251,16 @@ export function AccountabilityAccountPanel({
         hidden={activeSection !== 'overview'}
       >
         <Surface padding="md" style={{ display: 'grid', gap: 16 }}>
-          {!view.account.id ? <EmptyState title="Подотчёт пока не открыт" description={view.capabilities.canIssueFunding ? 'Для начала работы используйте выдачу средств над карточкой.' : view.capabilities.canRecordExternalReceipt ? 'Для начала работы перейдите в «Движения» и укажите внешнее поступление.' : 'Обратитесь к пользователю с правом выдачи подотчётных средств.'} /> : <div className="stat-grid">
-            {overviewCards.map((card) => (
-              <div key={card.label} className="stat-card">
-                <div className="ui-detail-label">{card.label}</div>
-                <div className="stat-card__value">{card.value}</div>
-              </div>
-            ))}
+          {isOwnView && view.capabilities.canCreateExpense ? <Button variant="primary" onClick={() => { onSectionChange('expenses'); setCreateRequest((current) => current + 1); }}>{editingExpense ? 'Продолжить редактирование' : 'Добавить расход'}</Button> : null}
+          {!view.account.id ? <EmptyState title="Подотчёт пока не открыт" description={view.capabilities.canIssueFunding ? 'Для начала работы используйте выдачу средств над карточкой.' : view.capabilities.canRecordExternalReceipt ? 'Для начала работы перейдите в «Движения» и укажите внешнее поступление.' : 'Обратитесь к пользователю с правом выдачи подотчётных средств.'} /> : <div className={accountabilityStyles.moneySummary}>
+            <dl className={accountabilityStyles.moneyPrimary}>
+              {overviewCards.map((card) => <div key={card.label}><dt>{card.label}</dt><dd>{card.value}</dd></div>)}
+            </dl>
+            <dl className={accountabilityStyles.moneySecondary}>
+              {secondaryTotals.map((item) => <div key={item.label}><dt>{item.label}</dt><dd>{item.value}</dd></div>)}
+            </dl>
           </div>}
+          <div className="ui-text-muted">Остаток — подтверждённые операции. Прогноз — с расходами на проверке.</div>
           <div className={accountabilityStyles.accountabilityOverviewMeta}>
             <span>Черновики расходов: <strong>{view.summary.draftExpensesCount}</strong></span>
             <span>На проверке: <strong>{view.summary.submittedExpensesCount}</strong></span>
@@ -259,7 +269,8 @@ export function AccountabilityAccountPanel({
               : 'не проводилась'}</strong></span>
           </div>
           <details className={accountabilityStyles.accountabilitySecondaryTotals}>
-            <summary>Дополнительные финансовые итоги</summary>
+            <summary>Как считаются суммы и другие итоги</summary>
+            <p>Черновики не уменьшают прогноз. Выплаты учитываются после подтверждения или сверки. Начисления табеля не являются выплатой.</p>
             <div className="ui-detail-grid">
               <div className="ui-detail-field"><div className="ui-detail-label">Поступило всего</div><div className="ui-detail-value">{formatMoney(view.summary.totalFunding)}</div></div>
               <div className="ui-detail-field"><div className="ui-detail-label">Всего учтено в расходах</div><div className="ui-detail-value">{formatMoney(view.summary.totalRecordedExpenses)}</div></div>
@@ -375,10 +386,13 @@ export function AccountabilityAccountPanel({
         aria-labelledby={`${idPrefix}-tab-expenses`}
         hidden={activeSection !== 'expenses'}
       >
+      {isOwnView && !view.capabilities.canCreateExpense && !editingExpense ? <Alert tone="info">Создать расход сейчас нельзя. Нужны право на создание и открытый активный собственный подотчёт. Если счёт ещё не открыт, обратитесь к пользователю с правом выдачи средств.</Alert> : null}
       {isOwnView ? (
         <AccountabilityExpenseForm
+          openRequest={createRequest}
           initialExpense={editingExpense}
-          canCreate={view.capabilities.canCreateExpense || Boolean(editingExpense)}
+          canSave={editingExpense ? Boolean(liveEditingExpense?.capabilities.canEdit) : view.capabilities.canCreateExpense}
+          canSubmit={editingExpense ? Boolean(liveEditingExpense?.capabilities.canSubmit) : view.capabilities.canSubmitExpense}
           onSave={async (payload) => {
             await onSaveExpense(payload);
             setEditingExpense(null);
@@ -495,8 +509,9 @@ export function AccountabilityAccountPanel({
                     </Button>
                   ) : null}
 
-                  {expense.capabilities.canReject ? (
+                  {expense.capabilities.canReject && rejectingExpenseId !== expense.id ? (
                     <Button
+                      disabled={rejectPending || rejectingExpenseId !== null}
                       onClick={() => {
                         setRejectingExpenseId(expense.id);
                         setExpenseRejectComment('');
@@ -509,9 +524,11 @@ export function AccountabilityAccountPanel({
 
                 {rejectingExpenseId === expense.id ? (
                   <Stack gap="sm">
+                    {!expense.capabilities.canReject ? <Alert tone="warning" role="status">Отклонение расхода недоступно. Причина сохранена в черновике. Проверьте доступ и состояние расхода перед повторным действием.</Alert> : null}
                     <textarea
                       rows={3}
                       value={expenseRejectComment}
+                      disabled={rejectPending}
                       onChange={(event) =>
                         setExpenseRejectComment(event.target.value)
                       }
@@ -519,18 +536,23 @@ export function AccountabilityAccountPanel({
                     />
                     <div className="ui-inline">
                       <Button
+                        disabled={rejectPending || accessBlocked || !expense.capabilities.canReject || !expenseRejectComment.trim()}
                         onClick={() => {
-                          void onRejectExpense(expense.id, expenseRejectComment).finally(
+                          if (rejectionLock.current || accessBlocked || !expense.capabilities.canReject || !expenseRejectComment.trim()) return;
+                          rejectionLock.current = true;
+                          setRejectPending(true);
+                          void onRejectExpense(expense.id, expenseRejectComment).then(
                             () => {
                               setRejectingExpenseId(null);
                               setExpenseRejectComment('');
                             },
-                          );
+                          ).catch(() => undefined).finally(() => { rejectionLock.current = false; setRejectPending(false); });
                         }}
                       >
                         Подтвердить отклонение
                       </Button>
                       <Button
+                        disabled={rejectPending}
                         onClick={() => {
                           setRejectingExpenseId(null);
                           setExpenseRejectComment('');

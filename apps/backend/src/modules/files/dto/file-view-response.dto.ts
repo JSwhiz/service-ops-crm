@@ -14,4 +14,5 @@ export class FileViewResponseDto {
   inlineContentUrl!: string | null;
   downloadUrl!: string;
   errorMessage!: string | null;
+  capabilities!: { canPreview: boolean; canDownload: boolean; canRetryPreview: boolean };
 }

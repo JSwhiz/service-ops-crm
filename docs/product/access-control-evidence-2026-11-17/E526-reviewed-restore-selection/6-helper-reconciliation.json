@@ -1,0 +1,86 @@
+{
+  "kind": "offline_helper_oracle_reconciliation_no_new_API_or_app_run",
+  "raw": {
+    "path": "/private/tmp/E526-object-preview-isolated/attempt-001/object-preview.json",
+    "sha256": "7377cbe62626c30021e764d03656d17498387b21de1fe30bdac5ead15efe1994"
+  },
+  "cause": "JSON.stringify equality treated PostgreSQL JSONB object key order as value difference. Actual and expected proposal content are deeply identical.",
+  "checks": [
+    {
+      "rawPointer": "/assertions/0",
+      "originalMatchedFlag": true,
+      "semanticDeepEquality": true,
+      "label": "archived selected objects.restore actual preview201"
+    },
+    {
+      "rawPointer": "/assertions/1",
+      "originalMatchedFlag": true,
+      "semanticDeepEquality": true,
+      "label": "restore preview preserves exact requested archived selected scope"
+    },
+    {
+      "rawPointer": "/assertions/2",
+      "originalMatchedFlag": true,
+      "semanticDeepEquality": true,
+      "label": "restore preview returns real preview token/hash"
+    },
+    {
+      "rawPointer": "/assertions/3",
+      "originalMatchedFlag": true,
+      "semanticDeepEquality": true,
+      "label": "preview0 leaves all business/audit/rules/versions unchanged"
+    },
+    {
+      "rawPointer": "/assertions/4",
+      "originalMatchedFlag": true,
+      "semanticDeepEquality": true,
+      "label": "ordinary objects.update selected archived object rejects400"
+    },
+    {
+      "rawPointer": "/assertions/5",
+      "originalMatchedFlag": true,
+      "semanticDeepEquality": true,
+      "label": "preview1 leaves all business/audit/rules/versions unchanged"
+    },
+    {
+      "rawPointer": "/assertions/6",
+      "originalMatchedFlag": true,
+      "semanticDeepEquality": true,
+      "label": "exactly one preview-only record created for successful restore preview"
+    },
+    {
+      "rawPointer": "/assertions/7",
+      "originalMatchedFlag": false,
+      "semanticDeepEquality": true,
+      "label": "persisted preview is only intended objects.restore proposal"
+    },
+    {
+      "rawPointer": "/assertions/8",
+      "originalMatchedFlag": true,
+      "semanticDeepEquality": true,
+      "label": "no grant rules persisted for target"
+    },
+    {
+      "rawPointer": "/assertions/9",
+      "originalMatchedFlag": true,
+      "semanticDeepEquality": true,
+      "label": "target access version unchanged"
+    },
+    {
+      "rawPointer": "/assertions/10",
+      "originalMatchedFlag": true,
+      "semanticDeepEquality": true,
+      "label": "archived object unchanged and never restored"
+    }
+  ],
+  "rawUnchanged": true,
+  "rawRunnerExitCode": 1,
+  "actualPreviewRequestsExecuted": 2,
+  "actualPreviewOutcome": "restore201/update400 as requested; all11 assertion values semantically equal",
+  "helperCorrection": {
+    "path": "/private/tmp/E526-object-preview-isolated/helper.cjs",
+    "sha256": "7f9363f405a0f613936a7975935d07f533390d45d2b1cf7e12d24d83f6c342ec",
+    "description": "Uses assert.deepStrictEqual, not JSON string byte equality; corrected helper NOT executed again."
+  },
+  "newRuntimeRequests": 0
+}

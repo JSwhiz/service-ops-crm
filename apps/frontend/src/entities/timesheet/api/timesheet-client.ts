@@ -1,4 +1,5 @@
-import { fetcher } from '@/shared/api/fetcher';
+import type { SavedWithoutAccess } from '@/shared/api/saved-without-access';
+import { fetcher, postCommittedWrite } from '@/shared/api/fetcher';
 import type { ApprovalRequestItem } from '@/entities/approval/model/approval.types';
 import { appConfig } from '@/shared/config/app-config';
 
@@ -126,9 +127,8 @@ export async function upsertTimesheetEntry(payload: {
   dayOfMonth: number;
   dayValue: number;
   comment?: string;
-}): Promise<TimesheetMonth | ApprovalRequestItem> {
-  return fetcher<TimesheetMonth | ApprovalRequestItem>('/timesheets/entries', {
-    method: 'POST',
+}): Promise<TimesheetMonth | ApprovalRequestItem | SavedWithoutAccess> {
+  return postCommittedWrite<TimesheetMonth | ApprovalRequestItem>('/timesheets/entries', {
     body: JSON.stringify(payload),
   });
 }
@@ -141,9 +141,8 @@ export async function requestTimesheetManualException(payload: {
   dayOfMonth: number;
   dayValue: number;
   comment: string;
-}): Promise<ApprovalRequestItem> {
-  return fetcher<ApprovalRequestItem>('/timesheets/exceptions', {
-    method: 'POST',
+}): Promise<ApprovalRequestItem | SavedWithoutAccess> {
+  return postCommittedWrite<ApprovalRequestItem>('/timesheets/exceptions', {
     body: JSON.stringify(payload),
   });
 }

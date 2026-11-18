@@ -56,6 +56,10 @@ type OneTimeOrderFormPayload = {
 };
 
 export interface OneTimeOrderFormDraft {
+  /** Only user-edited copy fields belong to the private draft, not source rows. */
+  privateFinancialFields?: Array<'agreedSum' | 'plannedPaymentMethod' | 'financialNotes' | 'expenseNotes'>;
+  /** Explicit choice for a new order; never hydrated from copied finance. */
+  newPaymentMethod?: { context: string; value: string } | null;
   creationRequest?: CreationRequestMetadata | null;
   form: {
     title: string; executionAddress: string; linkedObjectId: string; status: string; description: string;
@@ -69,7 +73,15 @@ export interface OneTimeOrderFormDraft {
   specificationDraft: SpecificationDraft;
 }
 
+type FinancialFields = Pick<OneTimeOrderFormDraft['form'], 'agreedSum' | 'plannedPaymentMethod' | 'financialNotes' | 'expenseNotes'>;
+const financialFieldNames = ['agreedSum', 'plannedPaymentMethod', 'financialNotes', 'expenseNotes'] as const;
+const resolveFinancialFields = (form: FinancialFields, source: FinancialFields | undefined, privateFields: readonly (keyof FinancialFields)[]): FinancialFields =>
+  Object.fromEntries(financialFieldNames.map((field) => [field, !source || privateFields.includes(field) ? form[field] : source[field]])) as FinancialFields;
+const retainPrivateFinancialFields = (form: OneTimeOrderFormDraft['form'], source: FinancialFields | undefined, privateFields: readonly (keyof FinancialFields)[]): OneTimeOrderFormDraft['form'] =>
+  source ? { ...form, ...Object.fromEntries(financialFieldNames.map((field) => [field, privateFields.includes(field) ? form[field] : ''])) } : form;
+
 export function OneTimeOrderForm({
+  operation = 'create',
   initialLinkedObjectOption = null,
   initialManagerOptions = [],
   searchObjects,
@@ -89,6 +101,8 @@ export function OneTimeOrderForm({
   onCancel,
   canSelectLinkedObject,
   canEditFinancialFields = true,
+  copiedFinancialValues,
+  newPaymentMethodContext,
   requirePlannedPaymentMethod = false,
   includeSpecificationItems = false,
   initialSpecificationItems = [],
@@ -98,6 +112,7 @@ export function OneTimeOrderForm({
   submitLabel,
   onSubmit,
 }: {
+  operation?: 'create' | 'update';
   initialLinkedObjectOption?: SearchableSelectOption | null;
   initialManagerOptions?: SystemUserOption[];
   searchObjects?: (query: string) => Promise<SearchableSelectOption[]>;
@@ -117,6 +132,8 @@ export function OneTimeOrderForm({
   onCancel?: () => void;
   canSelectLinkedObject: boolean;
   canEditFinancialFields?: boolean;
+  copiedFinancialValues?: FinancialFields;
+  newPaymentMethodContext?: string;
   requirePlannedPaymentMethod?: boolean;
   includeSpecificationItems?: boolean;
   initialSpecificationItems?: Array<{
@@ -162,6 +179,19 @@ export function OneTimeOrderForm({
     managerUserIds: initialValue?.managerUserIds ?? ([] as string[]),
   });
   const [error, setError] = useState<string | null>(null);
+  const [privateFinancialFields, setPrivateFinancialFields] = useState<Array<keyof FinancialFields>>(
+    // Legacy drafts have no provenance marker: preserve their non-empty values
+    // privately rather than silently deleting potentially user-authored edits.
+    initialDraft?.privateFinancialFields ?? (initialDraft ? financialFieldNames.filter((field) => Boolean(initialDraft.form[field])) : []),
+  );
+  const financialForm = resolveFinancialFields(form, copiedFinancialValues, privateFinancialFields);
+  const privateForm = retainPrivateFinancialFields(form, copiedFinancialValues, privateFinancialFields);
+  const [newPaymentMethod, setNewPaymentMethod] = useState(initialDraft?.newPaymentMethod ?? null);
+  const newPaymentMethodValue = newPaymentMethod && newPaymentMethod.context === newPaymentMethodContext ? newPaymentMethod.value : '';
+  const setFinancialField = (field: keyof FinancialFields, value: string): void => {
+    setPrivateFinancialFields((current) => current.includes(field) ? current : [...current, field]);
+    setForm((current) => ({ ...current, [field]: value }));
+  };
   const [nativeValidationIssue, setNativeValidationIssue] = useState<NativeValidationIssue | null>(null);
   useEffect(() => {
     if (nativeValidationIssue && isNativeValidationIssueResolved(nativeValidationIssue.control)) setNativeValidationIssue(null);
@@ -196,6 +226,7 @@ export function OneTimeOrderForm({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
   const initialSnapshotRef = useRef(initialDraftDirty ? '' : JSON.stringify({
+    newPaymentMethod: null,
     form: {
       title: initialValue?.title ?? "",
       executionAddress: initialValue?.executionAddress ?? "",
@@ -219,11 +250,11 @@ export function OneTimeOrderForm({
   const hadInitialDraft = useRef(initialDraftDirty);
 
   useEffect(() => {
-    const currentDraft: OneTimeOrderFormDraft = { form, notesDisclosureOpen, selectedManagers, specificationItems, specificationDraft, creationRequest: creationRequestRef.current };
-    const currentSnapshot = JSON.stringify({ form, specificationItems, specificationDraft });
+    const currentDraft: OneTimeOrderFormDraft = { form: privateForm, privateFinancialFields, newPaymentMethod, notesDisclosureOpen, selectedManagers, specificationItems, specificationDraft, creationRequest: creationRequestRef.current };
+    const currentSnapshot = JSON.stringify({ newPaymentMethod, form: { ...form, ...financialForm }, specificationItems, specificationDraft });
     onDraftChange?.(currentDraft);
     onDirtyChange?.(hadInitialDraft.current || currentSnapshot !== initialSnapshotRef.current);
-  }, [form, notesDisclosureOpen, selectedManagers, specificationItems, specificationDraft, onDirtyChange, onDraftChange]);
+  }, [form, copiedFinancialValues, privateFinancialFields, newPaymentMethod, notesDisclosureOpen, selectedManagers, specificationItems, specificationDraft, onDirtyChange, onDraftChange]);
 
   useEffect(() => {
     if (!autoFocus) return;
@@ -302,7 +333,8 @@ export function OneTimeOrderForm({
       window.requestAnimationFrame(() => formRef.current?.querySelector<HTMLInputElement>('input[required]:invalid')?.focus());
       return;
     }
-    if (requirePlannedPaymentMethod && !form.plannedPaymentMethod) {
+    if (requirePlannedPaymentMethod && (canEditFinancialFields || newPaymentMethodContext) &&
+      !(newPaymentMethodContext ? newPaymentMethodValue : financialForm.plannedPaymentMethod)) {
       setError("Укажите плановый способ оплаты.");
       onRequiredSection?.('conditions');
       window.requestAnimationFrame(() => paymentMethodRef.current?.querySelector("button")?.focus());
@@ -337,14 +369,17 @@ export function OneTimeOrderForm({
         contactPhone: form.contactPhone || undefined,
         ...(canEditFinancialFields
           ? {
-              agreedSum: form.agreedSum ? Number(form.agreedSum) : undefined,
-              plannedPaymentMethod: form.plannedPaymentMethod
-                ? (form.plannedPaymentMethod as CreateOneTimeOrderPayload["plannedPaymentMethod"])
+              agreedSum: financialForm.agreedSum ? Number(financialForm.agreedSum) : undefined,
+              plannedPaymentMethod: financialForm.plannedPaymentMethod
+                ? (financialForm.plannedPaymentMethod as CreateOneTimeOrderPayload["plannedPaymentMethod"])
                 : null,
-              financialNotes: form.financialNotes || undefined,
-              expenseNotes: form.expenseNotes || undefined,
+              financialNotes: financialForm.financialNotes || undefined,
+              expenseNotes: financialForm.expenseNotes || undefined,
             }
           : {}),
+        ...(newPaymentMethodContext ? {
+          plannedPaymentMethod: newPaymentMethodValue as CreateOneTimeOrderPayload['plannedPaymentMethod'],
+        } : {}),
         ...(canSelectLinkedObject
           ? {
               linkedObjectId: form.linkedObjectId || null,
@@ -367,8 +402,12 @@ export function OneTimeOrderForm({
             }
           : {}),
       };
+      if (operation === 'update') {
+        await onSubmit(requestPayload);
+        return;
+      }
       const submission = prepareCreateSubmission(
-        { form, notesDisclosureOpen, selectedManagers, specificationItems, specificationDraft, creationRequest: creationRequestRef.current },
+        { form: privateForm, privateFinancialFields, newPaymentMethod, notesDisclosureOpen, selectedManagers, specificationItems, specificationDraft, creationRequest: creationRequestRef.current },
         requestPayload,
         () => crypto.randomUUID(),
       );
@@ -565,19 +604,14 @@ export function OneTimeOrderForm({
               <input
                 type="number"
                 min={0}
-                value={form.agreedSum}
-                onChange={(event) =>
-                  setForm((prev) => ({
-                    ...prev,
-                    agreedSum: event.target.value,
-                  }))
-                }
+                value={financialForm.agreedSum}
+                onChange={(event) => setFinancialField('agreedSum', event.target.value)}
               />
             </Field>
             <div ref={paymentMethodRef}>
               <SearchableSelect
                 label={`Плановый способ оплаты${requirePlannedPaymentMethod ? " *" : ""}`}
-                value={form.plannedPaymentMethod}
+                value={financialForm.plannedPaymentMethod}
                 options={ONE_TIME_ORDER_PLANNED_PAYMENT_METHOD_OPTIONS.map(
                   (option) => ({ value: option.value, label: option.label }),
                 )}
@@ -585,16 +619,23 @@ export function OneTimeOrderForm({
                 searchable={false}
                 clearable={false}
                 required={requirePlannedPaymentMethod}
-                onChange={(value) =>
-                  setForm((prev) => ({
-                    ...prev,
-                    plannedPaymentMethod: value,
-                  }))
-                }
+                onChange={(value) => setFinancialField('plannedPaymentMethod', value)}
               />
             </div>
           </>
         ) : null}
+        {newPaymentMethodContext ? <div ref={paymentMethodRef}>
+          <SearchableSelect
+            label="Новый способ оплаты копии *"
+            value={newPaymentMethodValue}
+            options={ONE_TIME_ORDER_PLANNED_PAYMENT_METHOD_OPTIONS.map((option) => ({ value: option.value, label: option.label }))}
+            placeholder="Выберите для нового заказа"
+            searchable={false}
+            clearable={false}
+            required
+            onChange={(value) => { if (newPaymentMethodContext) setNewPaymentMethod({ context: newPaymentMethodContext, value }); }}
+          />
+        </div> : null}
         </fieldset>
 
         <fieldset data-create-section="notes" aria-label="Заметки" className={orderStyles.orderCreateSection} hidden={Boolean(activeSection && activeSection !== 'notes')}>
@@ -608,7 +649,7 @@ export function OneTimeOrderForm({
             <span className={orderStyles.orderOptionalNotesState}>
               {form.description.trim() ||
               (canEditFinancialFields &&
-                (form.financialNotes.trim() || form.expenseNotes.trim()))
+                (financialForm.financialNotes.trim() || financialForm.expenseNotes.trim()))
                 ? "Заполнены"
                 : "Не заполнены"}
             </span>
@@ -628,20 +669,16 @@ export function OneTimeOrderForm({
               <>
                 <Field label="Финансовые заметки" className={orderStyles.orderWideField}>
                   <textarea
-                    value={form.financialNotes}
-                    onChange={(event) =>
-                      setForm((prev) => ({ ...prev, financialNotes: event.target.value }))
-                    }
+                    value={financialForm.financialNotes}
+                    onChange={(event) => setFinancialField('financialNotes', event.target.value)}
                     rows={3}
                   />
                 </Field>
 
                 <Field label="Расходные заметки" className={orderStyles.orderWideField}>
                   <textarea
-                    value={form.expenseNotes}
-                    onChange={(event) =>
-                      setForm((prev) => ({ ...prev, expenseNotes: event.target.value }))
-                    }
+                    value={financialForm.expenseNotes}
+                    onChange={(event) => setFinancialField('expenseNotes', event.target.value)}
                     rows={3}
                   />
                 </Field>

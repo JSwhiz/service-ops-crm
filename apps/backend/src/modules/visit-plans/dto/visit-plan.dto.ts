@@ -12,6 +12,12 @@ import {
   Min,
 } from "class-validator";
 
+export interface VisitPlanCapabilitiesDto {
+  canManage: boolean;
+  canManageVisits?: boolean;
+  canManageReports?: boolean;
+}
+
 export class VisitPlanQueryDto {
   @Matches(/^\d{4}-\d{2}-\d{2}$/)
   date!: string;

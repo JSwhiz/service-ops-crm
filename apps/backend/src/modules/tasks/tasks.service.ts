@@ -7,7 +7,15 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
+import type { AccessSubject } from '../users-access/types/access-policy.type';
+import { decideAccess } from '../users-access/utils/access-policy.util';
+import { taskPolicyWhere, taskVisibilityWhere } from './utils/task-policy.util';
 import { isUUID } from 'class-validator';
+import { resourceAccessTarget } from '../../common/access/resource-access-context';
+import { lockActorAccessRevision } from '../../common/access/lock-actor-access-revision';
+import { projectCommittedWrite, type SavedWithoutAccess } from '../../common/access/project-committed-write';
+import { loadAccessSubject } from '../../common/access/notification-access';
+import { resolveObjectDelegationGrants } from '../user-substitutions/resolve-object-delegation-grants.util';
 
 import { AuditService } from '../audit/audit.service';
 import {
@@ -15,7 +23,6 @@ import {
   TASK_RESULT_CONFIRMATION_TYPE,
 } from '../approvals/constants/approval.constants';
 import {
-  buildOneTimeOrderAccessWhere,
   canViewOneTimeOrderByScope,
 } from '../one-time-orders/utils/one-time-order-access.util';
 import { canViewObjectByScope } from '../objects/utils/object-access.util';
@@ -23,7 +30,10 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   hasDelegatedTaskAction,
+  hasDelegatedObjectAction,
   usedObjectDelegations,
+  objectDelegationContext,
+  type ObjectDelegationGrant,
 } from '../user-substitutions/object-delegation.context';
 import { mapSafeFileResponse } from '../files/utils/safe-file-response.mapper';
 
@@ -42,6 +52,7 @@ import {
   TaskCompletionListResponseDto,
 } from './dto/task-completion-response.dto';
 import { TaskListResponseDto, TaskResponseDto } from './dto/task-response.dto';
+import type { TaskMutationResponse } from './dto/task-response.dto';
 import { UpdateTaskStatusDto } from './dto/update-task-status.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
 import {
@@ -52,7 +63,7 @@ import {
 import { parseTaskDeadline } from './utils/task-deadline.util';
 import { normalizeTaskUserIds } from './utils/task-user-ids.util';
 
-interface CurrentAuthUser {
+interface CurrentAuthUser extends AccessSubject {
   id: string;
   login: string;
   fullName: string;
@@ -226,9 +237,7 @@ export class TasksService {
       this.prisma.task.count({ where }),
     ]);
 
-    const items = (tasks as TaskView[]).map((task) =>
-      this.mapTask(task, currentUser),
-    );
+    const items = await this.mapTasksWithDraftCapability(tasks as TaskView[], currentUser);
 
     if (!isPaginated) {
       return items;
@@ -258,15 +267,16 @@ export class TasksService {
       throw new NotFoundException('Task not found');
     }
 
-    return this.attachCompletionFiles(this.mapTask(task, currentUser));
+    const [item] = await this.mapTasksWithDraftCapability([task], currentUser);
+    return this.attachCompletionFiles(item, currentUser);
   }
 
   async createTask(
     currentUser: CurrentAuthUser,
     payload: CreateTaskDto,
-  ): Promise<TaskResponseDto> {
-    if (!currentUser.isActive) {
-      throw new ForbiddenException('Only active users can create tasks');
+  ): Promise<TaskMutationResponse> {
+    if (!decideAccess(currentUser, 'tasks.create', currentUser.isActive)) {
+      throw new ForbiddenException('Task creation denied');
     }
 
     const roleCodes = this.getRoleCodes(currentUser);
@@ -297,6 +307,8 @@ export class TasksService {
     ) {
       throw new ForbiddenException('Task creation denied for selected object');
     }
+
+    if (object && !canViewObjectByScope({ currentUserId: currentUser.id, roleCodes, object, ownScopeOnly: true }) && !hasDelegatedObjectAction(currentUser.id, object.id, 'view', true, 'tasks.create')) throw new ForbiddenException('Source task creation permission denied');
 
     if (
       order &&
@@ -343,7 +355,23 @@ export class TasksService {
 
     this.assertVisibilitySelection(object, order, visibilityType, visibleUserIds);
 
-    const task = (await this.prisma.$transaction(async (tx) => {
+    const task = await this.runTaskSourceWrite(currentUser, null, payload.objectId ?? null, async (tx) => {
+      const [currentObject, currentOrder] = await Promise.all([
+        payload.objectId ? this.loadTaskObject(payload.objectId, tx) : null,
+        payload.oneTimeOrderId ? this.loadTaskOneTimeOrder(payload.oneTimeOrderId, tx) : null,
+      ]);
+      if (currentObject && !canViewObjectByScope({ subject: currentUser, currentUserId: currentUser.id, roleCodes, object: currentObject })) {
+        throw new ForbiddenException('Task creation denied for selected object');
+      }
+      if (currentObject && !canViewObjectByScope({ currentUserId: currentUser.id, roleCodes, object: currentObject, ownScopeOnly: true }) &&
+        !hasDelegatedObjectAction(currentUser.id, currentObject.id, 'view', true, 'tasks.create')) {
+        throw new ForbiddenException('Source task creation permission denied');
+      }
+      if (currentOrder && !canViewOneTimeOrderByScope({ subject: currentUser, currentUserId: currentUser.id, roleCodes, permissionCodes: currentUser.permissionCodes, order: currentOrder })) {
+        throw new ForbiddenException('Task creation denied for selected one-time order');
+      }
+      await this.assertActiveUsers(assigneeUserIds, 'task assignees', tx);
+      await this.assertActiveUsers(visibleUserIds, 'task visibility users', tx);
       const created = (await tx.task.create({
         data: {
           title: payload.title,
@@ -372,25 +400,35 @@ export class TasksService {
               addedByUserId: currentUser.id,
             })),
           },
-          historyEvents: {
-            create: {
-              actorUserId: currentUser.id,
-              eventType: 'task.created',
-              payload: {
-                delegations: usedObjectDelegations(),
-                objectId: payload.objectId ?? null,
-                oneTimeOrderId: payload.oneTimeOrderId ?? null,
-                assigneeUserIds,
-                scopeType,
-                visibilityType,
-                visibilityMode,
-                visibleUserIds,
-              },
-            },
-          },
         },
         include: this.getTaskInclude(),
       })) as TaskView;
+
+      // Evaluate the same SQL visibility as GET against the real new id and its
+      // staged memberships. Nothing in this graph commits on an unreadable task.
+      const readable = await tx.task.findFirst({
+        where: { AND: [{ id: created.id }, this.buildTaskAccessWhere(currentUser)] },
+        select: { id: true },
+      });
+      if (!readable) throw new ForbiddenException('Task creation would produce an unreadable task');
+
+      await tx.taskHistoryEvent.create({
+        data: {
+          taskId: created.id,
+          actorUserId: currentUser.id,
+          eventType: 'task.created',
+          payload: {
+            delegations: usedObjectDelegations(),
+            objectId: payload.objectId ?? null,
+            oneTimeOrderId: payload.oneTimeOrderId ?? null,
+            assigneeUserIds,
+            scopeType,
+            visibilityType,
+            visibilityMode,
+            visibleUserIds,
+          },
+        },
+      });
 
       await this.notificationsService.createForRecipients(
         {
@@ -409,16 +447,16 @@ export class TasksService {
       );
 
       return created;
-    })) as TaskView;
+    }, { objectIds: [payload.objectId ?? null], orderIds: [payload.oneTimeOrderId ?? null] });
 
-    return this.mapTask(task, currentUser);
+    return this.taskMutationResponse(currentUser, task.id);
   }
 
   async updateTask(
     currentUser: CurrentAuthUser,
     taskId: string,
     payload: UpdateTaskDto,
-  ): Promise<TaskResponseDto> {
+  ): Promise<TaskMutationResponse> {
     const existing = await this.prisma.task.findUnique({
       where: { id: taskId },
       include: {
@@ -430,6 +468,7 @@ export class TasksService {
     if (!existing) {
       throw new NotFoundException('Task not found');
     }
+    await this.assertTaskAction(this.prisma, currentUser, taskId, 'tasks.update');
     this.assertTaskCreator(currentUser, existing);
     if (
       existing.createdByUserId !== currentUser.id &&
@@ -459,6 +498,7 @@ export class TasksService {
     if (
       object &&
       !canViewObjectByScope({
+        subject: currentUser,
         currentUserId: currentUser.id,
         roleCodes,
         object,
@@ -469,6 +509,7 @@ export class TasksService {
     if (
       order &&
       !canViewOneTimeOrderByScope({
+        subject: currentUser,
         currentUserId: currentUser.id,
         roleCodes,
         permissionCodes: currentUser.permissionCodes,
@@ -478,105 +519,110 @@ export class TasksService {
       throw new ForbiddenException('Task update denied for selected order');
     }
 
-    const requestedVisibleUserIds = Array.from(
-      new Set(
-        payload.visibleUserIds ??
-          existing.visibilityUsers.map((item) => item.userId),
-      ),
-    );
-    let visibilityType = resolveTaskVisibilityType({
-      requested: payload.visibilityType ??
-        (!payload.visibilityMode ? existing.visibilityType as TaskVisibilityType : undefined),
-      legacyMode: payload.visibilityMode,
-      hasTarget: Boolean(object || order),
-      visibleUserIds: requestedVisibleUserIds,
-    });
-    if (visibilityType === 'target_participants' && !object && !order) {
-      // Removing the last target must not leave a task accidentally public or
-      // make a legacy target-scoped task impossible to update.
-      visibilityType = 'private';
-    }
-    const visibleUserIds =
-      payload.visibleUserIds === undefined &&
-      visibilityType !== existing.visibilityType
-        ? []
-        : requestedVisibleUserIds;
-    await this.assertActiveUsers(visibleUserIds, 'task visibility users');
-    const scopeType = resolveTaskScopeType(object?.id, order?.id, visibilityType);
-    const visibilityMode =
-      visibilityType === 'target_participants' ? 'scope' : 'selected';
-    this.assertVisibilitySelection(object, order, visibilityType, visibleUserIds);
-
-    const deadline =
-      payload.dueDate !== undefined || payload.dueTime !== undefined
-        ? parseTaskDeadline({
-            dueDate: payload.dueDate,
-            dueTime: payload.dueTime,
-            timeZone: this.getAppTimeZone(),
-          })
-        : {
-            dueAt: existing.dueAt,
-            dueTimeSpecified: existing.dueTimeSpecified,
-          };
-    if (
-      !deadline.dueAt &&
-      (payload.dueDate !== undefined || payload.dueTime !== undefined)
-    ) {
-      throw new BadRequestException('Task deadline cannot be cleared');
-    }
-    const nextValues = {
-      title: payload.title ?? existing.title,
-      description:
-        payload.description !== undefined
-          ? payload.description?.trim() || null
-          : existing.description,
-      priority: payload.priority ?? existing.priority,
-      objectId,
-      oneTimeOrderId,
-      scopeType,
-      requiresConfirmation:
-        payload.requiresConfirmation ?? existing.requiresConfirmation,
-      completionRequirement:
-        payload.completionRequirement ?? existing.completionRequirement,
-      visibilityType,
-      dueAt: deadline.dueAt,
-      dueTimeSpecified: deadline.dueTimeSpecified,
-      visibilityMode,
-    };
-    const significantChange =
-      nextValues.title !== existing.title ||
-      nextValues.description !== existing.description ||
-      nextValues.objectId !== existing.objectId ||
-      nextValues.oneTimeOrderId !== existing.oneTimeOrderId ||
-      nextValues.requiresConfirmation !== existing.requiresConfirmation ||
-      nextValues.completionRequirement !== existing.completionRequirement ||
-      nextValues.dueAt?.getTime() !== existing.dueAt?.getTime();
-    const requiresReset =
-      significantChange &&
-      (existing.assignees.some(
-        (assignment) => assignment.isActive && assignment.isCompleted,
-      ) ||
-        ['awaiting_confirmation', 'pending_auto_close'].includes(
-          existing.status,
-        ));
-
-    if (requiresReset && !payload.resetCompletions) {
-      throw new ConflictException('Task update requires resetCompletions=true');
-    }
-
-    await this.prisma.$transaction(async (tx) => {
+    await this.runTaskSourceWrite(currentUser, taskId, existing.oneTimeOrderId ? null : existing.objectId, async (tx) => {
+      await this.lockTaskActorAccess(tx, currentUser);
       await this.lockTask(tx, taskId);
       const task = await this.loadTaskForLifecycle(tx, taskId);
+      await this.assertTaskAction(tx, currentUser, taskId, 'tasks.update');
       this.assertTaskCreator(currentUser, task);
       this.assertTaskMutable(task.status);
-      const lockedRequiresReset =
+      if (task.objectId !== existing.objectId || task.oneTimeOrderId !== existing.oneTimeOrderId) {
+        throw new ConflictException('Task target changed; reload before editing');
+      }
+      const [currentObject, currentOrder] = await Promise.all([
+        objectId ? this.loadTaskObject(objectId, tx) : null,
+        oneTimeOrderId ? this.loadTaskOneTimeOrder(oneTimeOrderId, tx) : null,
+      ]);
+      if (currentObject && !canViewObjectByScope({ subject: currentUser, currentUserId: currentUser.id, roleCodes, object: currentObject })) {
+        throw new ForbiddenException('Task update denied for selected object');
+      }
+      if (currentOrder && !canViewOneTimeOrderByScope({ subject: currentUser, currentUserId: currentUser.id, roleCodes, permissionCodes: currentUser.permissionCodes, order: currentOrder })) {
+        throw new ForbiddenException('Task update denied for selected order');
+      }
+      const lockedSnapshot = await tx.task.findUniqueOrThrow({ where: { id: taskId }, include: { assignees: true, visibilityUsers: true } });
+      const requestedVisibleUserIds = Array.from(
+        new Set(
+          payload.visibleUserIds ??
+            lockedSnapshot.visibilityUsers.map((item) => item.userId),
+        ),
+      );
+      let visibilityType = resolveTaskVisibilityType({
+        requested: payload.visibilityType ??
+          (!payload.visibilityMode ? lockedSnapshot.visibilityType as TaskVisibilityType : undefined),
+        legacyMode: payload.visibilityMode,
+        hasTarget: Boolean(currentObject || currentOrder),
+        visibleUserIds: requestedVisibleUserIds,
+      });
+      if (visibilityType === 'target_participants' && !currentObject && !currentOrder) {
+        // Removing the last target must not leave a task accidentally public or
+        // make a legacy target-scoped task impossible to update.
+        visibilityType = 'private';
+      }
+      const visibleUserIds =
+        payload.visibleUserIds === undefined &&
+        visibilityType !== lockedSnapshot.visibilityType
+          ? []
+          : requestedVisibleUserIds;
+      await this.assertActiveUsers(visibleUserIds, 'task visibility users', tx);
+      const scopeType = resolveTaskScopeType(currentObject?.id, currentOrder?.id, visibilityType);
+      const visibilityMode =
+        visibilityType === 'target_participants' ? 'scope' : 'selected';
+      this.assertVisibilitySelection(currentObject, currentOrder, visibilityType, visibleUserIds);
+  
+      const deadline =
+        payload.dueDate !== undefined || payload.dueTime !== undefined
+          ? parseTaskDeadline({
+              dueDate: payload.dueDate,
+              dueTime: payload.dueTime,
+              timeZone: this.getAppTimeZone(),
+            })
+          : {
+              dueAt: lockedSnapshot.dueAt,
+              dueTimeSpecified: lockedSnapshot.dueTimeSpecified,
+            };
+      if (
+        !deadline.dueAt &&
+        (payload.dueDate !== undefined || payload.dueTime !== undefined)
+      ) {
+        throw new BadRequestException('Task deadline cannot be cleared');
+      }
+      const nextValues = {
+        title: payload.title ?? lockedSnapshot.title,
+        description:
+          payload.description !== undefined
+            ? payload.description?.trim() || null
+            : lockedSnapshot.description,
+        priority: payload.priority ?? lockedSnapshot.priority,
+        objectId,
+        oneTimeOrderId,
+        scopeType,
+        requiresConfirmation:
+          payload.requiresConfirmation ?? lockedSnapshot.requiresConfirmation,
+        completionRequirement:
+          payload.completionRequirement ?? lockedSnapshot.completionRequirement,
+        visibilityType,
+        dueAt: deadline.dueAt,
+        dueTimeSpecified: deadline.dueTimeSpecified,
+        visibilityMode,
+      };
+      const significantChange =
+        nextValues.title !== lockedSnapshot.title ||
+        nextValues.description !== lockedSnapshot.description ||
+        nextValues.objectId !== lockedSnapshot.objectId ||
+        nextValues.oneTimeOrderId !== lockedSnapshot.oneTimeOrderId ||
+        nextValues.requiresConfirmation !== lockedSnapshot.requiresConfirmation ||
+        nextValues.completionRequirement !== lockedSnapshot.completionRequirement ||
+        nextValues.dueAt?.getTime() !== lockedSnapshot.dueAt?.getTime();
+      const requiresReset =
         significantChange &&
-        (task.assignees.some(
+        (lockedSnapshot.assignees.some(
           (assignment) => assignment.isActive && assignment.isCompleted,
         ) ||
           ['awaiting_confirmation', 'pending_auto_close'].includes(
-            task.status,
+            lockedSnapshot.status,
           ));
+  
+      const lockedRequiresReset = requiresReset;
 
       if (lockedRequiresReset && !payload.resetCompletions) {
         throw new ConflictException(
@@ -637,15 +683,15 @@ export class TasksService {
       }
 
       const deadlineChanged =
-        nextValues.dueAt?.getTime() !== existing.dueAt?.getTime();
+        nextValues.dueAt?.getTime() !== lockedSnapshot.dueAt?.getTime();
       if (deadlineChanged) {
         await this.notificationsService.createForRecipients(
           {
             recipientUserIds: [
-              ...existing.assignees
+              ...lockedSnapshot.assignees
                 .filter((assignee) => assignee.isActive)
                 .map((assignee) => assignee.userId),
-              existing.createdByUserId,
+              lockedSnapshot.createdByUserId,
             ].filter((userId) => userId !== currentUser.id),
             type: 'task.deadline_changed',
             title: 'Изменён срок задачи',
@@ -658,9 +704,9 @@ export class TasksService {
           tx,
         );
       }
-    });
+    }, { objectIds: [existing.objectId, objectId], orderIds: [existing.oneTimeOrderId, oneTimeOrderId] });
 
-    return this.getTaskById(currentUser, taskId);
+    return this.taskMutationResponse(currentUser, taskId);
   }
 
   async updateStatus(
@@ -668,6 +714,7 @@ export class TasksService {
     id: string,
     payload: UpdateTaskStatusDto,
   ): Promise<TaskResponseDto> {
+    await this.assertTaskAction(this.prisma, currentUser, id, 'tasks.status');
     if (payload.status !== 'in_progress') {
       throw new ForbiddenException(
         'Use the dedicated task lifecycle endpoint for this transition',
@@ -681,19 +728,22 @@ export class TasksService {
     currentUser: CurrentAuthUser,
     id: string,
     payload: SubmitTaskResultDto,
-  ): Promise<TaskResponseDto> {
+  ): Promise<TaskMutationResponse> {
+    await this.assertTaskAction(this.prisma, currentUser, id, 'tasks.result.submit');
     return this.completeMyAssignment(currentUser, id, {
       completionText: payload.resultText,
-    });
+    }, 'tasks.result.submit');
   }
 
   async createCompletionDraft(
     currentUser: CurrentAuthUser,
     taskId: string,
-  ): Promise<{ id: string; workCycle: number }> {
-    return this.prisma.$transaction(async (tx) => {
+  ): Promise<{ id: string; workCycle: number } | SavedWithoutAccess> {
+    const saved = await this.runExistingTaskWrite(currentUser, taskId, async (tx) => {
       await this.lockTask(tx, taskId);
       const task = await this.loadTaskForLifecycle(tx, taskId);
+      await this.assertTaskAction(tx, currentUser, taskId, 'tasks.read');
+      await this.assertTaskAction(tx, currentUser, taskId, 'tasks.completion.draft');
       const assignment = this.getCurrentAssignment(task, currentUser.id);
 
       this.assertTaskInProgress(task.status);
@@ -724,16 +774,36 @@ export class TasksService {
 
       return { id: completion.id, workCycle: task.workCycle };
     });
+    return this.projectCommittedTask(currentUser, async (actor) => {
+      await this.assertTaskAction(this.prisma, actor, taskId, 'tasks.completion.draft');
+      const current = await this.prisma.taskAssigneeCompletion.findFirst({
+        where: {
+          id: saved.id, status: 'draft', workCycle: saved.workCycle,
+          taskAssignee: {
+            taskId, userId: actor.id, isActive: true, isCompleted: false,
+            task: { status: 'in_progress', workCycle: saved.workCycle },
+          },
+        },
+        select: { id: true },
+      });
+      if (!current) throw new ForbiddenException('Доступ к черновику изменился');
+      return saved;
+    });
   }
 
   async completeMyAssignment(
     currentUser: CurrentAuthUser,
     taskId: string,
     payload: CompleteTaskAssignmentDto,
-  ): Promise<TaskResponseDto> {
-    const result = await this.prisma.$transaction(async (tx) => {
+    compatibilityAction?: 'tasks.result.submit',
+  ): Promise<TaskMutationResponse> {
+    const result = await this.runExistingTaskWrite(currentUser, taskId, async (tx) => {
       await this.lockTask(tx, taskId);
       const task = await this.loadTaskForLifecycle(tx, taskId);
+      await this.assertTaskAction(tx, currentUser, taskId, 'tasks.read');
+      // /result is an internal adapter, not permission to skip either leaf.
+      if (compatibilityAction) await this.assertTaskAction(tx, currentUser, taskId, compatibilityAction);
+      await this.assertTaskAction(tx, currentUser, taskId, 'tasks.completion.submit');
       const assignment = this.getCurrentAssignment(task, currentUser.id);
 
       this.assertTaskInProgress(task.status);
@@ -869,16 +939,17 @@ export class TasksService {
       );
     }
 
-    return this.getTaskById(currentUser, taskId);
+    return this.taskMutationResponse(currentUser, taskId);
   }
 
   async undoMyCompletion(
     currentUser: CurrentAuthUser,
     taskId: string,
-  ): Promise<TaskResponseDto> {
-    await this.prisma.$transaction(async (tx) => {
+  ): Promise<TaskMutationResponse> {
+    await this.runExistingTaskWrite(currentUser, taskId, async (tx) => {
       await this.lockTask(tx, taskId);
       const task = await this.loadTaskForLifecycle(tx, taskId);
+      await this.assertTaskAction(tx, currentUser, taskId, 'tasks.completion.undo');
       const assignment = this.getCurrentAssignment(task, currentUser.id);
 
       if (['completed', 'cancelled'].includes(task.status)) {
@@ -924,40 +995,40 @@ export class TasksService {
       );
     });
 
-    return this.getTaskById(currentUser, taskId);
+    return this.taskMutationResponse(currentUser, taskId);
   }
 
   async confirmTask(
     currentUser: CurrentAuthUser,
     taskId: string,
-  ): Promise<TaskResponseDto> {
+  ): Promise<TaskMutationResponse> {
     await this.completeTaskByActor(
       currentUser,
       taskId,
       'awaiting_confirmation',
       'task.confirmed',
     );
-    return this.getTaskById(currentUser, taskId);
+    return this.taskMutationResponse(currentUser, taskId);
   }
 
   async completeTaskNow(
     currentUser: CurrentAuthUser,
     taskId: string,
-  ): Promise<TaskResponseDto> {
+  ): Promise<TaskMutationResponse> {
     await this.completeTaskByActor(
       currentUser,
       taskId,
       'pending_auto_close',
       'task.completed_manually',
     );
-    return this.getTaskById(currentUser, taskId);
+    return this.taskMutationResponse(currentUser, taskId);
   }
 
   async returnTaskToWork(
     currentUser: CurrentAuthUser,
     taskId: string,
     payload: TaskReasonDto,
-  ): Promise<TaskResponseDto> {
+  ): Promise<TaskMutationResponse> {
     await this.resetTaskByActor(
       currentUser,
       taskId,
@@ -965,14 +1036,14 @@ export class TasksService {
       payload.reason,
       'task.returned_to_work',
     );
-    return this.getTaskById(currentUser, taskId);
+    return this.taskMutationResponse(currentUser, taskId);
   }
 
   async reopenTask(
     currentUser: CurrentAuthUser,
     taskId: string,
     payload: TaskReasonDto,
-  ): Promise<TaskResponseDto> {
+  ): Promise<TaskMutationResponse> {
     await this.resetTaskByActor(
       currentUser,
       taskId,
@@ -980,20 +1051,21 @@ export class TasksService {
       payload.reason,
       'task.reopened',
     );
-    return this.getTaskById(currentUser, taskId);
+    return this.taskMutationResponse(currentUser, taskId);
   }
 
   async cancelTask(
     currentUser: CurrentAuthUser,
     taskId: string,
     payload: TaskReasonDto,
-  ): Promise<TaskResponseDto> {
+  ): Promise<TaskMutationResponse> {
     const reason = this.normalizeReason(payload.reason);
 
-    await this.prisma.$transaction(async (tx) => {
+    await this.runExistingTaskWrite(currentUser, taskId, async (tx) => {
       await this.lockTask(tx, taskId);
       const task = await this.loadTaskForLifecycle(tx, taskId);
-      this.assertLifecycleManager(currentUser, task);
+      await this.assertTaskAction(tx, currentUser, taskId, 'tasks.cancel');
+      this.assertLifecycleManager(currentUser, task, 'tasks.cancel');
       if (
         ![
           'in_progress',
@@ -1030,21 +1102,23 @@ export class TasksService {
       );
     });
 
-    return this.getTaskById(currentUser, taskId);
+    return this.taskMutationResponse(currentUser, taskId);
   }
 
   async addAssignees(
     currentUser: CurrentAuthUser,
     taskId: string,
     payload: AddTaskAssigneesDto,
-  ): Promise<TaskResponseDto> {
+  ): Promise<TaskMutationResponse> {
     const userIds = this.normalizeRequiredAssigneeUserIds(payload.userIds);
     await this.assertActiveUsers(userIds, 'task assignees');
 
-    await this.prisma.$transaction(async (tx) => {
+    await this.runExistingTaskWrite(currentUser, taskId, async (tx) => {
+      await this.lockTaskActorAccess(tx, currentUser);
       await this.lockTask(tx, taskId);
       const task = await this.loadTaskForLifecycle(tx, taskId);
-      this.assertTaskCreator(currentUser, task);
+      await this.assertTaskAction(tx, currentUser, taskId, 'tasks.assignees.manage');
+      this.assertTaskCreator(currentUser, task, 'tasks.assignees.manage');
       this.assertTaskMutable(task.status);
 
       for (const userId of userIds) {
@@ -1102,18 +1176,20 @@ export class TasksService {
       await this.cancelPendingTaskApproval(tx, task.id, currentUser.id);
     });
 
-    return this.getTaskById(currentUser, taskId);
+    return this.taskMutationResponse(currentUser, taskId);
   }
 
   async removeAssignee(
     currentUser: CurrentAuthUser,
     taskId: string,
     userId: string,
-  ): Promise<TaskResponseDto> {
-    const result = await this.prisma.$transaction(async (tx) => {
+  ): Promise<TaskMutationResponse> {
+    const result = await this.runExistingTaskWrite(currentUser, taskId, async (tx) => {
+      await this.lockTaskActorAccess(tx, currentUser);
       await this.lockTask(tx, taskId);
       const task = await this.loadTaskForLifecycle(tx, taskId);
-      this.assertTaskCreator(currentUser, task);
+      await this.assertTaskAction(tx, currentUser, taskId, 'tasks.assignees.manage');
+      this.assertTaskCreator(currentUser, task, 'tasks.assignees.manage');
       this.assertTaskMutable(task.status);
       const activeAssignees = task.assignees.filter((item) => item.isActive);
       const assignment = activeAssignees.find((item) => item.userId === userId);
@@ -1163,7 +1239,7 @@ export class TasksService {
       );
     }
 
-    return this.getTaskById(currentUser, taskId);
+    return this.taskMutationResponse(currentUser, taskId);
   }
 
   async listTaskHistory(
@@ -1171,6 +1247,7 @@ export class TasksService {
     taskId: string,
   ): Promise<TaskHistoryEventResponseDto[]> {
     await this.getTaskById(currentUser, taskId);
+    await this.assertTaskAction(this.prisma, currentUser, taskId, 'tasks.history');
     const events = await this.prisma.taskHistoryEvent.findMany({
       where: { taskId },
       include: { actor: true },
@@ -1207,6 +1284,7 @@ export class TasksService {
     if (!readableTask) {
       throw new NotFoundException('Task not found');
     }
+    await this.assertTaskAction(this.prisma, currentUser, taskId, 'tasks.history');
 
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
@@ -1249,38 +1327,7 @@ export class TasksService {
       this.prisma.taskAssigneeCompletion.count({ where }),
     ]);
     const completionIds = completions.map((completion) => completion.id);
-    const attachmentRows = completionIds.length
-      ? await this.prisma.fileAttachment.findMany({
-          where: {
-            entityType: 'task_assignee_completion',
-            entityId: { in: completionIds },
-            file: { deletedAt: null },
-          },
-          select: {
-            entityId: true,
-            file: {
-              select: {
-                id: true,
-                originalName: true,
-                mimeType: true,
-                sizeBytes: true,
-                createdAt: true,
-              },
-            },
-          },
-          orderBy: { createdAt: 'asc' },
-        })
-      : [];
-    const attachmentsByCompletion = new Map<
-      string,
-      TaskCompletionAttachmentDto[]
-    >();
-
-    for (const row of attachmentRows) {
-      const attachments = attachmentsByCompletion.get(row.entityId) ?? [];
-      attachments.push(mapSafeFileResponse(row.file));
-      attachmentsByCompletion.set(row.entityId, attachments);
-    }
+    const attachmentsByCompletion = await this.loadCompletionFiles(currentUser, taskId, completionIds);
 
     return {
       items: completions.map((completion) => ({
@@ -1344,10 +1391,12 @@ export class TasksService {
     expectedStatus: 'awaiting_confirmation' | 'pending_auto_close',
     eventType: string,
   ): Promise<void> {
-    await this.prisma.$transaction(async (tx) => {
+    await this.runExistingTaskWrite(currentUser, taskId, async (tx) => {
       await this.lockTask(tx, taskId);
       const task = await this.loadTaskForLifecycle(tx, taskId);
-      this.assertLifecycleManager(currentUser, task);
+      await this.assertTaskAction(tx, currentUser, taskId, 'tasks.read');
+      this.assertLifecycleManager(currentUser, task, expectedStatus === 'awaiting_confirmation' ? 'tasks.confirm' : 'tasks.complete_now');
+      await this.assertTaskAction(tx, currentUser, taskId, expectedStatus === 'awaiting_confirmation' ? 'tasks.confirm' : 'tasks.complete_now');
       if (task.status !== expectedStatus) {
         throw new ConflictException('Task is not ready for completion');
       }
@@ -1411,10 +1460,13 @@ export class TasksService {
   ): Promise<void> {
     const reason = this.normalizeReason(rawReason);
 
-    await this.prisma.$transaction(async (tx) => {
+    await this.runExistingTaskWrite(currentUser, taskId, async (tx) => {
       await this.lockTask(tx, taskId);
       const task = await this.loadTaskForLifecycle(tx, taskId);
-      this.assertLifecycleManager(currentUser, task);
+      await this.assertTaskAction(tx, currentUser, taskId, 'tasks.read');
+      const actionCode = eventType === 'task.reopened' ? 'tasks.reopen' : 'tasks.return';
+      this.assertLifecycleManager(currentUser, task, actionCode);
+      await this.assertTaskAction(tx, currentUser, taskId, actionCode);
       if (!allowedStatuses.includes(task.status)) {
         throw new ConflictException(
           'Task cannot return to work from this status',
@@ -1695,11 +1747,106 @@ export class TasksService {
     });
   }
 
+  private taskActionWhere(user: CurrentAuthUser, code: string): Prisma.TaskWhereInput {
+    return { AND: [this.buildTaskAccessWhere(user, code), taskPolicyWhere(user, {}, code)] };
+  }
+
+  private async assertTaskAction(client: Pick<PrismaService, 'task'>, user: CurrentAuthUser, taskId: string, code: string): Promise<void> {
+    const actionWhere = this.taskActionWhere(user, code);
+    // A leaf grant never supplies task read. Check the current read predicate
+    // on the caller's client (including its transaction), before any mutation.
+    const where = code === 'tasks.read' ? actionWhere : { AND: [this.buildTaskAccessWhere(user), actionWhere] };
+    const row = await client.task.findFirst({ where: { AND: [{ id: taskId }, where] }, select: { id: true } });
+    if (!row) throw new ForbiddenException('Task action denied for this resource');
+  }
+
   private async lockTask(
     tx: Prisma.TransactionClient,
     taskId: string,
   ): Promise<void> {
     await tx.$queryRaw`SELECT "id" FROM "tasks" WHERE "id" = ${taskId} FOR UPDATE`;
+  }
+
+  private lockTaskActorAccess(tx: Prisma.TransactionClient, user: CurrentAuthUser): Promise<void> {
+    return lockActorAccessRevision(tx, user);
+  }
+
+  private async runExistingTaskWrite<T>(
+    user: CurrentAuthUser,
+    taskId: string,
+    write: (tx: Prisma.TransactionClient) => Promise<T>,
+  ): Promise<T> {
+    const source = await this.prisma.task.findUnique({ where: { id: taskId }, select: { objectId: true, oneTimeOrderId: true } });
+    if (!source) throw new NotFoundException('Task not found');
+    return this.runTaskSourceWrite(user, taskId, source.oneTimeOrderId ? null : source.objectId, async (tx) => {
+      const current = await tx.task.findUnique({ where: { id: taskId }, select: { objectId: true, oneTimeOrderId: true } });
+      if (!current || current.objectId !== source.objectId || current.oneTimeOrderId !== source.oneTimeOrderId) {
+        throw new ConflictException('Task target changed; reload before editing');
+      }
+      return write(tx);
+    }, { objectIds: [source.objectId], orderIds: [source.oneTimeOrderId] });
+  }
+
+  private async runTaskSourceWrite<T>(
+    user: CurrentAuthUser,
+    taskId: string | null,
+    objectId: string | null,
+    write: (tx: Prisma.TransactionClient) => Promise<T>,
+    targets?: { objectIds: Array<string | null>; orderIds: Array<string | null> },
+  ): Promise<T> {
+    const outer = objectDelegationContext.getStore();
+    const original = outer?.actorUserId === user.id && objectId
+      ? outer.grants.filter((grant) => grant.objectId === objectId) : [];
+    const sourceIds = [...new Set(original.map((grant) => grant.substitutionId))].sort();
+    const principalIds = [...new Set(original.map((grant) => grant.principalUserId))].sort();
+    const used = new Map<string, ObjectDelegationGrant>();
+    const saved = await this.prisma.$transaction(async (tx) => {
+      const parentKeys = [...new Set([
+        ...[objectId, ...(targets?.objectIds ?? [])].filter((id): id is string => Boolean(id)).map((id) => `object:${id}`),
+        ...(targets?.orderIds ?? []).filter((id): id is string => Boolean(id)).map((id) => `order:${id}`),
+      ])].sort();
+      for (const key of parentKeys) {
+        const [kind, id] = key.split(':');
+        if (kind === 'object') await tx.$queryRaw`SELECT "id" FROM "objects" WHERE "id" = ${id} FOR SHARE`;
+        else await tx.$queryRaw`SELECT "id" FROM "one_time_orders" WHERE "id" = ${id} FOR SHARE`;
+      }
+      if (taskId) await this.lockTask(tx, taskId);
+      await this.lockTaskActorAccess(tx, user);
+      if (principalIds.length) await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "users" WHERE "id" IN (${Prisma.join(principalIds)}) ORDER BY "id" FOR SHARE`);
+      if (sourceIds.length) {
+        await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "user_substitutions" WHERE "id" IN (${Prisma.join(sourceIds)}) ORDER BY "id" FOR SHARE`);
+        await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "user_substitution_objects" WHERE "objectId" = ${objectId} AND "substitutionId" IN (${Prisma.join(sourceIds)}) ORDER BY "id" FOR SHARE`);
+        await tx.$queryRaw`SELECT "id" FROM "object_assignments" WHERE "objectId" = ${objectId} AND "isActive" = true ORDER BY "id" FOR SHARE`;
+      }
+      const grants = sourceIds.length
+        ? (await resolveObjectDelegationGrants(tx, user.id)).filter((grant) => grant.objectId === objectId && sourceIds.includes(grant.substitutionId)) : [];
+      return objectDelegationContext.run({ actorUserId: user.id, grants, used }, () => write(tx));
+    });
+    if (outer?.actorUserId === user.id && objectId) {
+      for (const [key, grant] of outer.used) if (grant.objectId === objectId) outer.used.delete(key);
+      for (const [key, grant] of used) outer.used.set(key, grant);
+    }
+    return saved;
+  }
+
+  private taskMutationResponse(user: CurrentAuthUser, id: string): Promise<TaskMutationResponse> {
+    return this.projectCommittedTask(user, (actor) => this.getTaskById(actor, id));
+  }
+
+  private projectCommittedTask<T>(
+    user: CurrentAuthUser,
+    project: (actor: CurrentAuthUser) => Promise<T>,
+  ): Promise<T | SavedWithoutAccess> {
+    return projectCommittedWrite(this.prisma, user, async () => {
+      const subject = await loadAccessSubject(this.prisma, user.id);
+      if (!subject?.isActive) throw new ForbiddenException('Доступ к задаче изменился');
+      const actor: CurrentAuthUser = {
+        ...user, ...subject, isActive: true, roleCode: subject.roleCodes?.[0] ?? '',
+        roleCodes: [...(subject.roleCodes ?? [])], permissionCodes: [...(subject.permissionCodes ?? [])],
+      };
+      const grants = await resolveObjectDelegationGrants(this.prisma, actor.id);
+      return objectDelegationContext.run({ actorUserId: actor.id, grants, used: new Map() }, () => project(actor));
+    });
   }
 
   private async loadTaskForLifecycle(
@@ -1812,37 +1959,14 @@ export class TasksService {
     }
   }
 
-  private assertTaskCreator(
-    currentUser: CurrentAuthUser,
-    task: {
-      createdByUserId: string;
-      objectId: string | null;
-      oneTimeOrderId: string | null;
-    },
-  ): void {
-    if (
-      task.createdByUserId !== currentUser.id &&
-      !hasDelegatedTaskAction(currentUser.id, task, 'creator')
-    ) {
-      throw new ForbiddenException('Only task creator can change task body');
-    }
+  private assertTaskCreator(currentUser: CurrentAuthUser, task: { id: string; createdByUserId: string; objectId: string | null; oneTimeOrderId: string | null; assignees?: Array<{ userId: string; isActive: boolean }> }, code = 'tasks.update'): void {
+    const legacy = task.createdByUserId === currentUser.id || hasDelegatedTaskAction(currentUser.id, task, 'creator', true, code);
+    if (!decideAccess(currentUser, code, legacy, { resourceType: 'task', resourceId: task.id, ownerUserId: task.createdByUserId, assignedUserIds: task.assignees?.filter(a => a.isActive).map(a => a.userId) })) throw new ForbiddenException('Task author action denied');
   }
 
-  private assertLifecycleManager(
-    currentUser: CurrentAuthUser,
-    task: {
-      createdByUserId: string;
-      objectId: string | null;
-      oneTimeOrderId: string | null;
-    },
-  ): void {
-    if (
-      task.createdByUserId !== currentUser.id &&
-      !hasWideTaskAccess(this.getRoleCodes(currentUser)) &&
-      !hasDelegatedTaskAction(currentUser.id, task, 'lifecycle')
-    ) {
-      throw new ForbiddenException('Task lifecycle action denied');
-    }
+  private assertLifecycleManager(currentUser: CurrentAuthUser, task: { id: string; createdByUserId: string; objectId: string | null; oneTimeOrderId: string | null; assignees?: Array<{ userId: string; isActive: boolean }> }, code: string): void {
+    const legacy = task.createdByUserId === currentUser.id || hasWideTaskAccess(this.getRoleCodes(currentUser)) || hasDelegatedTaskAction(currentUser.id, task, 'lifecycle', true, code);
+    if (!decideAccess(currentUser, code, legacy, { resourceType: 'task', resourceId: task.id, ownerUserId: task.createdByUserId, assignedUserIds: task.assignees?.filter(a => a.isActive).map(a => a.userId) })) throw new ForbiddenException('Task lifecycle action denied');
   }
 
   private assertTaskMutable(status: string): void {
@@ -2005,27 +2129,13 @@ export class TasksService {
 
   private buildTaskAccessWhere(
     currentUser: CurrentAuthUser,
+    policyActionCode = 'tasks.read',
   ): Prisma.TaskWhereInput {
-    return {
-      AND: [
-        buildTaskAccessWhere({
-          currentUserId: currentUser.id,
-          roleCodes: this.getRoleCodes(currentUser),
-        }),
-        {
-          OR: [
-            { oneTimeOrderId: null },
-            {
-              oneTimeOrder: buildOneTimeOrderAccessWhere({
-                currentUserId: currentUser.id,
-                roleCodes: this.getRoleCodes(currentUser),
-                permissionCodes: currentUser.permissionCodes,
-              }),
-            },
-          ],
-        },
-      ],
-    };
+    return taskVisibilityWhere(currentUser, buildTaskAccessWhere({
+      policyActionCode,
+      currentUserId: currentUser.id,
+      roleCodes: this.getRoleCodes(currentUser),
+    }), policyActionCode);
   }
 
   private buildTaskListWhere(
@@ -2125,12 +2235,13 @@ export class TasksService {
   private async assertActiveUsers(
     userIds: string[],
     label: string,
+    database: Pick<Prisma.TransactionClient, 'user'> = this.prisma,
   ): Promise<void> {
     if (userIds.length === 0) {
       return;
     }
 
-    const usersCount = await this.prisma.user.count({
+    const usersCount = await database.user.count({
       where: {
         id: {
           in: userIds,
@@ -2159,8 +2270,8 @@ export class TasksService {
     return userIds;
   }
 
-  private async loadTaskObject(objectId: string) {
-    const object = await this.prisma.object.findFirst({
+  private async loadTaskObject(objectId: string, db: Pick<PrismaService, 'object'> = this.prisma) {
+    const object = await db.object.findFirst({
       where: {
         id: objectId,
         deletedAt: null,
@@ -2188,8 +2299,8 @@ export class TasksService {
     return object;
   }
 
-  private async loadTaskOneTimeOrder(oneTimeOrderId: string) {
-    const order = await this.prisma.oneTimeOrder.findUnique({
+  private async loadTaskOneTimeOrder(oneTimeOrderId: string, db: Pick<PrismaService, 'oneTimeOrder'> = this.prisma) {
+    const order = await db.oneTimeOrder.findUnique({
       where: { id: oneTimeOrderId },
       select: {
         id: true,
@@ -2215,15 +2326,32 @@ export class TasksService {
     return order;
   }
 
+  private async mapTasksWithDraftCapability(tasks: TaskView[], currentUser: CurrentAuthUser): Promise<TaskResponseDto[]> {
+    const eligibleIds = tasks.filter(task => task.status === 'in_progress' &&
+      task.assignees.some(assignee => assignee.user.id === currentUser.id && assignee.isActive && !assignee.isCompleted))
+      .map(task => task.id);
+    // Reuse the draft endpoint's full visibility/action predicate, including
+    // real parent scope, and its assignment/lifecycle checks. Batch, not N+1.
+    const allowed = eligibleIds.length ? await this.prisma.task.findMany({
+      where: { AND: [
+        { id: { in: eligibleIds }, status: 'in_progress', assignees: { some: { userId: currentUser.id, isActive: true, isCompleted: false } } },
+        this.taskActionWhere(currentUser, 'tasks.completion.draft'),
+      ] },
+      select: { id: true },
+    }) : [];
+    const allowedIds = new Set(allowed.map(task => task.id));
+    return tasks.map(task => this.mapTask(task, currentUser, allowedIds.has(task.id)));
+  }
+
   private mapTask(
     task: TaskView,
     currentUser: CurrentAuthUser,
+    canCreateCompletionDraft = false,
   ): TaskResponseDto {
     const roleCodes = this.getRoleCodes(currentUser);
     const isWideAccess = hasWideTaskAccess(roleCodes);
-    const isCreator =
-      task.createdBy.id === currentUser.id ||
-      hasDelegatedTaskAction(currentUser.id, task, 'creator', false);
+    const creatorFor = (code: string) => task.createdBy.id === currentUser.id || hasDelegatedTaskAction(currentUser.id, task, 'creator', false, code);
+    const managerFor = (code: string) => task.createdBy.id === currentUser.id || isWideAccess || hasDelegatedTaskAction(currentUser.id, task, 'lifecycle', false, code);
     const myAssignment = task.assignees.find(
       (assignee) => assignee.user.id === currentUser.id && assignee.isActive,
     );
@@ -2249,10 +2377,7 @@ export class TasksService {
     const isTerminal = ['completed', 'cancelled', 'closed'].includes(
       task.status,
     );
-    const isLifecycleManager =
-      isCreator ||
-      isWideAccess ||
-      hasDelegatedTaskAction(currentUser.id, task, 'lifecycle', false);
+
     const canCompleteMyAssignment = Boolean(
       myAssignment &&
       !myAssignment.isCompleted &&
@@ -2260,6 +2385,7 @@ export class TasksService {
     );
     const responseStatus = task.status === 'closed' ? 'completed' : task.status;
 
+    const action = (code: string, legacy: boolean) => decideAccess(currentUser, code, legacy, { resourceType: 'task', resourceId: task.id, ownerUserId: task.createdBy.id, assignedUserIds: activeAssignees.map(a => a.user.id) });
     return {
       id: task.id,
       title: task.title,
@@ -2379,44 +2505,44 @@ export class TasksService {
           })()
         : null,
       capabilities: {
-        canSubmitResult: canCompleteMyAssignment,
+        canSubmitResult: canCompleteMyAssignment && action('tasks.result.submit', true),
         allowedStatusTransitions,
-        canEdit: isCreator && !isTerminal,
-        canManageAssignees: isCreator && !isTerminal,
-        canCompleteMyAssignment,
-        canUndoMyCompletion: Boolean(myAssignment?.isCompleted && !isTerminal),
+        canEdit: !isTerminal && action('tasks.update', creatorFor('tasks.update')),
+        canManageAssignees: !isTerminal && action('tasks.assignees.manage', creatorFor('tasks.assignees.manage')),
+        canCompleteMyAssignment: canCompleteMyAssignment && action('tasks.completion.submit', true),
+        canCreateCompletionDraft: canCompleteMyAssignment && canCreateCompletionDraft,
+        canUndoMyCompletion: Boolean(myAssignment?.isCompleted && !isTerminal) && action('tasks.completion.undo', true),
         canConfirm:
-          isLifecycleManager && task.status === 'awaiting_confirmation',
+          action('tasks.confirm', managerFor('tasks.confirm')) && task.status === 'awaiting_confirmation',
         canCompleteNow:
-          isLifecycleManager && task.status === 'pending_auto_close',
+          action('tasks.complete_now', managerFor('tasks.complete_now')) && task.status === 'pending_auto_close',
         canReturnToWork:
-          isLifecycleManager &&
+          action('tasks.return', managerFor('tasks.return')) &&
           ['awaiting_confirmation', 'pending_auto_close'].includes(task.status),
-        canReopen: isLifecycleManager && task.status === 'completed',
+        canReopen: task.status === 'completed' && action('tasks.reopen', managerFor('tasks.reopen')),
         canCancel:
-          isLifecycleManager &&
+          action('tasks.cancel', managerFor('tasks.cancel')) &&
           [
             'in_progress',
             'awaiting_confirmation',
             'pending_auto_close',
           ].includes(task.status),
-        canViewHistory: true,
+        canViewHistory: action('tasks.history', true),
       },
     };
   }
 
-  private async attachCompletionFiles(
-    task: TaskResponseDto,
-  ): Promise<TaskResponseDto> {
-    const completionIds = task.assignees
-      .map((assignee) => assignee.currentCompletion?.id)
-      .filter((id): id is string => Boolean(id));
-
-    if (completionIds.length === 0) {
-      return task;
-    }
-
-    const attachments = await this.prisma.fileAttachment.findMany({
+  private async loadCompletionFiles(
+    currentUser: CurrentAuthUser,
+    taskId: string,
+    completionIds: string[],
+  ): Promise<Map<string, TaskCompletionAttachmentDto[]>> {
+    const filesByCompletion = new Map<string, TaskCompletionAttachmentDto[]>();
+    if (completionIds.length === 0) return filesByCompletion;
+    // All ids were selected from this task's assignees/page. Canonical nested
+    // completion resolution leads to the same task target; resolve it once per
+    // batch, not once per completion/file, retaining real parent assignments.
+    const [attachments, target] = await Promise.all([this.prisma.fileAttachment.findMany({
       where: {
         entityType: 'task_assignee_completion',
         entityId: { in: completionIds },
@@ -2431,18 +2557,37 @@ export class TasksService {
             mimeType: true,
             sizeBytes: true,
             createdAt: true,
+            uploadedByUserId: true,
           },
         },
       },
       orderBy: { createdAt: 'asc' },
-    });
-    const filesByCompletion = new Map<string, TaskCompletionAttachmentDto[]>();
+    }), resourceAccessTarget(this.prisma, 'task', taskId)]);
+    if (!target) return filesByCompletion;
 
     for (const attachment of attachments) {
+      if (!decideAccess(currentUser, 'files.read', true, {
+        resourceType: 'file', resourceId: attachment.file.id,
+        ownerUserId: attachment.file.uploadedByUserId ?? undefined,
+        assignedUserIds: target.context.assignedUserIds,
+        parents: [target],
+      })) continue;
       const files = filesByCompletion.get(attachment.entityId) ?? [];
       files.push(mapSafeFileResponse(attachment.file));
       filesByCompletion.set(attachment.entityId, files);
     }
+    return filesByCompletion;
+  }
+
+  private async attachCompletionFiles(
+    task: TaskResponseDto,
+    currentUser: CurrentAuthUser,
+  ): Promise<TaskResponseDto> {
+    const completionIds = task.assignees
+      .map((assignee) => assignee.currentCompletion?.id)
+      .filter((id): id is string => Boolean(id));
+    if (completionIds.length === 0) return task;
+    const filesByCompletion = await this.loadCompletionFiles(currentUser, task.id, completionIds);
 
     for (const assignee of task.assignees) {
       if (assignee.currentCompletion) {

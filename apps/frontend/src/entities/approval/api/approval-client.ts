@@ -1,4 +1,6 @@
-import { fetcher } from '@/shared/api/fetcher';
+import { fetcher, postCommittedWrite } from '@/shared/api/fetcher';
+
+import type { SavedWithoutAccess } from '@/shared/api/saved-without-access';
 
 import type {
   ApprovalRequestPage,
@@ -46,9 +48,8 @@ export async function listApprovalRequestsPage(
 export async function approveApprovalRequest(
   id: string,
   comment?: string,
-): Promise<ApprovalRequestItem> {
-  return fetcher<ApprovalRequestItem>(`/approvals/${id}/approve`, {
-    method: 'POST',
+): Promise<ApprovalRequestItem | SavedWithoutAccess> {
+  return postCommittedWrite<ApprovalRequestItem>(`/approvals/${id}/approve`, {
     body: JSON.stringify(comment?.trim() ? { comment } : {}),
   });
 }
@@ -56,9 +57,8 @@ export async function approveApprovalRequest(
 export async function rejectApprovalRequest(
   id: string,
   comment: string,
-): Promise<ApprovalRequestItem> {
-  return fetcher<ApprovalRequestItem>(`/approvals/${id}/reject`, {
-    method: 'POST',
+): Promise<ApprovalRequestItem | SavedWithoutAccess> {
+  return postCommittedWrite<ApprovalRequestItem>(`/approvals/${id}/reject`, {
     body: JSON.stringify({ comment }),
   });
 }
@@ -66,9 +66,8 @@ export async function rejectApprovalRequest(
 export async function cancelApprovalRequest(
   id: string,
   comment?: string,
-): Promise<ApprovalRequestItem> {
-  return fetcher<ApprovalRequestItem>(`/approvals/${id}/cancel`, {
-    method: 'POST',
+): Promise<ApprovalRequestItem | SavedWithoutAccess> {
+  return postCommittedWrite<ApprovalRequestItem>(`/approvals/${id}/cancel`, {
     body: JSON.stringify(comment?.trim() ? { comment } : {}),
   });
 }

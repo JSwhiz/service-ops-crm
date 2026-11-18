@@ -69,10 +69,17 @@ export function TimesheetCellEditor({
   const date = `${year}-${String(month).padStart(2, '0')}-${String(dayOfMonth).padStart(2, '0')}`;
   const canDirectEdit = canDirectEditCapability && date === moscowToday();
   const requiresRetroApproval = date < moscowToday();
-  const canRestore = isChangedManually && finalValue !== autoValue && (canDirectEdit || requiresRetroApproval && canDirectEditCapability);
-  const canOfferCorrection = isEditableDate && (canDirectEditCapability || canRequestCorrection);
+  const canRestore = isChangedManually && finalValue !== autoValue && (canDirectEdit || requiresRetroApproval && canRequestCorrection);
+  const canOfferCorrection = isEditableDate && (canDirectEdit || canRequestCorrection);
   const retryBlocked = isCellCorrectionRetryBlocked(pendingRequest, blockedAtRevision, dataRevision);
   const canMutate = canOfferCorrection && !mutationsBlocked && !retryBlocked;
+
+  useEffect(() => {
+    if (blockedAtRevision === null || dataRevision <= blockedAtRevision || mutationsBlocked) return;
+    // A fresh read replaces the old rejection; retain the user's amount/reason.
+    setMessage(null);
+    setBlockedAtRevision(null);
+  }, [blockedAtRevision, dataRevision, mutationsBlocked]);
 
   useEffect(() => {
     if (!open) return;

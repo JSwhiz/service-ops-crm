@@ -8,6 +8,7 @@ datasource db {
 }
 
 model User {
+  webPushSubscriptions WebPushSubscription[]
   id           String    @id @default(uuid())
   login        String    @unique
   passwordHash String?
@@ -16,6 +17,12 @@ model User {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
   deletedAt    DateTime?
+  accessVersion Int @default(0)
+  accessRules UserAccessRule[]
+  accessHistory UserAccessAudit[] @relation("AccessAuditTarget")
+  authoredAccessHistory UserAccessAudit[] @relation("AccessAuditActor")
+  accessPreviews UserAccessPreview[] @relation("AccessPreviewTarget")
+  authoredAccessPreviews UserAccessPreview[] @relation("AccessPreviewActor")
   visitPlans ManagerVisitPlan[] @relation("ManagerVisitPlanManager")
   createdVisitPlans ManagerVisitPlan[] @relation("ManagerVisitPlanCreator")
   createdVisitPlanEntries ManagerVisitPlanEntry[] @relation("ManagerVisitPlanEntryCreator")
@@ -123,6 +130,58 @@ model User {
   notifications                              Notification[]                    @relation("NotificationRecipient")
 
   @@map("users")
+}
+
+model UserAccessRule {
+  id String @id @default(uuid())
+  userId String
+  actionCode String
+  effect String
+  scope String
+  selectedIds String[] @default([])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+  @@unique([userId, actionCode])
+  @@index([actionCode])
+  @@map("user_access_rules")
+}
+
+model UserAccessAudit {
+  id String @id @default(uuid())
+  userId String
+  actorUserId String
+  versionBefore Int
+  versionAfter Int
+  reason String
+  before Json
+  after Json
+  changes Json
+  previewHash String
+  createdAt DateTime @default(now())
+  user User @relation("AccessAuditTarget", fields: [userId], references: [id], onDelete: Restrict)
+  actor User @relation("AccessAuditActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+  @@unique([userId, versionAfter])
+  @@index([userId, createdAt])
+  @@map("user_access_audit")
+}
+
+model UserAccessPreview {
+  id String @id @default(uuid())
+  userId String
+  actorUserId String
+  tokenHash String @unique
+  previewHash String
+  expectedVersion Int
+  baseHash String
+  payload Json
+  expiresAt DateTime
+  usedAt DateTime?
+  createdAt DateTime @default(now())
+  user User @relation("AccessPreviewTarget", fields: [userId], references: [id], onDelete: Restrict)
+  actor User @relation("AccessPreviewActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+  @@index([userId, expiresAt])
+  @@map("user_access_previews")
 }
 
 model Role {
@@ -315,6 +374,7 @@ model ChatRoom {
 }
 
 model ChatRoomParticipant {
+  membershipOverride String?
   id         String    @id @default(uuid())
   chatRoomId String
   userId     String
@@ -434,6 +494,8 @@ model Counterparty {
 }
 
 model Object {
+  windowCleaningMode String?
+  windowCleaningSeasons String[] @default([])
   visitPlanEntries ManagerVisitPlanEntry[]
   id                      String    @id @default(uuid())
   name                    String
@@ -837,6 +899,7 @@ model CandidateResponse {
 }
 
 model Notification {
+  webPushDeliveries WebPushDelivery[]
   id              String    @id @default(uuid())
   recipientUserId String
   type            String
@@ -1942,6 +2005,7 @@ model AccountabilityFunding {
 
 model AccountabilityExpense {
   id                       String    @id @default(uuid())
+  clientRequestId          String?
   accountabilityAccountId  String
   oneTimeOrderId           String?
   oneTimeOrderCompletionId String?
@@ -1972,6 +2036,7 @@ model AccountabilityExpense {
   rejectedBy             User?                   @relation("AccountabilityExpenseRejectedBy", fields: [rejectedByUserId], references: [id], onDelete: Restrict)
 
   @@index([accountabilityAccountId, createdAt])
+  @@unique([createdByUserId, clientRequestId])
   @@index([accountabilityAccountId, status])
   @@index([oneTimeOrderId, createdAt])
   @@index([oneTimeOrderCompletionId])
@@ -2396,6 +2461,7 @@ model ObjectShiftAttendance {
 }
 
 model AuthSession {
+  webPushSubscriptions WebPushSubscription[]
   id                  String    @id @default(uuid())
   userId              String
   tokenHash           String    @unique
@@ -2415,4 +2481,47 @@ model AuthSession {
   @@index([expiresAt])
   @@index([userId, revokedAt])
   @@map("auth_sessions")
+}
+
+model WebPushSubscription {
+  id             String    @id @default(uuid())
+  userId         String
+  authSessionId  String
+  endpoint       String    @unique
+  p256dh         String
+  auth           String
+  vapidPublicKey String
+  deviceName     String
+  disabledAt     DateTime?
+  lastSuccessAt  DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  authSession AuthSession       @relation(fields: [authSessionId], references: [id], onDelete: Cascade)
+  deliveries  WebPushDelivery[]
+
+  @@index([userId, disabledAt])
+  @@index([authSessionId])
+  @@map("web_push_subscriptions")
+}
+model WebPushDelivery {
+  id             String    @id @default(uuid())
+  subscriptionId String
+  notificationId String?
+  status         String    @default("pending")
+  attempts       Int       @default(0)
+  nextAttemptAt  DateTime  @default(now())
+  claimedAt      DateTime?
+  claimToken     String?
+  finishedAt     DateTime?
+  lastErrorCode  String?
+  createdAt      DateTime  @default(now())
+
+  subscription WebPushSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  notification Notification?       @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+
+  @@unique([subscriptionId, notificationId])
+  @@index([status, nextAttemptAt, claimedAt])
+  @@map("web_push_deliveries")
 }

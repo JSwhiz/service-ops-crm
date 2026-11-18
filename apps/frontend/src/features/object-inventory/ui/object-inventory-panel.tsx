@@ -2,7 +2,9 @@
 
 import { PlusIcon } from '@/shared/ui/icons/icons';
 import Link from 'next/link';
-import React, { useState } from 'react';
+import React, { useContext, useEffect, useRef, useState } from 'react';
+import { AccessSnapshotBoundary, AccessSnapshotBlockedContext } from '@/shared/auth/access-snapshot-boundary';
+import { getAccessGeneration, isAccessGenerationCurrent } from '@/shared/auth/access-generation';
 
 import type {
   InventoryItem,
@@ -46,19 +48,41 @@ export function ObjectInventoryPanel({
   onAttachEvidence: (movementId: string, files: File[]) => Promise<void>;
   onRefresh: () => Promise<void>;
 }): React.JSX.Element {
-  const [issueLines, setIssueLines] = useState<Array<{ key: string; inventoryItemId: string; quantity: string; movementId?: string }>>([
+  const [issueLines, setIssueLines] = useState<Array<{ key: string; inventoryItemId: string; quantity: string; movementId?: string; acknowledgedFiles?: File[] }>>([
     { key: 'initial', inventoryItemId: '', quantity: '1' },
   ]);
   const [comment, setComment] = useState('');
   const [evidenceFiles, setEvidenceFiles] = useState<File[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [promptReason, reasonDialog] = useReasonPrompt();
+  const [correctionTarget, setCorrectionTarget] = useState<{ id: string; itemId: string; objectId?: string; orderId?: string } | null>(null);
+  const blocked = useContext(AccessSnapshotBlockedContext);
+  const correctionAllowed = !blocked && !!correctionTarget && movements.some(row =>
+    row.id === correctionTarget.id && row.inventoryItem.id === correctionTarget.itemId &&
+    row.relatedObject?.id === correctionTarget.objectId && row.relatedOneTimeOrder?.id === correctionTarget.orderId && row.projection.canCorrectMovement);
+  const [promptReason, reasonDialog] = useReasonPrompt({
+    confirmDisabled: !correctionAllowed,
+    confirmDisabledReason: correctionTarget && !correctionAllowed
+      ? 'Исправление выдачи недоступно. Причина сохранена в черновике. После возврата доступа подтвердите исправление вручную.' : undefined,
+  });
+  const current = useRef({ movements, blocked, canIssueInventoryToObject, onRefresh });
+  current.current = { movements, blocked, canIssueInventoryToObject, onRefresh };
+  const issuing = useRef(false);
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const correct = async (movement: InventoryMovement): Promise<void> => {
+    const available = () => mounted.current && !current.current.blocked &&
+      current.current.movements.some(row => row.id === movement.id && row.inventoryItem.id === movement.inventoryItem.id &&
+        row.relatedObject?.id === movement.relatedObject?.id && row.relatedOneTimeOrder?.id === movement.relatedOneTimeOrder?.id && row.projection.canCorrectMovement);
+    if (isSaving || !available()) return;
+    const generation = getAccessGeneration();
+    setCorrectionTarget({ id: movement.id, itemId: movement.inventoryItem.id, objectId: movement.relatedObject?.id, orderId: movement.relatedOneTimeOrder?.id });
     const reason = await promptReason({ title: 'Исправить выдачу?', description: 'Неподтверждённая выдача будет отменена. Для подтверждённой создаётся возврат с исходной стоимостью; история сохраняется.', confirmLabel: 'Исправить', reasonLabel: 'Причина', minLength: 2 });
-    if (!reason) return;
+    setCorrectionTarget(null);
+    const allowed = () => isAccessGenerationCurrent(generation) && available();
+    if (!reason || !allowed()) return;
     setIsSaving(true); setError(null);
-    try { await correctInventoryMovement(movement.id, reason); await onRefresh(); }
+    try { await correctInventoryMovement(movement.id, reason); if (allowed()) await current.current.onRefresh(); }
     catch (caught) { setError(getErrorMessage(caught, 'Не удалось исправить выдачу.')); }
     finally { setIsSaving(false); }
   };
@@ -79,38 +103,59 @@ export function ObjectInventoryPanel({
         <span className={styles.panelMeta}>{movements.length} операций</span>
       </div>
 
-      {canIssueInventoryToObject ? (
+      <AccessSnapshotBoundary blocked={!canIssueInventoryToObject}>
         <form
           style={{ display: 'grid', gap: 12 }}
           onSubmit={(event) => {
             event.preventDefault();
+            const generation = getAccessGeneration();
+            const submittedComment = comment;
+            const sourceId = movements.find(row => row.relatedObject)?.relatedObject?.id;
+            // The actual object page keys this panel by objectId. Unmounting
+            // invalidates an old target, including an initially empty ledger.
+            const allowed = () => mounted.current && isAccessGenerationCurrent(generation) && !current.current.blocked &&
+              current.current.canIssueInventoryToObject && (!sourceId || current.current.movements.every(row => !row.relatedObject || row.relatedObject.id === sourceId));
+            if (issuing.current || isSaving || !allowed()) return;
+            issuing.current = true;
             setIsSaving(true);
             setError(null);
             void (async () => {
               let completed = 0;
               try {
                 for (const line of issueLines) {
+                  if (!allowed()) return;
                   let movementId = line.movementId;
                   if (!movementId) {
                     movementId = await onIssue({
                       inventoryItemId: line.inventoryItemId,
                       quantity: Number(line.quantity),
-                      ...(comment.trim() ? { comment: comment.trim() } : {}),
+                      ...(submittedComment.trim() ? { comment: submittedComment.trim() } : {}),
                     });
                     setIssueLines((current) => current.map((entry) =>
                       entry.key === line.key ? { ...entry, movementId } : entry,
                     ));
+                    if (!allowed()) return;
                   }
 
+                  if (!allowed()) return;
                   await onRefresh();
+                  if (!allowed()) return;
 
-                  if (evidenceFiles.length > 0) {
-                    await onAttachEvidence(movementId, evidenceFiles);
+                  for (const file of evidenceFiles) {
+                    if (!allowed()) return;
+                    if (line.acknowledgedFiles?.includes(file)) continue;
+                    await onAttachEvidence(movementId, [file]);
+                    // Retain each real acknowledgement before checking access;
+                    // explicit continuation must not upload that file twice.
+                    setIssueLines(rows => rows.map(entry => entry.key === line.key
+                      ? { ...entry, acknowledgedFiles: [...(entry.acknowledgedFiles ?? []), file] } : entry));
+                    if (!allowed()) return;
                   }
                   setIssueLines((current) => current.filter((entry) => entry.key !== line.key));
                   completed += 1;
                 }
-                setComment('');
+                if (!allowed()) return;
+                setComment(currentComment => currentComment === submittedComment ? '' : currentComment);
                 setEvidenceFiles([]);
                 setIssueLines((current) => current.length > 0 ? current : [
                   { key: `${Date.now()}-next`, inventoryItemId: '', quantity: '1' },
@@ -121,6 +166,7 @@ export function ObjectInventoryPanel({
                   ? `Успешно списано позиций: ${completed}. Остальные оставлены в форме. ${getErrorMessage(submitError, 'Не удалось завершить списание.')}`
                   : getErrorMessage(submitError, 'Не удалось списать расходники на объект.'));
               } finally {
+                issuing.current = false;
                 setIsSaving(false);
               }
             })();
@@ -197,6 +243,7 @@ export function ObjectInventoryPanel({
             <MediaActionPicker
               iconOnly
               allowGenericFile={false}
+              disabled={isSaving || !canIssueInventoryToObject}
               onPick={async (file) => {
                 setEvidenceFiles((current) => [...current, file]);
               }}
@@ -222,7 +269,7 @@ export function ObjectInventoryPanel({
             </Button>
           </div>
         </form>
-      ) : null}
+      </AccessSnapshotBoundary>
 
       <div className="record-list local-scroll">
         {movements.length === 0 ? (
@@ -266,8 +313,16 @@ export function ObjectInventoryPanel({
                 </Link>
               ) : null}
               {movement.comment ? <div>{movement.comment}</div> : null}
-              {canIssueInventoryToObject && ['issue_to_object', 'issue_to_one_time_order'].includes(movement.movementType) && movement.status === 'applied' ? <Button disabled={isSaving} onClick={() => void correct(movement)}>Исправить выдачу</Button> : null}
-              {canIssueInventoryToObject && !['cancelled', 'rejected'].includes(movement.status) && new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Moscow' }).format(new Date(movement.createdAt)) === new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Moscow' }).format(new Date()) ? <MediaActionPicker disabled={isSaving} allowGenericFile={false} onPick={async (file) => { await onAttachEvidence(movement.id, [file]); await onRefresh(); }} /> : null}
+              {movement.projection.canCorrectMovement ? <Button disabled={isSaving} onClick={() => void correct(movement)}>Исправить выдачу</Button> : null}
+              {!['cancelled', 'rejected'].includes(movement.status) && new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Moscow' }).format(new Date(movement.createdAt)) === new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Moscow' }).format(new Date()) ? <AccessSnapshotBoundary blocked={!canIssueInventoryToObject}><MediaActionPicker disabled={isSaving || !canIssueInventoryToObject} allowGenericFile={false} onPick={async (file) => {
+                await onAttachEvidence(movement.id, [file]);
+                try {
+                  await onRefresh();
+                  setError(null);
+                } catch {
+                  setError('Фото сохранено, но не удалось обновить выдачу. Обновите страницу; повторная загрузка фото не нужна.');
+                }
+              }} /></AccessSnapshotBoundary> : null}
               {movement.attachments.length > 0 ? (
                 <AttachmentPreviewList files={movement.attachments} />
               ) : null}

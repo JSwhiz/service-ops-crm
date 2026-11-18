@@ -10,11 +10,14 @@ test('ordinary calendar readers see colleagues without their private comments an
   let query: Prisma.Sql | undefined;
   const now = new Date('2026-10-26T10:00:00Z');
   const rows = ['reader', 'colleague'].map((userId) => ({
-    id: `absence-${userId}`, userId, login: userId, fullName: userId,
+    id: `absence-${userId}`, userId, login: userId, fullName: userId, isActive: true,
     absenceType: 'day_off', startDate: '2026-10-26', endDate: '2026-10-27',
     comment: `Private ${userId}`, createdByUserId: userId, createdAt: now, updatedAt: now,
   }));
-  const service = new UserAbsencesService({ $queryRaw: async (value: Prisma.Sql) => { query = value; return rows; } } as never, {} as never);
+  const service = new UserAbsencesService({
+    user: { findMany: async () => rows.map(row => ({ id: row.userId, isActive: row.isActive })) },
+    $queryRaw: async (value: Prisma.Sql) => { query = value; return rows; },
+  } as never, {} as never);
   const reader = { id: 'reader', login: 'reader', fullName: 'Reader', roleCode: 'manager', isActive: true, permissionCodes: [] };
   const list = await service.list(reader, {});
   assert.equal(list.capabilities.canViewAll, true);
@@ -22,7 +25,8 @@ test('ordinary calendar readers see colleagues without their private comments an
   assert.equal(list.capabilities.canViewPrivateReasons, false);
   assert.equal(list.items.find((item) => item.userId === 'reader')?.comment, 'Private reader');
   assert.equal(list.items.find((item) => item.userId === 'colleague')?.comment, null);
-  assert.ok(!query!.values.includes(reader.id));
+  assert.ok(query!.values.includes(reader.id) && query!.values.includes('colleague'),
+    'The SQL query must include both actually visible target IDs, not silently narrow the calendar to self');
   await service.list(reader, { userId: 'colleague' });
   assert.ok(query!.values.includes('colleague'));
   await assert.rejects(service.create(reader, { userId: 'colleague', absenceType: 'day_off', startDate: '2026-10-26', endDate: '2026-10-27' }), ForbiddenException);

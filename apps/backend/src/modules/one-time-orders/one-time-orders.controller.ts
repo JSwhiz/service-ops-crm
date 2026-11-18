@@ -13,6 +13,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import type { Response } from 'express';
+import type { SavedWithoutAccess } from '../../common/access/project-committed-write';
 
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -459,7 +460,7 @@ export class OneTimeOrdersController {
     @CurrentUser() user: CurrentAuthUser,
     @Param('id') id: string,
     @Body() payload: AssignOneTimeOrderManagerDto,
-  ): Promise<OneTimeOrderResponseDto> {
+  ): Promise<OneTimeOrderResponseDto | SavedWithoutAccess> {
     return this.oneTimeOrdersService.assignManager(user, id, payload);
   }
 

@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import React, { useId, useState } from 'react';
+import React, { useEffect, useId, useState } from 'react';
 
 import {
   assignEmployeeToObject,
@@ -12,6 +12,9 @@ import {
 import { formatEmployeeCompensation } from '@/entities/employee/lib/employee-presentation';
 import type { EmployeeDetail, EmployeeObjectReference } from '@/entities/employee/model/employee.types';
 import { ApiError } from '@/shared/api/fetcher';
+import { isSavedWithoutAccess } from '@/shared/api/saved-without-access';
+import { useAccessRevision } from '@/shared/auth/use-access-revision';
+import { AccessSnapshotBoundary } from '@/shared/auth/access-snapshot-boundary';
 import { Alert, Button, Field, Surface } from '@/shared/ui/foundation';
 import { DatePicker } from '@/shared/ui/date-picker/date-picker';
 import { ConfirmDialog, Dialog, ReasonDialog } from '@/shared/ui/overlays';
@@ -49,11 +52,13 @@ function ObjectName({
 export function EmployeeAssignmentsSection({
   item,
   onItemChange,
+  onSavedWithoutAccess,
   assignOpen,
   onAssignOpenChange,
 }: {
   item: EmployeeDetail;
   onItemChange: (employee: EmployeeDetail) => void;
+  onSavedWithoutAccess: () => void;
   assignOpen: boolean;
   onAssignOpenChange: (open: boolean) => void;
 }): React.JSX.Element {
@@ -66,6 +71,8 @@ export function EmployeeAssignmentsSection({
 
   const historyById = new Map(item.objectAssignmentHistory.map((entry) => [entry.id, entry]));
   const finished = item.objectAssignmentHistory.filter((entry) => entry.endedAt);
+  const currentRemoveTarget = item.currentObjectAssignments.find((assignment) => assignment.objectId === removeTarget?.objectId);
+  const currentDeleteTarget = item.objectAssignmentHistory.find((entry) => entry.id === deleteTarget?.historyId);
 
   const openDelete = (historyId: string, label: string): void => {
     setReason('');
@@ -154,25 +161,26 @@ export function EmployeeAssignmentsSection({
         )}
       </Surface>
 
-      {canManage ? (
+      <AccessSnapshotBoundary blocked={!canManage}>
         <AssignDialog
           open={assignOpen}
           onOpenChange={onAssignOpenChange}
           item={item}
           onSaved={(updated) => { onItemChange(updated); onAssignOpenChange(false); }}
         />
-      ) : null}
+      </AccessSnapshotBoundary>
 
+      <AccessSnapshotBoundary blocked={!canManage || !currentRemoveTarget}>
       <ConfirmDialog
         open={removeTarget !== null}
         onOpenChange={(open) => { if (!open) setRemoveTarget(null); }}
         title="Снять с объекта?"
-        consequence={removeTarget ? `${item.fullName} больше не будет в составе «${removeTarget.objectName}». Назначение завершится, история и табель сохранятся.` : ''}
+        consequence={currentRemoveTarget ? `${item.fullName} больше не будет в составе «${currentRemoveTarget.objectName}». Назначение завершится, история и табель сохранятся.` : ''}
         confirmLabel="Снять с объекта"
         pending={pending}
         error={dialogError}
         onConfirm={async () => {
-          if (!removeTarget) return;
+          if (!removeTarget || !canManage || !item.currentObjectAssignments.some((assignment) => assignment.objectId === removeTarget.objectId)) return;
           setPending(true);
           setDialogError(null);
           try {
@@ -185,12 +193,14 @@ export function EmployeeAssignmentsSection({
           }
         }}
       />
+      </AccessSnapshotBoundary>
 
+      <AccessSnapshotBoundary blocked={!item.capabilities.canDeleteAssignmentAsError || !currentDeleteTarget?.canDeleteAsError}>
       <ReasonDialog
         open={deleteTarget !== null}
         onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}
         title="Удалить ошибочное назначение?"
-        description={deleteTarget ? `${deleteTarget.label}. Удаляется только запись назначения, объект остаётся. Если по назначению уже есть выходы или табель — удалить нельзя, завершите его.` : undefined}
+        description={currentDeleteTarget ? `${currentDeleteTarget.objectName} · ${formatDate(currentDeleteTarget.startedAt)} — ${formatDate(currentDeleteTarget.endedAt)}. Удаляется только запись назначения, объект остаётся. Если по назначению уже есть выходы или табель — удалить нельзя, завершите его.` : undefined}
         reasonLabel="Причина удаления"
         reason={reason}
         onReasonChange={setReason}
@@ -198,12 +208,14 @@ export function EmployeeAssignmentsSection({
         pending={pending}
         error={dialogError}
         onConfirm={async (value) => {
-          if (!deleteTarget) return;
+          if (!deleteTarget || !item.capabilities.canDeleteAssignmentAsError || !item.objectAssignmentHistory.some((entry) => entry.id === deleteTarget.historyId && entry.canDeleteAsError)) return;
           if (value.trim().length < 5) { setDialogError('Причина — не меньше 5 символов.'); return; }
           setPending(true);
           setDialogError(null);
           try {
-            onItemChange(await deleteEmployeeAssignmentAsError(item.id, deleteTarget.historyId, value.trim()));
+            const result = await deleteEmployeeAssignmentAsError(item.id, deleteTarget.historyId, value.trim());
+            if (isSavedWithoutAccess(result)) { onSavedWithoutAccess(); return; }
+            onItemChange(result);
             setDeleteTarget(null);
           } catch (error) {
             setDialogError(error instanceof ApiError && error.code === 'ASSIGNMENT_HAS_OPERATIONAL_HISTORY'
@@ -214,6 +226,7 @@ export function EmployeeAssignmentsSection({
           }
         }}
       />
+      </AccessSnapshotBoundary>
     </div>
   );
 }
@@ -234,16 +247,27 @@ function AssignDialog({
   item: EmployeeDetail;
   onSaved: (employee: EmployeeDetail) => void;
 }): React.JSX.Element {
+  const accessRevision = useAccessRevision();
   const formId = useId();
   const [objectId, setObjectId] = useState('');
   const [startDate, setStartDate] = useState(todayKey);
   const [objects, setObjects] = useState<Map<string, EmployeeObjectReference>>(new Map());
+  const [objectsRevision, setObjectsRevision] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [objectError, setObjectError] = useState<string | null>(null);
   const currentIds = new Set(item.currentObjectAssignments.map((assignment) => assignment.objectId));
-  const selected = objects.get(objectId);
+  const selected = objectsRevision === accessRevision ? objects.get(objectId) : undefined;
   const pay = selected?.compensation;
+
+  useEffect(() => {
+    let active = true;
+    setObjects(new Map());
+    if (objectId) void listEmployeeObjectReferences(undefined, objectId).then((found) => {
+      if (active) { setObjects(new Map(found.map((object) => [object.id, object]))); setObjectsRevision(accessRevision); }
+    }).catch(() => undefined);
+    return () => { active = false; };
+  }, [accessRevision, objectId]);
 
   const close = (): void => {
     setObjectId('');
@@ -281,8 +305,9 @@ function AssignDialog({
         noValidate
         onSubmit={async (event) => {
           event.preventDefault();
-          if (pending) return;
+          if (pending || !item.capabilities.canManageAssignments || item.isArchived) return;
           if (!objectId) { setObjectError('Выберите объект.'); return; }
+          if (!selected) { setObjectError('Проверьте доступность выбранного объекта и выберите его снова.'); return; }
           setPending(true);
           setError(null);
           try {
@@ -301,6 +326,7 @@ function AssignDialog({
       >
         {error ? <Alert tone="danger" role="alert">{error}</Alert> : null}
         <SelectField
+          key={accessRevision}
           label="Объект"
           required
           disabled={pending}
@@ -312,6 +338,7 @@ function AssignDialog({
           asyncSearch={async (query) => {
             const found = (await listEmployeeObjectReferences(query)).filter((object) => !currentIds.has(object.id));
             setObjects((current) => new Map([...current, ...found.map((object) => [object.id, object] as const)]));
+            setObjectsRevision(accessRevision);
             return found.map((object) => ({
               value: object.id,
               label: object.name,

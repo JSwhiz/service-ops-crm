@@ -1,0 +1,43 @@
+{
+  "executedSource": {
+    "key": "component",
+    "originalPath": "/Users/dmitrijkruckov/Desktop/service-ops-crm/apps/frontend/src/features/inventory-movement-list/ui/inventory-movement-list.tsx",
+    "sha256": "db5cefc67b7066cb3a0460e31b4b8cefd10ef2909b9e78fb2761faafcab63040",
+    "frozenPath": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/source-frozen/db5cefc67b7066cb3a0460e31b4b8cefd10ef2909b9e78fb2761faafcab63040/inventory-movement-list.tsx"
+  },
+  "currentSourceSHA256": "beed052fd96947c00dd041d23820934b3bded0c307c4770e104c5c458ff42aa8",
+  "fragments": [
+    {
+      "identifier": "const renderSession =",
+      "text": "const renderSession = getAccessSessionGeneration();",
+      "sha256": "1ef541613963af5c7b57da1dd8d873e15e9f20f0d43bb5041429cb5d86ebf5e0"
+    },
+    {
+      "identifier": "const renderGeneration =",
+      "text": "const renderGeneration = getAccessGeneration();",
+      "sha256": "358f5243c783f5be9939d5af8111de68a669d86727e0c702f74d73ca454d20e1"
+    },
+    {
+      "identifier": "if (!file || acknowledged",
+      "text": "if (!file || acknowledged || uncertain || draft.submitting || !current.current.allowed || renderSession !== getAccessSessionGeneration() || !isAccessGenerationCurrent(renderGeneration)) return;",
+      "sha256": "2dfd5feadb4a147fc5cf35297e926590bce8ee5bebf147439d0701d45a95baee"
+    },
+    {
+      "identifier": "if (!selected || draft.submitting",
+      "text": "if (!selected || draft.submitting || pickerSession.current !== getAccessSessionGeneration() || renderSession !== getAccessSessionGeneration() || current.current.sourceKey !== sourceKey) return;",
+      "sha256": "df961adb585f1cfc40e3f1b7a04fbfff90b83608993f17757517baeef7e4926a"
+    },
+    {
+      "identifier": "if (!current.current.allowed || draft.submitting",
+      "text": "if (!current.current.allowed || draft.submitting || renderSession !== getAccessSessionGeneration() || !isAccessGenerationCurrent(renderGeneration)) return;",
+      "sha256": "372ff43c363f7a78c751b7860a6650cc79439ebfc80490d8ed7996e1973394da"
+    },
+    {
+      "identifier": "const available = (): boolean",
+      "text": "const available = (): boolean => mounted.current && current.current.sourceKey === sourceKey && current.current.allowed && isAccessGenerationCurrent(generation) && getAccessSessionGeneration() === session;",
+      "sha256": "15c0681f1c7f2df9d00f3437570445f1d088c8a6f611b7691d5b5d115a16655f"
+    }
+  ],
+  "scope": "Six unchanged guard lines and exact generation module; later callback/ACK path differs and is not claimed executed by E527.",
+  "sameWholeSource": false
+}

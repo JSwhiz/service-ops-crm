@@ -1,6 +1,8 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import Link from 'next/link';
+import { isSavedWithoutAccess } from '@/shared/api/saved-without-access';
 import {
   createSpecificationCatalogItem,
   createSpecificationTemplate,
@@ -15,7 +17,8 @@ import type {
 } from "@/entities/one-time-order/api/one-time-order-client";
 import { ApiError } from "@/shared/api/fetcher";
 import { useAuth } from "@/shared/auth/use-auth";
-import { isLeadershipCircle } from "@/shared/lib/access";
+import { useAccessRevision } from "@/shared/auth/use-access-revision";
+import { AccessSnapshotBoundary } from "@/shared/auth/access-snapshot-boundary";
 import {
   Alert,
   Button,
@@ -34,7 +37,12 @@ import styles from "./specification-catalog.module.css";
 
 export default function SpecificationCatalogPage(): React.JSX.Element {
   const { user } = useAuth();
-  const allowed = isLeadershipCircle(user?.roleCodes ?? []);
+  const accessRevision = useAccessRevision();
+  const canRead = user?.capabilities?.canReadSpecificationCatalog ?? false;
+  const canCreate = user?.capabilities?.canCreateSpecificationCatalog ?? false;
+  const canUpdate = user?.capabilities?.canUpdateSpecificationCatalog ?? false;
+  const canArchive = user?.capabilities?.canArchiveSpecificationCatalog ?? false;
+  const [loadedRevision, setLoadedRevision] = useState<string | null>(null);
   const [items, setItems] = useState<SpecificationCatalogItem[]>([]);
   const [templates, setTemplates] = useState<SpecificationTemplate[]>([]);
   const [loading, setLoading] = useState(true);
@@ -42,6 +50,7 @@ export default function SpecificationCatalogPage(): React.JSX.Element {
   const [title, setTitle] = useState("");
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [templateName, setTemplateName] = useState("");
+  const [templateNameConflict, setTemplateNameConflict] = useState(false);
   const [templateItemIds, setTemplateItemIds] = useState<string[]>([]);
   const [editingTemplateId, setEditingTemplateId] = useState<string | null>(
     null,
@@ -58,90 +67,110 @@ export default function SpecificationCatalogPage(): React.JSX.Element {
   const [archiveError, setArchiveError] = useState<string | null>(null);
   const itemInputRef = useRef<HTMLInputElement>(null);
   const templateInputRef = useRef<HTMLInputElement>(null);
-
-  const load = async (): Promise<void> => {
-    const [catalog, savedTemplates] = await Promise.all([
-      listSpecificationCatalog(),
-      listSpecificationTemplates(),
-    ]);
-    setItems(catalog);
-    setTemplates(savedTemplates);
+  const loadRequest = useRef(0);
+  const mutationBusy = useRef(false);
+  const terminal = useRef(false);
+  const [savedWithoutAccess, setSavedWithoutAccess] = useState(false);
+  const acknowledge = (): void => {
+    terminal.current = true;
+    loadRequest.current += 1;
+    setItems([]); setTemplates([]); setArchiveTarget(null);
+    setSavedWithoutAccess(true);
   };
-  useEffect(() => {
-    if (!allowed) {
-      setLoading(false);
-      return;
-    }
-    let active = true;
-    Promise.all([listSpecificationCatalog(), listSpecificationTemplates()])
-      .then(([catalog, savedTemplates]) => {
-        if (active) {
-          setItems(catalog);
-          setTemplates(savedTemplates);
-        }
-      })
-      .catch(() => {
-        if (active) setError("Не удалось загрузить каталог ТЗ.");
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
-    return () => {
-      active = false;
-    };
-  }, [allowed]);
+  const latest = useRef({ canRead, canCreate, canUpdate, canArchive, accessRevision, loadedRevision, templates });
+  latest.current = { canRead, canCreate, canUpdate, canArchive, accessRevision, loadedRevision, templates };
+  type Mutation = "canCreate" | "canUpdate" | "canArchive";
+  const canMutate = (permission: Mutation): boolean => {
+    const current = latest.current;
+    return current.canRead && current[permission] && current.loadedRevision === current.accessRevision;
+  };
 
-  const run = async (operation: () => Promise<unknown>): Promise<void> => {
+  const load = useCallback(async (): Promise<boolean> => {
+    const revision = latest.current.accessRevision;
+    if (terminal.current || !latest.current.canRead) return false;
+    const requestId = ++loadRequest.current;
+    const isCurrent = (): boolean => requestId === loadRequest.current &&
+      !terminal.current && latest.current.canRead && latest.current.accessRevision === revision;
+    setLoading(true);
+    setLoadedRevision(null);
+    try {
+      const [catalog, savedTemplates] = await Promise.all([
+        listSpecificationCatalog(), listSpecificationTemplates(),
+      ]);
+      if (!isCurrent()) return false;
+      setItems(catalog);
+      setTemplates(savedTemplates);
+      setLoadedRevision(revision);
+      return true;
+    } catch {
+      if (isCurrent()) setError("Не удалось загрузить каталог ТЗ.");
+      return false;
+    } finally {
+      if (isCurrent()) setLoading(false);
+    }
+  }, []);
+  useEffect(() => {
+    setError(null);
+    if (canRead) void load();
+    else {
+      loadRequest.current += 1;
+      setLoadedRevision(null);
+      setLoading(false);
+    }
+    return () => {
+      loadRequest.current += 1;
+    };
+  }, [canRead, accessRevision, load]);
+
+  const run = async (permission: Mutation, operation: () => Promise<unknown>): Promise<void> => {
+    if (!canMutate(permission) || mutationBusy.current) return;
+    mutationBusy.current = true;
     setBusy(true);
     setError(null);
     try {
-      await operation();
+      const result = await operation();
+      if (result !== null && typeof result === 'object' && isSavedWithoutAccess(result)) { acknowledge(); return; }
       await load();
     } catch (cause) {
-      if (cause instanceof ApiError && cause.statusCode === 409) {
-        try {
-          await load();
-        } catch {
-          /* Keep the concurrency message visible even if refresh fails. */
-        }
+      if (cause instanceof ApiError && cause.code === "ACCESS_VERSION_CHANGED") {
+        setError("Доступ изменился во время действия. Черновик сохранён. Перед повторной отправкой проверьте доступ и историю.");
+      } else if (
+        cause instanceof ApiError &&
+        cause.code === "SPECIFICATION_TEMPLATE_NAME_CONFLICT"
+      ) {
+        setTemplateNameConflict(true);
+      } else if (cause instanceof ApiError && cause.statusCode === 409) {
+        await load();
         setError(
-          "Шаблон уже изменён другим пользователем. Каталог обновлён; отмените редактирование и откройте актуальный шаблон заново. Ваш текст пока сохранён в форме.",
+          "Шаблон уже изменён другим пользователем. Обновите каталог, отмените редактирование и откройте актуальный шаблон заново. Ваш текст пока сохранён в форме.",
         );
       } else
         setError(
           "Не удалось сохранить изменения. Проверьте данные и повторите попытку.",
         );
     } finally {
+      mutationBusy.current = false;
       setBusy(false);
     }
   };
 
-  if (!allowed)
-    return (
-      <div className="ui-page">
-        <PageTitle title="Каталог технических заданий" />
-        <Surface padding="md">Доступ есть только у руководящего круга.</Surface>
-      </div>
-    );
+  if (savedWithoutAccess) return <div className={`ui-page ${styles.page}`}><Alert tone="success" role="status">Изменение сохранено. Подробности сейчас недоступны.</Alert><Link href="/one-time-orders">К разовым заказам</Link></div>;
 
   return (
     <div className={`ui-page ${styles.page}`}>
       <PageTitle title="Каталог технических заданий" />
-      {error ? (
+      {!canRead ? <Surface padding="md">У вас нет доступа к каталогу ТЗ.{title || templateName || templateItemIds.length ? ' Введённые данные сохранены в черновике.' : ''}</Surface> : null}
+      {canRead && error ? (
         <Alert
           tone="danger"
           role="alert"
           action={
             <Button
-              disabled={busy}
+              disabled={busy || loading || !canRead}
               onClick={() => {
                 setLoading(true);
                 setError(null);
-                void load()
-                  .catch(() =>
-                    setError("Не удалось обновить каталог. Повторите попытку."),
-                  )
-                  .finally(() => setLoading(false));
+                void load();
               }}
             >
               Обновить каталог
@@ -151,9 +180,10 @@ export default function SpecificationCatalogPage(): React.JSX.Element {
           {error}
         </Alert>
       ) : null}
-      {loading ? (
+      {canRead && loading ? (
         <LoadingState label="Загрузка каталога…" />
-      ) : (
+      ) : null}
+      <AccessSnapshotBoundary blocked={!canRead || loadedRevision !== accessRevision}>
         <div className={`ui-stack ${styles.columns}`}>
           <Surface as="section" padding="md" className="ui-stack ui-stack--lg">
             <div>
@@ -163,20 +193,24 @@ export default function SpecificationCatalogPage(): React.JSX.Element {
                 снимки сохраняются.
               </p>
             </div>
+            <AccessSnapshotBoundary blocked={editingItemId ? !canUpdate : !canCreate}>
             <form
               className="ui-stack ui-stack--sm"
               onSubmit={(event) => {
                 event.preventDefault();
-                if (!title.trim() || busy) return;
-                void run(async () => {
-                  if (editingItemId)
-                    await updateSpecificationCatalogItem(editingItemId, {
+                const permission = editingItemId ? "canUpdate" : "canCreate";
+                if (!title.trim() || !canMutate(permission) || mutationBusy.current) return;
+                const revision = latest.current.accessRevision;
+                void run(permission, async () => {
+                  const result = editingItemId
+                    ? await updateSpecificationCatalogItem(editingItemId, {
+                      title: title.trim(),
+                    })
+                    : await createSpecificationCatalogItem({
                       title: title.trim(),
                     });
-                  else
-                    await createSpecificationCatalogItem({
-                      title: title.trim(),
-                    });
+                  if (isSavedWithoutAccess(result)) return result;
+                  if (latest.current.accessRevision !== revision) return;
                   setTitle("");
                   setEditingItemId(null);
                 });
@@ -219,10 +253,11 @@ export default function SpecificationCatalogPage(): React.JSX.Element {
                 ) : null}
               </div>
             </form>
+            </AccessSnapshotBoundary>
             {items.length === 0 ? (
               <EmptyState
                 title="Пунктов нет"
-                description="Добавьте первый пункт в общий каталог."
+                description={canCreate ? "Добавьте первый пункт в общий каталог." : undefined}
               />
             ) : (
               <ul className={styles.list}>
@@ -236,11 +271,12 @@ export default function SpecificationCatalogPage(): React.JSX.Element {
                       {item.isArchived ? <small> · В архиве</small> : null}
                     </span>
                     <div className={styles.rowActions}>
-                      <Tooltip label="Изменить пункт">
+                      {canUpdate ? <Tooltip label="Изменить пункт">
                         <IconButton
                           aria-label={`Изменить пункт: ${item.title}`}
                           disabled={busy}
                           onClick={() => {
+                            if (!canMutate("canUpdate") || mutationBusy.current) return;
                             setEditingItemId(item.id);
                             setTitle(item.title);
                             itemInputRef.current?.focus();
@@ -248,8 +284,8 @@ export default function SpecificationCatalogPage(): React.JSX.Element {
                         >
                           <PencilIcon />
                         </IconButton>
-                      </Tooltip>
-                      <Tooltip
+                      </Tooltip> : null}
+                      {canArchive ? <Tooltip
                         label={
                           item.isArchived
                             ? "Восстановить пункт"
@@ -260,6 +296,7 @@ export default function SpecificationCatalogPage(): React.JSX.Element {
                           aria-label={`${item.isArchived ? "Восстановить" : "Архивировать"} пункт: ${item.title}`}
                           disabled={busy}
                           onClick={() => {
+                            if (!canMutate("canArchive") || mutationBusy.current) return;
                             setArchiveError(null);
                             setArchiveTarget({ kind: "item", item });
                           }}
@@ -268,7 +305,7 @@ export default function SpecificationCatalogPage(): React.JSX.Element {
                             name={item.isArchived ? "replace" : "archive"}
                           />
                         </IconButton>
-                      </Tooltip>
+                      </Tooltip> : null}
                     </div>
                   </li>
                 ))}
@@ -284,12 +321,21 @@ export default function SpecificationCatalogPage(): React.JSX.Element {
                 пунктами.
               </p>
             </div>
+            <AccessSnapshotBoundary blocked={editingTemplateId ? !canUpdate : !canCreate}>
             <form
               className="ui-stack ui-stack--md"
               onSubmit={(event) => {
                 event.preventDefault();
-                if (!templateName.trim() || busy) return;
-                void run(async () => {
+                const permission = editingTemplateId ? "canUpdate" : "canCreate";
+                if (!templateName.trim() || !canMutate(permission) || mutationBusy.current) return;
+                if (editingTemplateId && (editingTemplateVersion === null ||
+                  latest.current.templates.find(({ id }) => id === editingTemplateId)?.version !== editingTemplateVersion)) {
+                  setError("Шаблон уже изменён. Ваш черновик сохранён; отмените редактирование и откройте актуальную версию.");
+                  return;
+                }
+                const revision = latest.current.accessRevision;
+                setTemplateNameConflict(false);
+                void run(permission, async () => {
                   const payload = {
                     name: templateName.trim(),
                     items: templateItemIds.map((catalogItemId, sortOrder) => ({
@@ -297,12 +343,14 @@ export default function SpecificationCatalogPage(): React.JSX.Element {
                       sortOrder,
                     })),
                   };
-                  if (editingTemplateId && editingTemplateVersion !== null)
-                    await updateSpecificationTemplate(editingTemplateId, {
+                  const result = editingTemplateId && editingTemplateVersion !== null
+                    ? await updateSpecificationTemplate(editingTemplateId, {
                       ...payload,
                       expectedVersion: editingTemplateVersion,
-                    });
-                  else await createSpecificationTemplate(payload);
+                    })
+                    : await createSpecificationTemplate(payload);
+                  if (isSavedWithoutAccess(result)) return result;
+                  if (latest.current.accessRevision !== revision) return;
                   setEditingTemplateId(null);
                   setEditingTemplateVersion(null);
                   setTemplateName("");
@@ -320,10 +368,22 @@ export default function SpecificationCatalogPage(): React.JSX.Element {
                   value={templateName}
                   disabled={busy}
                   maxLength={120}
-                  onChange={(event) => setTemplateName(event.target.value)}
+                  aria-invalid={templateNameConflict || undefined}
+                  aria-describedby={templateNameConflict ? "template-name-conflict" : undefined}
+                  onChange={(event) => {
+                    setTemplateName(event.target.value);
+                    setTemplateNameConflict(false);
+                  }}
                   required
                 />
               </Field>
+              {templateNameConflict ? (
+                <div id="template-name-conflict">
+                  <Alert tone="danger" role="alert">
+                    Шаблон с таким названием уже существует. Введите другое название.
+                  </Alert>
+                </div>
+              ) : null}
               <div className={styles.templatePicker}>
                 <strong>Пункты шаблона ({templateItemIds.length})</strong>
                 {items
@@ -362,6 +422,7 @@ export default function SpecificationCatalogPage(): React.JSX.Element {
                     onClick={() => {
                       setEditingTemplateId(null);
                       setEditingTemplateVersion(null);
+                      setTemplateNameConflict(false);
                       setTemplateName("");
                       setTemplateItemIds([]);
                     }}
@@ -371,10 +432,11 @@ export default function SpecificationCatalogPage(): React.JSX.Element {
                 ) : null}
               </div>
             </form>
+            </AccessSnapshotBoundary>
             {templates.length === 0 ? (
               <EmptyState
                 title="Шаблонов пока нет"
-                description="Выберите пункты и сохраните первый шаблон."
+                description={canCreate ? "Выберите пункты и сохраните первый шаблон." : undefined}
               />
             ) : null}
             <ul className={styles.list}>
@@ -391,13 +453,15 @@ export default function SpecificationCatalogPage(): React.JSX.Element {
                     </small>
                   </div>
                   <div className={styles.rowActions}>
-                    <Tooltip label="Изменить шаблон">
+                    {canUpdate ? <Tooltip label="Изменить шаблон">
                       <IconButton
                         aria-label={`Изменить шаблон: ${template.name}`}
                         disabled={busy}
                         onClick={() => {
+                          if (!canMutate("canUpdate") || mutationBusy.current) return;
                           setEditingTemplateId(template.id);
                           setEditingTemplateVersion(template.version);
+                          setTemplateNameConflict(false);
                           setTemplateName(template.name);
                           setTemplateItemIds(
                             template.items.map((item) => item.catalogItemId),
@@ -407,8 +471,8 @@ export default function SpecificationCatalogPage(): React.JSX.Element {
                       >
                         <PencilIcon />
                       </IconButton>
-                    </Tooltip>
-                    <Tooltip
+                    </Tooltip> : null}
+                    {canArchive ? <Tooltip
                       label={
                         template.isArchived
                           ? "Восстановить шаблон"
@@ -419,6 +483,7 @@ export default function SpecificationCatalogPage(): React.JSX.Element {
                         aria-label={`${template.isArchived ? "Восстановить" : "Архивировать"} шаблон: ${template.name}`}
                         disabled={busy}
                         onClick={() => {
+                          if (!canMutate("canArchive") || mutationBusy.current) return;
                           setArchiveError(null);
                           setArchiveTarget({
                             kind: "template",
@@ -430,14 +495,14 @@ export default function SpecificationCatalogPage(): React.JSX.Element {
                           name={template.isArchived ? "replace" : "archive"}
                         />
                       </IconButton>
-                    </Tooltip>
+                    </Tooltip> : null}
                   </div>
                 </li>
               ))}
             </ul>
           </Surface>
         </div>
-      )}
+      <AccessSnapshotBoundary blocked={!canArchive}>
       <ConfirmDialog
         open={archiveTarget !== null}
         onOpenChange={(open) => {
@@ -469,36 +534,47 @@ export default function SpecificationCatalogPage(): React.JSX.Element {
         pending={busy}
         error={archiveError}
         onConfirm={() => {
-          if (!archiveTarget || busy) return;
+          if (!archiveTarget || !canMutate("canArchive") || mutationBusy.current) return;
           const target = archiveTarget;
+          if (target.kind === "template" &&
+            latest.current.templates.find(({ id }) => id === target.item.id)?.version !== target.item.version) {
+            setArchiveError("Шаблон уже изменён. Закройте окно, обновите каталог и повторите действие.");
+            return;
+          }
+          const revision = latest.current.accessRevision;
+          mutationBusy.current = true;
           setBusy(true);
           setArchiveError(null);
           void (async () => {
             try {
-              if (target.kind === "item") {
-                await updateSpecificationCatalogItem(target.item.id, {
+              const result = target.kind === "item"
+                ? await updateSpecificationCatalogItem(target.item.id, {
                   isArchived: !target.item.isArchived,
-                });
-              } else {
-                await updateSpecificationTemplate(target.item.id, {
+                })
+                : await updateSpecificationTemplate(target.item.id, {
                   expectedVersion: target.item.version,
                   isArchived: !target.item.isArchived,
                 });
-              }
+              if (isSavedWithoutAccess(result)) { acknowledge(); return; }
               await load();
-              setArchiveTarget(null);
+              if (latest.current.accessRevision === revision) setArchiveTarget(null);
             } catch (cause) {
               setArchiveError(
-                cause instanceof ApiError && cause.statusCode === 409
+                cause instanceof ApiError && cause.code === "ACCESS_VERSION_CHANGED"
+                  ? "Доступ изменился. Повторная запись не отправлялась. Проверьте доступ и историю."
+                  : cause instanceof ApiError && cause.statusCode === 409
                   ? "Шаблон уже изменён. Закройте окно, обновите каталог и повторите действие."
                   : "Не удалось сохранить. Повторите попытку.",
               );
             } finally {
+              mutationBusy.current = false;
               setBusy(false);
             }
           })();
         }}
       />
+      </AccessSnapshotBoundary>
+      </AccessSnapshotBoundary>
     </div>
   );
 }

@@ -73,3 +73,35 @@ test('drawer action controls remain intrinsic width on narrow screens', async ()
   assert.match(css, /\.footer > \* \{ flex: 0 1 auto; align-self: flex-start; \}/);
   assert.match(css, /\.statusAction > button \{ width: auto; \}/);
 });
+
+test('changing the order resets all scoped drafts; same-order access refresh preserves them', async () => {
+  const component = await readFile(componentUrl, 'utf8');
+  assert.match(component, /const nextItemId = item\?\.id \?\? null/);
+  const reset = component.match(/if \(draftItemId.current !== nextItemId\) \{([\s\S]*?)\n {4}\}/)?.[1];
+  assert.ok(reset, 'reset is keyed by order id, not access version');
+  assert.match(reset, /draftItemId.current = nextItemId/);
+  assert.match(reset, /reviewFormOpenRef.current = false/);
+  for (const statement of [
+    'setLoadedScope(null)', 'setDetails(null)', 'setComments([])',
+    'setError(null)', 'setNotice(null)', 'setCommentDraft(\'\')',
+    'setReviewDraft(\'\')', 'setReviewRatingDraft(null)',
+    'setReviewFormOpen(false)', 'setCommentFormOpen(false)',
+    'setNextStatus(\'\')', 'setStatusMenuOpen(false)', 'setClearReviewConfirmOpen(false)',
+  ]) assert.ok(reset.includes(statement), `${statement} clears the previous order's state`);
+  assert.match(component, /if \(!reviewFormOpenRef.current\) \{\s*setReviewDraft/);
+  assert.match(component, /\}, \[scope, accessRetry\]\)/);
+});
+
+test('late writes from another order cannot overwrite the current drawer, including A → B → A', async () => {
+  const component = await readFile(componentUrl, 'utf8');
+  assert.match(component, /itemGeneration.current \+= 1/);
+  assert.match(component, /generation === itemGeneration.current && itemRef.current\?\.id === item.id/);
+  for (const name of ['saveComment', 'saveReview', 'clearReview', 'applyStatus']) {
+    const start = component.indexOf(`const ${name} = async`);
+    const end = component.indexOf('\n  };', start);
+    const handler = component.slice(start, end);
+    assert.match(handler, /const isCurrentItem = captureItemOperation\(\)/);
+    assert.match(handler, /if \(!isCurrentItem\(\)\) return/);
+    assert.match(handler, /finally \{\s*if \(isCurrentItem\(\)\) setSaving/);
+  }
+});

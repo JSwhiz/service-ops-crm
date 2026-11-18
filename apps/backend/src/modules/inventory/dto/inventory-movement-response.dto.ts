@@ -43,6 +43,8 @@ export class InventoryMovementResponseDto {
     status: string;
   } | null;
   projection!: {
+    canAttachStandalonePhoto?: boolean;
+    canCorrectMovement: boolean;
     hasEvidence: boolean;
     requiresApprovalBridge: boolean;
     approvalBridgeType: string | null;
@@ -56,3 +58,5 @@ export class InventoryMovementResponseDto {
     canResolveMissingPhotoApproval: boolean;
   };
 }
+
+export type InventoryMovementWriteResult = InventoryMovementResponseDto | { outcome: 'saved_without_access' };

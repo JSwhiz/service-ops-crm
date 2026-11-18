@@ -9,6 +9,9 @@ import type {
   CounterpartyListResponse,
 } from '@/entities/counterparty/model/counterparty.types';
 import { useAuth } from '@/shared/auth/use-auth';
+import { useAccessRevision } from '@/shared/auth/use-access-revision';
+import { getAccessGeneration, isAccessGenerationCurrent } from '@/shared/auth/access-generation';
+import { ApiError } from '@/shared/api/fetcher';
 import { DataTable } from '@/shared/ui/data-table/data-table';
 import { usePageSizeParam } from '@/shared/lib/use-page-size-param';
 import { TablePagination } from '@/shared/ui/table-pagination/table-pagination';
@@ -44,7 +47,8 @@ const STATUS_OPTIONS = [
 ];
 
 export default function CounterpartiesPage(): React.JSX.Element {
-  const { user } = useAuth();
+  const { user, capabilitiesRefreshError } = useAuth();
+  const accessRevision = useAccessRevision();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -60,10 +64,13 @@ export default function CounterpartiesPage(): React.JSX.Element {
   const [search, setSearch] = useState(q);
   const [result, setResult] = useState(EMPTY);
   const [loading, setLoading] = useState(true);
+  const [loadedKey, setLoadedKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const canAccess = user?.capabilities?.canAccessCounterparties ?? false;
-  const canManage = user?.capabilities?.canManageCounterparties ?? false;
+  const canCreate = user?.capabilities?.canCreateCounterparty ?? false;
+  const requestKey = JSON.stringify([accessRevision, page, pageSize, q, status]);
+  const reading = loading || loadedKey !== requestKey;
 
   const replaceQuery = (updates: Record<string, string | null>): void => {
     const next = new URLSearchParams(searchParams.toString());
@@ -87,35 +94,35 @@ export default function CounterpartiesPage(): React.JSX.Element {
   }, [q, search]);
 
   useEffect(() => {
-    if (!canAccess) {
-      setLoading(false);
-      return;
-    }
     const sequence = ++sequenceRef.current;
+    const generation = getAccessGeneration();
+    let active = true;
+    const current = (): boolean => active && sequence === sequenceRef.current && isAccessGenerationCurrent(generation);
+    if (!canAccess || capabilitiesRefreshError) {
+      setResult(EMPTY);
+      setLoadedKey(null);
+      setLoading(false);
+      return () => { active = false; };
+    }
     setLoading(true);
     setError(null);
-    void listCounterparties({
-      q: q || undefined,
-      status,
-      page,
-      limit: pageSize,
-    })
+    setResult(EMPTY);
+    void listCounterparties({ q: q || undefined, status, page, limit: pageSize })
       .then((next) => {
-        if (sequence === sequenceRef.current) setResult(next);
+        if (!current()) return;
+        setResult(next);
+        setLoadedKey(requestKey);
       })
       .catch((caughtError) => {
-        if (sequence === sequenceRef.current) {
-          setError(
-            caughtError instanceof Error
-              ? caughtError.message
-              : 'Не удалось загрузить контрагентов.',
-          );
-        }
+        if (!current()) return;
+        setError(caughtError instanceof ApiError && [403, 404].includes(caughtError.statusCode)
+          ? 'Контрагенты не найдены или недоступны.'
+          : 'Не удалось загрузить контрагентов. Повторите попытку.');
+        setLoadedKey(requestKey);
       })
-      .finally(() => {
-        if (sequence === sequenceRef.current) setLoading(false);
-      });
-  }, [canAccess, page, pageSize, q, status]);
+      .finally(() => { if (current()) setLoading(false); });
+    return () => { active = false; };
+  }, [canAccess, capabilitiesRefreshError, accessRevision, page, pageSize, q, status, requestKey]);
 
   if (!canAccess) {
     return (
@@ -123,6 +130,10 @@ export default function CounterpartiesPage(): React.JSX.Element {
         <EmptyState title="Нет доступа" description="У вас нет доступа к контрагентам." />
       </div>
     );
+  }
+
+  if (capabilitiesRefreshError) {
+    return <div className={`ui-page counterparty-workspace ${styles.page}`}><Alert tone="warning" role="alert">Доступ к контрагентам не подтверждён. Повторите проверку прав.</Alert></div>;
   }
 
   return (
@@ -146,7 +157,7 @@ export default function CounterpartiesPage(): React.JSX.Element {
           options: STATUS_OPTIONS,
           onAdd: (value) => replaceQuery({ status: value, page: null }),
         }] : []}
-        actions={canManage ? (
+        actions={canCreate ? (
           <CreateNavigationLink href="/counterparties/new" className="ui-button ui-button--primary">
             <span className="ui-button__icon" aria-hidden="true"><PlusIcon /></span>
             Создать контрагента
@@ -154,7 +165,7 @@ export default function CounterpartiesPage(): React.JSX.Element {
         ) : null}
       />
 
-      {loading ? (
+      {reading ? (
         <LoadingState label="Загружаем контрагентов…" />
       ) : error ? (
         <Alert tone="danger" role="alert">{error}</Alert>
@@ -222,7 +233,7 @@ export default function CounterpartiesPage(): React.JSX.Element {
         </DataTable>
       )}
 
-      {!loading && !error ? (
+      {!reading && !error ? (
         <TablePagination
           page={page}
           totalPages={result.totalPages}

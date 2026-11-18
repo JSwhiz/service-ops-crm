@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useContext, useEffect, useRef, useState } from 'react';
 
-import { listCounterpartyReferences } from '@/entities/counterparty/api/counterparty-client';
+import { getCounterparty, listCounterpartyReferences } from '@/entities/counterparty/api/counterparty-client';
 import type { UpdateObjectPayload } from '@/entities/object/api/object-client';
 import type { ServiceObject } from '@/entities/object/model/object.types';
 import { listObjectResponsibleCandidates } from '@/entities/user/api/user-client';
@@ -20,20 +20,30 @@ import {
 import { UserSearchSelect } from '@/shared/ui/user-search-select/user-search-select';
 import { Select } from '@/shared/ui/searchable-select/select';
 import { Button } from '@/shared/ui/foundation';
+import { AccessSnapshotBlockedContext } from '@/shared/auth/access-snapshot-boundary';
+import { isSavedWithoutAccess, type SavedWithoutAccess } from '@/shared/api/saved-without-access';
+import { getAccessGeneration } from '@/shared/auth/access-generation';
+import { useAccessRevision } from '@/shared/auth/use-access-revision';
+import { captureObjectWriteFence } from '@/features/object-shared-ui/object-write-fence';
+import { ApiError } from '@/shared/api/fetcher';
 import { getObjectCompensation } from '@/entities/object/api/object-compensation-client';
+import { WindowCleaningFields } from '@/entities/object/ui/window-cleaning-fields';
+import { windowCleaningDraft, windowCleaningPayload, windowCleaningValidation } from '@/entities/object/lib/window-cleaning';
 
 interface ObjectEditFormProps {
   mode?: 'full' | 'compensation';
+  preserveDraftOnRefresh?: boolean;
   onCancel?: () => void;
   item: ServiceObject;
   canEditObject: boolean;
   canManageCompensationRates: boolean;
   canLinkCounterparty: boolean;
-  onSubmit: (payload: UpdateObjectPayload) => Promise<void>;
+  onSubmit: (payload: UpdateObjectPayload) => Promise<void | SavedWithoutAccess>;
 }
 
 export function ObjectEditForm({
   mode = 'full',
+  preserveDraftOnRefresh = false,
   onCancel,
   item,
   canEditObject,
@@ -41,6 +51,12 @@ export function ObjectEditForm({
   canLinkCounterparty,
   onSubmit,
 }: ObjectEditFormProps): React.JSX.Element {
+  const surfaceMounted = useRef(true);
+  const currentObjectId = useRef(item.id);
+  currentObjectId.current = item.id;
+  useEffect(() => { surfaceMounted.current = true; return () => { surfaceMounted.current = false; }; }, []);
+  const accessBlocked = useContext(AccessSnapshotBlockedContext);
+  const draftObjectId = useRef(item.id);
   const baseProfile = item.baseCompensationProfile ?? item;
   const [form, setForm] = useState({
     name: item.name,
@@ -48,6 +64,7 @@ export function ObjectEditForm({
     address: item.address,
     responsibleUserId: item.responsible?.id ?? '',
     summerWindowCleaning: item.summerWindowCleaning,
+    ...windowCleaningDraft(item),
     engineeringRequired: item.engineeringRequired,
     winterTractorMode: item.winterTractorMode,
     instructionStepsText: item.instructionSteps.join('\n'),
@@ -70,8 +87,53 @@ export function ObjectEditForm({
     winterScheduleWeekdays: item.winterScheduleWeekdays ?? [],
     winterScheduleCycleStartDate: item.winterScheduleCycleStartDate?.slice(0, 10) ?? '',
     notes: item.notes ?? '',
-    counterpartyId: item.counterparty?.id ?? '',
   });
+  const accessRevision = useAccessRevision();
+  const generation = getAccessGeneration();
+  const [counterpartyIntent, setCounterpartyIntent] = useState<
+    { kind: 'untouched' } | { kind: 'unlink'; generation: number } | { kind: 'select'; generation: number; option: SearchableSelectOption }
+  >({ kind: 'untouched' });
+  const counterpartyOptions = useRef<{ generation: number; options: Map<string, SearchableSelectOption> }>({ generation, options: new Map() });
+  if (counterpartyOptions.current.generation !== generation) counterpartyOptions.current = { generation, options: new Map() };
+  const currentCounterpartyIntent = counterpartyIntent.kind !== 'untouched' && counterpartyIntent.generation === generation;
+  const visibleCounterparty = item.counterpartyAccessRestricted ? null : item.counterparty;
+  const currentCounterpartyId = useRef(visibleCounterparty?.id);
+  currentCounterpartyId.current = visibleCounterparty?.id;
+  const [counterpartyAuthority, setCounterpartyAuthority] = useState<{ objectId: string; counterpartyId: string; generation: number; allowed: boolean } | null>(null);
+  const currentCounterpartyAuthority = counterpartyAuthority?.objectId === item.id && counterpartyAuthority.counterpartyId === visibleCounterparty?.id && counterpartyAuthority.generation === generation;
+  const canChangeCounterparty = !item.counterpartyAccessRestricted && (visibleCounterparty
+    ? currentCounterpartyAuthority && counterpartyAuthority.allowed
+    : canLinkCounterparty);
+  useEffect(() => {
+    const id = visibleCounterparty?.id, targetId = item.id;
+    if (!id || item.counterpartyAccessRestricted) return;
+    let active = true;
+    const fence = captureObjectWriteFence(() => surfaceMounted.current && currentObjectId.current === targetId && currentCounterpartyId.current === id);
+    void getCounterparty(id).then(source => {
+      if (active && fence.current() && source.id === id) setCounterpartyAuthority({ objectId: targetId, counterpartyId: id, generation, allowed: source.capabilities.canLinkObjects });
+    }).catch(() => { if (active && fence.current()) setCounterpartyAuthority({ objectId: targetId, counterpartyId: id, generation, allowed: false }); });
+    return () => { active = false; };
+  }, [item.id, visibleCounterparty?.id, item.counterpartyAccessRestricted, accessRevision, generation]);
+  const selectedCounterpartyId = counterpartyIntent.kind === 'select' && currentCounterpartyIntent ? counterpartyIntent.option.value : null;
+  const latestSelectedCounterpartyId = useRef(selectedCounterpartyId); latestSelectedCounterpartyId.current = selectedCounterpartyId;
+  const [selectedCounterpartyAuthority, setSelectedCounterpartyAuthority] = useState<{ id: string; generation: number; allowed: boolean } | null>(null);
+  const selectedCounterpartyChecked = selectedCounterpartyAuthority?.id === selectedCounterpartyId && selectedCounterpartyAuthority?.generation === generation;
+  const selectedCounterpartyAllowed = selectedCounterpartyAuthority?.id === selectedCounterpartyId && selectedCounterpartyAuthority?.generation === generation && selectedCounterpartyAuthority.allowed;
+  useEffect(() => {
+    const targetId = item.id, id = selectedCounterpartyId;
+    if (!id || !canChangeCounterparty) return;
+    let active = true;
+    const fence = captureObjectWriteFence(() => surfaceMounted.current && currentObjectId.current === targetId && latestSelectedCounterpartyId.current === id);
+    void getCounterparty(id).then(source => {
+      if (active && fence.current() && source.id === id) setSelectedCounterpartyAuthority({ id, generation, allowed: source.capabilities.canLinkObjects });
+    }).catch(() => { if (active && fence.current()) setSelectedCounterpartyAuthority({ id, generation, allowed: false }); });
+    return () => { active = false; };
+  }, [item.id, selectedCounterpartyId, canChangeCounterparty, generation]);
+  const counterpartyIntentBlocked = counterpartyIntent.kind !== 'untouched' && (!canChangeCounterparty || !currentCounterpartyIntent || (counterpartyIntent.kind === 'select' && !selectedCounterpartyAllowed));
+  const counterpartyValue = counterpartyIntent.kind === 'untouched' ? visibleCounterparty?.id ?? ''
+    : currentCounterpartyIntent && counterpartyIntent.kind === 'select' ? counterpartyIntent.option.value : '';
+  const counterpartyOption = counterpartyIntent.kind === 'select' && currentCounterpartyIntent ? counterpartyIntent.option
+    : counterpartyIntent.kind === 'untouched' && visibleCounterparty ? { value: visibleCounterparty.id, label: visibleCounterparty.name, description: visibleCounterparty.legalName ?? undefined } : null;
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -80,6 +142,7 @@ export function ObjectEditForm({
   const [isCandidatesLoading, setIsCandidatesLoading] = useState(true);
   const [legacyCompensation, setLegacyCompensation] = useState<{ objectId: string; allowed: boolean } | null>(null);
   const [compensationReadError, setCompensationReadError] = useState(false);
+  const canChangeResponsible = canEditObject && item.capabilities.canManageResponsibles;
   const canEditLegacyCompensation = canManageCompensationRates && legacyCompensation?.objectId === item.id && legacyCompensation.allowed;
   useEffect(() => {
     let active = true;
@@ -91,12 +154,16 @@ export function ObjectEditForm({
   }, [item.id, canManageCompensationRates]);
 
   useEffect(() => {
+    if (preserveDraftOnRefresh && draftObjectId.current === item.id) return;
+    draftObjectId.current = item.id;
+    setCounterpartyIntent({ kind: 'untouched' });
     setForm({
       name: item.name,
       internalName: item.internalName ?? '',
       address: item.address,
       responsibleUserId: item.responsible?.id ?? '',
       summerWindowCleaning: item.summerWindowCleaning,
+      ...windowCleaningDraft(item),
       engineeringRequired: item.engineeringRequired,
       winterTractorMode: item.winterTractorMode,
       instructionStepsText: item.instructionSteps.join('\n'),
@@ -119,14 +186,13 @@ export function ObjectEditForm({
       winterScheduleWeekdays: item.winterScheduleWeekdays ?? [],
       winterScheduleCycleStartDate: item.winterScheduleCycleStartDate?.slice(0, 10) ?? '',
       notes: item.notes ?? '',
-      counterpartyId: item.counterparty?.id ?? '',
-    });
-  }, [item, baseProfile]);
+      });
+  }, [item, baseProfile, preserveDraftOnRefresh]);
 
   useEffect(() => {
     let cancelled = false;
 
-    if (!canEditObject || mode === 'compensation') {
+    if (!canChangeResponsible || mode === 'compensation') {
       setResponsibleCandidates([]);
       setCandidatesError(null);
       setIsCandidatesLoading(false);
@@ -139,12 +205,10 @@ export function ObjectEditForm({
       try {
         const candidates = await listObjectResponsibleCandidates(item.id);
         if (!cancelled) setResponsibleCandidates(candidates);
-      } catch (caughtError) {
+      } catch {
         if (!cancelled) {
           setCandidatesError(
-            caughtError instanceof Error && caughtError.message
-              ? caughtError.message
-              : 'Не удалось загрузить ответственных.',
+            'Не удалось загрузить список ответственных. Изменение ответственного требует отдельного права.',
           );
         }
       } finally {
@@ -154,7 +218,7 @@ export function ObjectEditForm({
 
     void loadCandidates();
     return () => { cancelled = true; };
-  }, [item.id, canEditObject, mode]);
+  }, [item.id, canChangeResponsible, mode]);
 
   const compensationProfiles: ObjectCompensationProfilesValue = {
     paymentType: form.paymentType,
@@ -181,8 +245,15 @@ export function ObjectEditForm({
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault();
     if (isSubmitting) return;
+    if (accessBlocked || draftObjectId.current !== item.id || (!canEditObject && !canEditLegacyCompensation)) {
+      setError('Право редактирования недоступно. Черновик сохранён.');
+      return;
+    }
     setError(null);
     setSuccess(null);
+
+    const windowError = mode === 'full' && canEditObject ? windowCleaningValidation(form) : null;
+    if (windowError) { setError(windowError); return; }
 
     if (mode === 'full' && canEditObject && !form.responsibleUserId) {
       setError('Выберите ответственного за объект.');
@@ -194,21 +265,41 @@ export function ObjectEditForm({
       return;
     }
 
+    const instructionSteps = form.instructionStepsText.split('\n').map((step) => step.trim()).filter(Boolean);
+    const instructionsChanged = JSON.stringify(instructionSteps) !== JSON.stringify(item.instructionSteps);
+    if (instructionsChanged && !item.capabilities.canManageMaterials) {
+      setError('Право изменения инструкций недоступно. Черновик сохранён; изменение карточки не отправлено.');
+      return;
+    }
+    const submittedObjectId = item.id;
+    const fence = captureObjectWriteFence(() => surfaceMounted.current && currentObjectId.current === submittedObjectId);
+    if (counterpartyIntent.kind !== 'untouched' && (!canEditObject || !canChangeCounterparty || !currentCounterpartyIntent)) {
+      setError(item.counterpartyAccessRestricted ? 'Изменение связи недоступно: нет доступа к связанному контрагенту. Черновик сохранён; оставьте прежнюю связь, чтобы изменить остальные поля.' : 'Выбор контрагента требует повторной проверки текущего доступа. Черновик сохранён.'); return;
+    }
     setIsSubmitting(true);
     try {
+      if (counterpartyIntent.kind === 'select') {
+        const references = await listCounterpartyReferences({ selectedId: counterpartyIntent.option.value, limit: 20 });
+        if (!fence.current()) return;
+        const selectedSource = await getCounterparty(counterpartyIntent.option.value);
+        if (!fence.current()) return;
+        if (!selectedSource.capabilities.canLinkObjects || !references.some((reference) => reference.id === counterpartyIntent.option.value)) {
+          setError('Выбранный контрагент недоступен. Проверьте выбор; связь не изменена.'); return;
+        }
+      }
       const payload: UpdateObjectPayload = canEditObject && mode === 'full' ? {
         name: form.name.trim(),
         internalName: form.internalName.trim(),
         address: form.address.trim(),
         summerWindowCleaning: form.summerWindowCleaning,
+        ...windowCleaningPayload(form),
         engineeringRequired: form.engineeringRequired,
         winterTractorMode: form.winterTractorMode,
-        instructionSteps: form.instructionStepsText.split('\n').map((step) => step.trim()).filter(Boolean),
+        ...(instructionsChanged ? { instructionSteps } : {}),
         notes: form.notes.trim() || undefined,
         responsibleUserId: form.responsibleUserId,
-        ...(canLinkCounterparty
-          ? { counterpartyId: form.counterpartyId || null }
-          : {}),
+        ...(counterpartyIntent.kind === 'select' ? { counterpartyId: counterpartyIntent.option.value }
+          : counterpartyIntent.kind === 'unlink' ? { counterpartyId: null } : {}),
       } : {};
 
       if (canEditLegacyCompensation) {
@@ -232,16 +323,21 @@ export function ObjectEditForm({
         payload.winterScheduleCycleStartDate = form.winterScheduleWeekdays.length || form.winterScheduleCode === '5/2' ? null : form.winterScheduleCycleStartDate;
       }
 
-      await onSubmit(payload);
+      const result = await onSubmit(payload);
+      if ((result && isSavedWithoutAccess(result)) || !fence.current()) return;
+      setCounterpartyIntent({ kind: 'untouched' });
       setSuccess(canEditObject ? 'Изменения по объекту сохранены.' : 'Условия оплаты сохранены.');
     } catch (caughtError) {
+      if (!fence.current()) return;
       setError(
-        caughtError instanceof Error && caughtError.message
-          ? caughtError.message
-          : 'Не удалось сохранить изменения объекта.',
+        caughtError instanceof ApiError && [403, 404].includes(caughtError.statusCode)
+          ? 'Доступ к изменению объекта не подтверждён. Черновик сохранён.'
+          : caughtError instanceof Error && caughtError.message
+            ? caughtError.message
+            : 'Не удалось сохранить изменения объекта.',
       );
     } finally {
-      setIsSubmitting(false);
+      if (fence.sameTarget()) setIsSubmitting(false);
     }
   };
 
@@ -253,10 +349,7 @@ export function ObjectEditForm({
 
       {mode === 'full' ? <>
       <section className={styles.formGrid} aria-label="Сезонные параметры">
-        <div className={styles.field}>
-          <span className={styles.fieldLabel}>Летний профиль</span>
-          <label><input type="checkbox" checked={form.summerWindowCleaning} onChange={(event) => setForm((prev) => ({ ...prev, summerWindowCleaning: event.target.checked }))} disabled={!canEditObject || isSubmitting} /> Мыть окна</label>
-        </div>
+        <WindowCleaningFields value={form} onChange={next => setForm(previous => ({ ...previous, ...next }))} disabled={!canEditObject || isSubmitting} legacySummer={form.summerWindowCleaning} />
         <label className={styles.field}>
           <span className={styles.fieldLabel}>Зимний профиль: трактор</span>
           <Select value={form.winterTractorMode} onChange={(event) => setForm((prev) => ({ ...prev, winterTractorMode: event.target.value as typeof prev.winterTractorMode }))} disabled={!canEditObject || isSubmitting}>
@@ -283,7 +376,7 @@ export function ObjectEditForm({
           onChange={(nextValue) => setForm((previous) => ({ ...previous, ...nextValue }))}
         />
         {!canManageCompensationRates ? (
-          <p className={styles.inlineHelp}>У вашей роли нет права изменять условия оплаты объекта.</p>
+          <p className={styles.inlineHelp}>Нет действующего права изменять условия оплаты объекта.</p>
         ) : null}
         </>}
       </section>
@@ -292,7 +385,7 @@ export function ObjectEditForm({
       <section className={styles.formGrid} aria-label="Инструкции для объекта">
         <label className={`${styles.field} ${styles.fullWidth}`}>
           <span className={styles.fieldLabel}>Постоянные инструкции — один шаг на строку</span>
-          <textarea value={form.instructionStepsText} onChange={(event) => setForm((prev) => ({ ...prev, instructionStepsText: event.target.value }))} disabled={!canEditObject || isSubmitting} rows={4} />
+          <textarea value={form.instructionStepsText} onChange={(event) => setForm((prev) => ({ ...prev, instructionStepsText: event.target.value }))} disabled={!canEditObject || !item.capabilities.canManageMaterials || isSubmitting} rows={4} />
         </label>
       </section>
 
@@ -326,49 +419,48 @@ export function ObjectEditForm({
           />
         </label>
 
-        {canEditObject && canLinkCounterparty ? (
+        {canEditObject && (canLinkCounterparty || canChangeCounterparty) ? (
           <div className={`${styles.field} ${styles.fullWidth}`}>
             <SearchableSelect
               label="Контрагент"
-              value={form.counterpartyId}
-              selectedOption={
-                item.counterparty
-                  ? {
-                      value: item.counterparty.id,
-                      label: item.counterparty.name,
-                      description: item.counterparty.legalName ?? undefined,
-                    }
-                  : null
-              }
+              key={`${item.id}:${accessRevision}`}
+              value={counterpartyValue}
+              selectedOption={counterpartyOption}
               options={[]}
-              placeholder="Без привязки"
+              placeholder={counterpartyIntent.kind !== 'untouched' && !currentCounterpartyIntent ? 'Проверьте выбор после изменения доступа'
+                : counterpartyIntent.kind === 'unlink' ? 'Связь будет удалена при сохранении'
+                  : item.counterpartyAccessRestricted ? 'Связанный контрагент недоступен' : 'Без привязки'}
               searchPlaceholder="Название или юридическое название"
               emptyText="Контрагенты не найдены"
               viewportAware
-              asyncSearch={async (query) =>
-                (await listCounterpartyReferences({ q: query, limit: 20 })).map(
-                  (counterparty): SearchableSelectOption => ({
-                    value: counterparty.id,
-                    label: counterparty.name,
-                    description: counterparty.legalName ?? undefined,
-                    searchText: [
-                      counterparty.name,
-                      counterparty.legalName,
-                    ]
-                      .filter(Boolean)
-                      .join(' '),
-                  }),
-                )
-              }
-              onChange={(counterpartyId) =>
-                setForm((prev) => ({ ...prev, counterpartyId }))
-              }
-              disabled={!canEditObject || isSubmitting}
+              asyncSearch={async (query) => {
+                const targetId = item.id;
+                const fence = captureObjectWriteFence(() => surfaceMounted.current && currentObjectId.current === targetId);
+                const rows = await listCounterpartyReferences({ q: query, limit: 20 });
+                if (!fence.current() || item.counterpartyAccessRestricted || getAccessGeneration() !== generation) return [];
+                const options = rows.map((counterparty): SearchableSelectOption => ({ value: counterparty.id, label: counterparty.name, description: counterparty.legalName ?? undefined }));
+                for (const option of options) counterpartyOptions.current.options.set(option.value, option);
+                return options;
+              }}
+              onChange={(value) => {
+                if (!canChangeCounterparty || getAccessGeneration() !== generation) return;
+                if (!value) { setCounterpartyIntent({ kind: 'unlink', generation }); return; }
+                const option = counterpartyOptions.current.options.get(value);
+                if (option) setCounterpartyIntent({ kind: 'select', generation, option });
+              }}
+              disabled={!canEditObject || !canChangeCounterparty || isSubmitting}
             />
+            {(item.counterpartyAccessRestricted || visibleCounterparty || counterpartyIntent.kind !== 'untouched') ? <div className={styles.actions}>
+              <Button type="button" disabled={isSubmitting || !canEditObject || !canChangeCounterparty} onClick={() => setCounterpartyIntent({ kind: 'unlink', generation: getAccessGeneration() })}>Отвязать контрагента при сохранении</Button>
+            </div> : null}
           </div>
         ) : null}
+        {selectedCounterpartyId && !selectedCounterpartyAllowed ? <div className={styles.notice}>{selectedCounterpartyChecked ? 'Нет права привязки выбранного контрагента. Выберите доступного или оставьте прежнюю связь; остальные изменения сохранены в черновике.' : 'Проверяем право для выбранного контрагента. Остальные изменения сохранены в черновике.'}</div> : null}
+        {counterpartyIntent.kind !== 'untouched' ? <Button type="button" disabled={isSubmitting} onClick={() => setCounterpartyIntent({ kind: 'untouched' })}>Оставить прежнюю связь</Button> : null}
+        {!item.counterpartyAccessRestricted && visibleCounterparty && !canChangeCounterparty ? <div className={styles.notice}>Изменение связи недоступно без подтверждённого права для этого контрагента. Остальные поля можно сохранить без смены связи.</div> : null}
+        {item.counterpartyAccessRestricted ? <div className={styles.notice}>Связанный контрагент недоступен. Изменение связи недоступно без доступа к нему. Остальные данные объекта можно сохранить, оставив прежнюю связь.</div> : null}
 
-        {canEditObject ? <div className={`${styles.field} ${styles.fullWidth}`}>
+        {canChangeResponsible ? <div className={`${styles.field} ${styles.fullWidth}`}>
           {isCandidatesLoading ? (
             <div className={styles.notice}>Загрузка ответственных...</div>
           ) : candidatesError ? (
@@ -399,11 +491,12 @@ export function ObjectEditForm({
         </label>
       </div> : null}
 
+      {!canEditObject && mode === 'full' ? <div className={styles.notice} role="status">Редактирование карточки недоступно. Черновик сохранён. Условия оплаты можно менять только при отдельном действующем праве.</div> : null}
       {error ? <div className={styles.error}>{error}</div> : null}
       {success ? <div className={styles.success}>{success}</div> : null}
 
       <div className={styles.actions}>
-        <Button variant="primary" type="submit" pending={isSubmitting} pendingLabel="Сохранение…" disabled={(mode === 'full' && canEditObject && (isCandidatesLoading || !form.responsibleUserId)) || (canEditLegacyCompensation && invalidScheduleProfiles.length > 0) || (!canEditObject && !canEditLegacyCompensation)}>
+        <Button variant="primary" type="submit" pending={isSubmitting} pendingLabel="Сохранение…" disabled={accessBlocked || counterpartyIntentBlocked || (mode === 'full' && canEditObject && (isCandidatesLoading || !form.responsibleUserId)) || (canEditLegacyCompensation && invalidScheduleProfiles.length > 0) || (!canEditObject && !canEditLegacyCompensation)}>
           {mode === 'compensation' ? 'Сохранить тарифы' : 'Сохранить изменения'}
         </Button>
         {onCancel ? <Button disabled={isSubmitting} onClick={onCancel}>Отмена</Button> : null}

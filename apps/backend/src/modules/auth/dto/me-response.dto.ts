@@ -1,4 +1,8 @@
+import { AccessRule } from "../../users-access/types/access-policy.type";
+
 export class MeResponseDto {
+  accessVersion!: number;
+  accessRules!: AccessRule[];
   id!: string;
   login!: string;
   fullName!: string;
@@ -6,6 +10,31 @@ export class MeResponseDto {
   roleCodes!: string[];
   isActive!: boolean;
   capabilities!: {
+    canCreateTask: boolean;
+    canCreateCandidate: boolean;
+    canCreateCounterparty: boolean;
+    canCreateInventoryItem: boolean;
+    canCreateEquipmentUnit: boolean;
+    canAccessSearch: boolean;
+    canAccessNotifications: boolean;
+    canAccessObjects: boolean;
+    canAccessMats: boolean;
+    canAccessTasks: boolean;
+    canAccessTimesheet: boolean;
+    canAccessUserAbsences: boolean;
+    canAccessVisitPlans: boolean;
+    canAccessUserSubstitutions: boolean;
+    canAccessDashboard: boolean;
+    canUploadFile: boolean;
+    canViewLeadershipDashboard: boolean;
+    canViewManagerDashboard: boolean;
+    canViewHrDashboard: boolean;
+    canViewOperationsDashboard: boolean;
+    canReadSpecificationCatalog: boolean;
+    canCreateSpecificationCatalog: boolean;
+    canUpdateSpecificationCatalog: boolean;
+    canArchiveSpecificationCatalog: boolean;
+    canManageUserAccess: boolean;
     canAccessCounterparties: boolean;
     canManageCounterparties: boolean;
     canLinkCounterpartyObjects: boolean;
@@ -19,6 +48,7 @@ export class MeResponseDto {
     canResolveAccountabilityApproval: boolean;
     canResolveTimesheetApproval: boolean;
     canCreateObject: boolean;
+    canCreateObjectBudget: boolean;
     canAccessOneTimeOrders: boolean;
     canCreateOneTimeOrder: boolean;
     canViewAllOneTimeOrderReviews: boolean;
@@ -27,6 +57,7 @@ export class MeResponseDto {
     canManageAnyOneTimeOrderAvailability: boolean;
     canApproveOneTimeOrderAvailability: boolean;
     canAccessEmployeesHr: boolean;
+    canReadWorkforceSubstitutions: boolean;
     canManageEmployeesHr: boolean;
     canCreateEmployee: boolean;
     canEditEmployee: boolean;
@@ -39,6 +70,7 @@ export class MeResponseDto {
     canViewOwnAccountability: boolean;
     canIssueAccountabilityFunds: boolean;
     canReviewAccountability: boolean;
+    canDiscoverAccountabilityReview: boolean;
     canApproveAccountabilityClosure: boolean;
     canRecordExternalReceipt: boolean;
     canAccessInventory: boolean;
@@ -52,8 +84,11 @@ export class MeResponseDto {
     canWriteoffInventory: boolean;
     canAdjustInventory: boolean;
     canViewInventoryReports: boolean;
+    canViewInventoryMovements: boolean;
     canResolveInventoryMissingPhotoApproval: boolean;
     canAccessEquipment: boolean;
+    canReadEquipmentCatalog: boolean;
+    canDeleteEquipmentCatalog: boolean;
     canManageEquipmentCatalog: boolean;
     canDeleteEquipmentUnit: boolean;
     canAssignEquipmentToObject: boolean;

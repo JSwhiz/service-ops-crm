@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 
 import {
   approveApprovalRequest,
@@ -16,6 +16,9 @@ import {
   getStringValue,
 } from '@/entities/approval/model/approval-summary';
 import type { ApprovalRequestItem } from '@/entities/approval/model/approval.types';
+import { isSavedWithoutAccess } from '@/shared/api/saved-without-access';
+import { useAccessRevision } from '@/shared/auth/use-access-revision';
+import { AccessSnapshotBoundary } from '@/shared/auth/access-snapshot-boundary';
 import { formatUiDate } from '@/shared/lib/format-date';
 import {
   APPROVAL_SOURCE_OPTIONS,
@@ -42,6 +45,7 @@ import styles from './approvals.module.css';
 type ApprovalStatusTone = 'neutral' | 'danger' | 'warning' | 'success';
 
 const PAGE_LIMIT = 20;
+const OPEN_APPROVAL_RECHECK_MS = 5000;
 
 interface BusinessContextItem {
   label: string;
@@ -248,6 +252,7 @@ export default function ApprovalsPage(): React.JSX.Element {
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const accessRevision = useAccessRevision();
   const status = searchParams.get('status') ?? '';
   const approvalType = searchParams.get('approvalType') ?? '';
   const sourceEntityType = searchParams.get('sourceEntityType') ?? '';
@@ -275,13 +280,22 @@ export default function ApprovalsPage(): React.JSX.Element {
   const [rejectError, setRejectError] = useState<string | null>(null);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [cancelError, setCancelError] = useState<string | null>(null);
+  const [loadedAccessRevision, setLoadedAccessRevision] = useState<string | null>(null);
+  const [detailAccessNotice, setDetailAccessNotice] = useState(false);
+  const [savedNotice, setSavedNotice] = useState<string | null>(null);
   const queueFallbackRef = useRef<HTMLDivElement>(null);
+  const queueKey = JSON.stringify([accessRevision, search, status, approvalType, sourceEntityType, sourceEntityId, dateFrom, dateTo, page, pageSize]);
+  const currentQueueKey = useRef(queueKey);
+  currentQueueKey.current = queueKey;
+  const requestSequence = useRef(0);
+  const currentSelection = useRef(selectedId);
+  currentSelection.current = selectedId;
 
   const currentPage = Math.min(page, Math.max(1, totalPages));
   const firstVisible = total === 0 ? 0 : (currentPage - 1) * pageSize + 1;
   const lastVisible = Math.min(currentPage * pageSize, total);
-  const pageItems = items;
-  const selectedItem = items.find((item) => item.id === selectedId) ?? null;
+  const pageItems = loadedAccessRevision === accessRevision ? items : [];
+  const selectedItem = pageItems.find((item) => item.id === selectedId) ?? null;
   const hasScope = Boolean(sourceEntityId);
   const sourceFilterActive = Boolean(sourceEntityType) && !hasScope;
   const hasEditableFilters = Boolean(
@@ -290,17 +304,25 @@ export default function ApprovalsPage(): React.JSX.Element {
   const selectedActing = Boolean(
     selectedItem && actingId === selectedItem.id,
   );
-  const clearDecisionDialogs = (): void => {
+  const clearDecisionDialogs = useCallback((): void => {
     setRejectingId(null);
     setRejectComment('');
     setRejectError(null);
     setCancellingId(null);
     setCancelError(null);
-  };
+  }, []);
+
+  useEffect(() => {
+    if (!selectedItem) return;
+    if (cancellingId === selectedItem.id && !selectedItem.capabilities.canCancel) {
+      setCancellingId(null); setCancelError(null);
+    }
+  }, [cancellingId, clearDecisionDialogs, rejectingId, selectedItem]);
 
   const closeDetail = (): void => {
     setSelectedId(null);
     setDetailError(null);
+    setDetailAccessNotice(false);
     clearDecisionDialogs();
   };
 
@@ -334,7 +356,10 @@ export default function ApprovalsPage(): React.JSX.Element {
     });
   };
 
-  const loadRequests = async (preserveContent = false): Promise<void> => {
+  const loadRequests = useCallback(async (preserveContent = false): Promise<void> => {
+    if (queueKey !== currentQueueKey.current) return;
+    const request = ++requestSequence.current;
+    const isCurrent = (): boolean => requestSequence.current === request && queueKey === currentQueueKey.current;
     if (!preserveContent) {
       setIsLoading(true);
     }
@@ -353,15 +378,20 @@ export default function ApprovalsPage(): React.JSX.Element {
         limit: pageSize,
       });
 
+      if (!isCurrent()) return;
       setItems(response.items);
       setTotal(response.total);
       setTotalPages(response.totalPages);
-      setSelectedId((currentId) =>
-        currentId && response.items.some((item) => item.id === currentId)
-          ? currentId
-          : null,
-      );
+      setLoadedAccessRevision(accessRevision);
+      const openId = currentSelection.current;
+      if (openId && !response.items.some((item) => item.id === openId)) {
+        setSelectedId(null);
+        setDetailError(null);
+        clearDecisionDialogs();
+        setDetailAccessNotice(true);
+      }
     } catch (loadFailure) {
+      if (!isCurrent()) return;
       setLoadError(
         getErrorMessage(
           loadFailure,
@@ -369,32 +399,36 @@ export default function ApprovalsPage(): React.JSX.Element {
         ),
       );
 
-      if (!preserveContent) {
-        setItems([]);
-        setTotal(0);
-        setTotalPages(0);
-        setSelectedId(null);
-      }
+      setItems([]);
+      setTotal(0);
+      setTotalPages(0);
+      setSelectedId(null);
+      setDetailError(null);
+      clearDecisionDialogs();
     } finally {
-      if (!preserveContent) {
-        setIsLoading(false);
-      }
+      if (isCurrent()) setIsLoading(false);
     }
-  };
+  }, [accessRevision, approvalType, clearDecisionDialogs, dateFrom, dateTo, page, pageSize, queueKey, search, sourceEntityId, sourceEntityType, status]);
 
   useEffect(() => {
     void loadRequests();
-  }, [
-    search,
-    status,
-    approvalType,
-    sourceEntityType,
-    sourceEntityId,
-    dateFrom,
-    dateTo,
-    page,
-    pageSize,
-  ]);
+    return () => { requestSequence.current += 1; };
+  }, [loadRequests]);
+
+  useEffect(() => {
+    if (!selectedId) return;
+    let active = true;
+    let timeout: number;
+    const check = async (): Promise<void> => {
+      await loadRequests(true);
+      if (active) timeout = window.setTimeout(() => void check(), OPEN_APPROVAL_RECHECK_MS);
+    };
+    timeout = window.setTimeout(() => void check(), OPEN_APPROVAL_RECHECK_MS);
+    return () => {
+      active = false;
+      window.clearTimeout(timeout);
+    };
+  }, [loadRequests, selectedId]);
 
   useEffect(() => {
     setSearchDraft(search);
@@ -428,12 +462,22 @@ export default function ApprovalsPage(): React.JSX.Element {
     router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
   }, [page, totalPages, isLoading, pathname, router, searchParams]);
 
+  const handleDecisionResult = (id: string, result: object, notice: string): Promise<void> => {
+    if (isSavedWithoutAccess(result)) {
+      if (currentSelection.current === id) closeDetail();
+      setItems((previous) => previous.filter((entry) => entry.id !== id));
+      setSavedNotice(notice);
+    }
+    return loadRequests(true);
+  };
+
   const approveRequest = (item: ApprovalRequestItem): void => {
     setActingId(item.id);
+    setSavedNotice(null);
     setDetailError(null);
 
     void approveApprovalRequest(item.id)
-      .then(() => loadRequests(true))
+      .then((result) => handleDecisionResult(item.id, result, 'Согласование подтверждено.'))
       .catch((approveError) => {
         setDetailError(
           getErrorMessage(
@@ -452,10 +496,11 @@ export default function ApprovalsPage(): React.JSX.Element {
     reason: string,
   ): void => {
     setActingId(item.id);
+    setSavedNotice(null);
     setRejectError(null);
 
     void rejectApprovalRequest(item.id, reason)
-      .then(() => loadRequests(true))
+      .then((result) => handleDecisionResult(item.id, result, 'Согласование отклонено.'))
       .then(() => {
         setRejectingId(null);
         setRejectComment('');
@@ -475,10 +520,11 @@ export default function ApprovalsPage(): React.JSX.Element {
 
   const cancelRequest = (item: ApprovalRequestItem): void => {
     setActingId(item.id);
+    setSavedNotice(null);
     setCancelError(null);
 
     void cancelApprovalRequest(item.id)
-      .then(() => loadRequests(true))
+      .then((result) => handleDecisionResult(item.id, result, 'Согласование отменено.'))
       .then(() => {
         setCancellingId(null);
       })
@@ -497,6 +543,8 @@ export default function ApprovalsPage(): React.JSX.Element {
 
   return (
     <div className={styles.page}>
+      {savedNotice ? <Alert tone="success" role="status">{savedNotice}</Alert> : null}
+      {detailAccessNotice ? <Alert tone="info" role="status">Согласование больше недоступно. Очередь обновлена.</Alert> : null}
       <div className="ui-inline" role="group" aria-label="Быстрый выбор статуса согласований">
         <Button size="sm" aria-pressed={status === 'pending'} onClick={() => updateQuery({ status: 'pending', page: '' })}>Ожидают решения</Button>
         <Button size="sm" aria-pressed={!status} onClick={() => updateQuery({ status: '', page: '' })}>Все статусы</Button>
@@ -655,6 +703,7 @@ export default function ApprovalsPage(): React.JSX.Element {
                   aria-current={isSelected ? 'true' : undefined}
                   onClick={() => {
                     setDetailError(null);
+                    setDetailAccessNotice(false);
                     clearDecisionDialogs();
                     setSelectedId(item.id);
                   }}
@@ -690,6 +739,7 @@ export default function ApprovalsPage(): React.JSX.Element {
         </Surface>
       ) : null}
 
+      <AccessSnapshotBoundary blocked={loadedAccessRevision !== accessRevision}>
       <Drawer
         open={Boolean(selectedItem)}
         onOpenChange={(open) => {
@@ -743,7 +793,7 @@ export default function ApprovalsPage(): React.JSX.Element {
         reason={rejectComment}
         onReasonChange={setRejectComment}
         onConfirm={(reason) => {
-          if (selectedItem) {
+          if (selectedItem?.capabilities.canReject) {
             rejectRequest(selectedItem, reason);
           }
         }}
@@ -752,13 +802,16 @@ export default function ApprovalsPage(): React.JSX.Element {
         pending={Boolean(
           selectedItem && actingId === selectedItem.id,
         )}
+        confirmDisabled={!selectedItem?.capabilities.canReject}
+        confirmDisabledReason={selectedItem && !selectedItem.capabilities.canReject ? 'Отклонение недоступно. Введённая причина сохранена; отправка заблокирована. Проверьте доступ перед повторным действием.' : undefined}
         error={rejectError}
         returnFocusRef={queueFallbackRef}
       />
+      </AccessSnapshotBoundary>
 
       <ConfirmDialog
         open={Boolean(
-          selectedItem && cancellingId === selectedItem.id,
+          selectedItem?.capabilities.canCancel && cancellingId === selectedItem.id,
         )}
         onOpenChange={(open) => {
           if (!open) {
@@ -775,7 +828,7 @@ export default function ApprovalsPage(): React.JSX.Element {
         )}
         error={cancelError}
         onConfirm={() => {
-          if (selectedItem) {
+          if (selectedItem?.capabilities.canCancel) {
             cancelRequest(selectedItem);
           }
         }}

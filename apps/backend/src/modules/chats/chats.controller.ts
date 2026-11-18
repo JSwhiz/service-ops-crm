@@ -33,7 +33,7 @@ import { MarkChatRoomReadDto } from './dto/mark-chat-room-read.dto';
 import { RenameChatRoomDto } from './dto/rename-chat-room.dto';
 import { SendChatMessageDto } from './dto/send-chat-message.dto';
 import { ChatSearchResponseDto } from './dto/chat-search-response.dto';
-import type { ChatRoomCode, CurrentAuthUser } from './types/chat.types';
+import type { ChatRoomCode, CurrentAuthUser, ChatMembershipMutationResponse } from './types/chat.types';
 
 interface UploadedFilePayload {
   originalname: string;
@@ -63,6 +63,11 @@ export class ChatsController {
     @Query('view') view?: string,
   ): Promise<ChatRoomResponseDto[]> {
     return this.chatsService.listRooms(user, view);
+  }
+
+  @Get('rooms/management')
+  listRoomsForManagement(@CurrentUser() user: CurrentAuthUser, @Query('after') after?: string, @Query('q') q?: string, @Query('roomId') roomId?: string) {
+    return this.chatsService.listRoomsForManagement(user, { after, q, roomId });
   }
 
   @Get('rooms/code/:code')
@@ -111,7 +116,7 @@ export class ChatsController {
     @CurrentUser() user: CurrentAuthUser,
     @Param('roomId') roomId: string,
     @Body() body: AddChatParticipantsDto,
-  ): Promise<ChatRoomResponseDto> {
+  ): Promise<ChatMembershipMutationResponse> {
     return this.chatsService.addParticipants(user, roomId, body);
   }
 
@@ -120,8 +125,13 @@ export class ChatsController {
     @CurrentUser() user: CurrentAuthUser,
     @Param('roomId') roomId: string,
     @Param('userId') userId: string,
-  ): Promise<ChatRoomResponseDto> {
+  ): Promise<ChatMembershipMutationResponse> {
     return this.chatsService.removeParticipant(user, roomId, userId);
+  }
+
+  @Post('rooms/:roomId/participants/:userId/automatic')
+  restoreAutomaticParticipant(@CurrentUser() user: CurrentAuthUser, @Param('roomId') roomId: string, @Param('userId') userId: string): Promise<ChatMembershipMutationResponse> {
+    return this.chatsService.restoreAutomaticParticipant(user, roomId, userId);
   }
 
   @Post('rooms/:roomId/hide')

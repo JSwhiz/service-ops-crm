@@ -1,0 +1,726 @@
+{
+  "claimId": "E527",
+  "assertions": [
+    {
+      "id": "old-upload-session-changed-without-rerender:passed",
+      "actual": {
+        "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/actual-behavior-proof.json",
+        "sha256": "ffec596d9b581b00772451e5a3370557f04fb995921dace2a27027a1ba71e3ee",
+        "pointer": "/observations/0/passed"
+      },
+      "value": true,
+      "expected": true
+    },
+    {
+      "id": "old-upload-session-changed-without-rerender:initialAllowedUI",
+      "actual": {
+        "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/actual-behavior-proof.json",
+        "sha256": "ffec596d9b581b00772451e5a3370557f04fb995921dace2a27027a1ba71e3ee",
+        "pointer": "/observations/0/initialAllowedUI"
+      },
+      "value": true,
+      "expected": true
+    },
+    {
+      "id": "old-upload-session-changed-without-rerender:childRenderCount",
+      "actual": {
+        "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/actual-behavior-proof.json",
+        "sha256": "ffec596d9b581b00772451e5a3370557f04fb995921dace2a27027a1ba71e3ee",
+        "pointer": "/observations/0/childRenderCount"
+      },
+      "value": 1,
+      "expected": 1
+    },
+    {
+      "id": "old-upload-session-changed-without-rerender:submitCalls",
+      "actual": {
+        "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/actual-behavior-proof.json",
+        "sha256": "ffec596d9b581b00772451e5a3370557f04fb995921dace2a27027a1ba71e3ee",
+        "pointer": "/observations/0/submitCalls"
+      },
+      "value": 0,
+      "expected": 0
+    },
+    {
+      "id": "old-upload-session-changed-without-rerender:attachCallbackCalls",
+      "actual": {
+        "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/actual-behavior-proof.json",
+        "sha256": "ffec596d9b581b00772451e5a3370557f04fb995921dace2a27027a1ba71e3ee",
+        "pointer": "/observations/0/attachCallbackCalls"
+      },
+      "value": 0,
+      "expected": 0
+    },
+    {
+      "id": "old-upload-session-changed-without-rerender:pickerClicks",
+      "actual": {
+        "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/actual-behavior-proof.json",
+        "sha256": "ffec596d9b581b00772451e5a3370557f04fb995921dace2a27027a1ba71e3ee",
+        "pointer": "/observations/0/pickerClicks"
+      },
+      "value": 0,
+      "expected": 0
+    },
+    {
+      "id": "old-upload-session-changed-without-rerender:draftWrites",
+      "actual": {
+        "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/actual-behavior-proof.json",
+        "sha256": "ffec596d9b581b00772451e5a3370557f04fb995921dace2a27027a1ba71e3ee",
+        "pointer": "/observations/0/draftWrites"
+      },
+      "value": 0,
+      "expected": 0
+    },
+    {
+      "id": "old-upload-session-changed-without-rerender:forbiddenNetworkCalls",
+      "actual": {
+        "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/actual-behavior-proof.json",
+        "sha256": "ffec596d9b581b00772451e5a3370557f04fb995921dace2a27027a1ba71e3ee",
+        "pointer": "/observations/0/forbiddenNetworkCalls"
+      },
+      "value": 0,
+      "expected": 0
+    },
+    {
+      "id": "old-picker-trigger-session-changed-without-rerender:passed",
+      "actual": {
+        "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/actual-behavior-proof.json",
+        "sha256": "ffec596d9b581b00772451e5a3370557f04fb995921dace2a27027a1ba71e3ee",
+        "pointer": "/observations/1/passed"
+      },
+      "value": true,
+      "expected": true
+    },
+    {
+      "id": "old-picker-trigger-session-changed-without-rerender:initialAllowedUI",
+      "actual": {
+        "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/actual-behavior-proof.json",
+        "sha256": "ffec596d9b581b00772451e5a3370557f04fb995921dace2a27027a1ba71e3ee",
+        "pointer": "/observations/1/initialAllowedUI"
+      },
+      "value": true,
+      "expected": true
+    },
+    {
+      "id": "old-picker-trigger-session-changed-without-rerender:childRenderCount",
+      "actual": {
+        "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/actual-behavior-proof.json",
+        "sha256": "ffec596d9b581b00772451e5a3370557f04fb995921dace2a27027a1ba71e3ee",
+        "pointer": "/observations/1/childRenderCount"
+      },
+      "value": 1,
+      "expected": 1
+    },
+    {
+      "id": "old-picker-trigger-session-changed-without-rerender:submitCalls",
+      "actual": {
+        "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/actual-behavior-proof.json",
+        "sha256": "ffec596d9b581b00772451e5a3370557f04fb995921dace2a27027a1ba71e3ee",
+        "pointer": "/observations/1/submitCalls"
+      },
+      "value": 0,
+      "expected": 0
+    },
+    {
+      "id": "old-picker-trigger-session-changed-without-rerender:attachCallbackCalls",
+      "actual": {
+        "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/actual-behavior-proof.json",
+        "sha256": "ffec596d9b581b00772451e5a3370557f04fb995921dace2a27027a1ba71e3ee",
+        "pointer": "/observations/1/attachCallbackCalls"
+      },
+      "value": 0,
+      "expected": 0
+    },
+    {
+      "id": "old-picker-trigger-session-changed-without-rerender:pickerClicks",
+      "actual": {
+        "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/actual-behavior-proof.json",
+        "sha256": "ffec596d9b581b00772451e5a3370557f04fb995921dace2a27027a1ba71e3ee",
+        "pointer": "/observations/1/pickerClicks"
+      },
+      "value": 0,
+      "expected": 0
+    },
+    {
+      "id": "old-picker-trigger-session-changed-without-rerender:draftWrites",
+      "actual": {
+        "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/actual-behavior-proof.json",
+        "sha256": "ffec596d9b581b00772451e5a3370557f04fb995921dace2a27027a1ba71e3ee",
+        "pointer": "/observations/1/draftWrites"
+      },
+      "value": 0,
+      "expected": 0
+    },
+    {
+      "id": "old-picker-trigger-session-changed-without-rerender:forbiddenNetworkCalls",
+      "actual": {
+        "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/actual-behavior-proof.json",
+        "sha256": "ffec596d9b581b00772451e5a3370557f04fb995921dace2a27027a1ba71e3ee",
+        "pointer": "/observations/1/forbiddenNetworkCalls"
+      },
+      "value": 0,
+      "expected": 0
+    },
+    {
+      "id": "old-picker-change-session-changed-without-rerender:passed",
+      "actual": {
+        "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/actual-behavior-proof.json",
+        "sha256": "ffec596d9b581b00772451e5a3370557f04fb995921dace2a27027a1ba71e3ee",
+        "pointer": "/observations/2/passed"
+      },
+      "value": true,
+      "expected": true
+    },
+    {
+      "id": "old-picker-change-session-changed-without-rerender:initialAllowedUI",
+      "actual": {
+        "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/actual-behavior-proof.json",
+        "sha256": "ffec596d9b581b00772451e5a3370557f04fb995921dace2a27027a1ba71e3ee",
+        "pointer": "/observations/2/initialAllowedUI"
+      },
+      "value": true,
+      "expected": true
+    },
+    {
+      "id": "old-picker-change-session-changed-without-rerender:childRenderCount",
+      "actual": {
+        "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/actual-behavior-proof.json",
+        "sha256": "ffec596d9b581b00772451e5a3370557f04fb995921dace2a27027a1ba71e3ee",
+        "pointer": "/observations/2/childRenderCount"
+      },
+      "value": 1,
+      "expected": 1
+    },
+    {
+      "id": "old-picker-change-session-changed-without-rerender:submitCalls",
+      "actual": {
+        "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/actual-behavior-proof.json",
+        "sha256": "ffec596d9b581b00772451e5a3370557f04fb995921dace2a27027a1ba71e3ee",
+        "pointer": "/observations/2/submitCalls"
+      },
+      "value": 0,
+      "expected": 0
+    },
+    {
+      "id": "old-picker-change-session-changed-without-rerender:attachCallbackCalls",
+      "actual": {
+        "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/actual-behavior-proof.json",
+        "sha256": "ffec596d9b581b00772451e5a3370557f04fb995921dace2a27027a1ba71e3ee",
+        "pointer": "/observations/2/attachCallbackCalls"
+      },
+      "value": 0,
+      "expected": 0
+    },
+    {
+      "id": "old-picker-change-session-changed-without-rerender:pickerClicks",
+      "actual": {
+        "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/actual-behavior-proof.json",
+        "sha256": "ffec596d9b581b00772451e5a3370557f04fb995921dace2a27027a1ba71e3ee",
+        "pointer": "/observations/2/pickerClicks"
+      },
+      "value": 1,
+      "expected": 1
+    },
+    {
+      "id": "old-picker-change-session-changed-without-rerender:draftWrites",
+      "actual": {
+        "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/actual-behavior-proof.json",
+        "sha256": "ffec596d9b581b00772451e5a3370557f04fb995921dace2a27027a1ba71e3ee",
+        "pointer": "/observations/2/draftWrites"
+      },
+      "value": 0,
+      "expected": 0
+    },
+    {
+      "id": "old-picker-change-session-changed-without-rerender:forbiddenNetworkCalls",
+      "actual": {
+        "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/actual-behavior-proof.json",
+        "sha256": "ffec596d9b581b00772451e5a3370557f04fb995921dace2a27027a1ba71e3ee",
+        "pointer": "/observations/2/forbiddenNetworkCalls"
+      },
+      "value": 0,
+      "expected": 0
+    },
+    {
+      "id": "old-upload-access-generation-changed-same-session-no-rerender:passed",
+      "actual": {
+        "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/actual-behavior-proof.json",
+        "sha256": "ffec596d9b581b00772451e5a3370557f04fb995921dace2a27027a1ba71e3ee",
+        "pointer": "/observations/3/passed"
+      },
+      "value": true,
+      "expected": true
+    },
+    {
+      "id": "old-upload-access-generation-changed-same-session-no-rerender:initialAllowedUI",
+      "actual": {
+        "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/actual-behavior-proof.json",
+        "sha256": "ffec596d9b581b00772451e5a3370557f04fb995921dace2a27027a1ba71e3ee",
+        "pointer": "/observations/3/initialAllowedUI"
+      },
+      "value": true,
+      "expected": true
+    },
+    {
+      "id": "old-upload-access-generation-changed-same-session-no-rerender:childRenderCount",
+      "actual": {
+        "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/actual-behavior-proof.json",
+        "sha256": "ffec596d9b581b00772451e5a3370557f04fb995921dace2a27027a1ba71e3ee",
+        "pointer": "/observations/3/childRenderCount"
+      },
+      "value": 1,
+      "expected": 1
+    },
+    {
+      "id": "old-upload-access-generation-changed-same-session-no-rerender:submitCalls",
+      "actual": {
+        "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/actual-behavior-proof.json",
+        "sha256": "ffec596d9b581b00772451e5a3370557f04fb995921dace2a27027a1ba71e3ee",
+        "pointer": "/observations/3/submitCalls"
+      },
+      "value": 0,
+      "expected": 0
+    },
+    {
+      "id": "old-upload-access-generation-changed-same-session-no-rerender:attachCallbackCalls",
+      "actual": {
+        "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/actual-behavior-proof.json",
+        "sha256": "ffec596d9b581b00772451e5a3370557f04fb995921dace2a27027a1ba71e3ee",
+        "pointer": "/observations/3/attachCallbackCalls"
+      },
+      "value": 0,
+      "expected": 0
+    },
+    {
+      "id": "old-upload-access-generation-changed-same-session-no-rerender:pickerClicks",
+      "actual": {
+        "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/actual-behavior-proof.json",
+        "sha256": "ffec596d9b581b00772451e5a3370557f04fb995921dace2a27027a1ba71e3ee",
+        "pointer": "/observations/3/pickerClicks"
+      },
+      "value": 0,
+      "expected": 0
+    },
+    {
+      "id": "old-upload-access-generation-changed-same-session-no-rerender:draftWrites",
+      "actual": {
+        "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/actual-behavior-proof.json",
+        "sha256": "ffec596d9b581b00772451e5a3370557f04fb995921dace2a27027a1ba71e3ee",
+        "pointer": "/observations/3/draftWrites"
+      },
+      "value": 0,
+      "expected": 0
+    },
+    {
+      "id": "old-upload-access-generation-changed-same-session-no-rerender:forbiddenNetworkCalls",
+      "actual": {
+        "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/actual-behavior-proof.json",
+        "sha256": "ffec596d9b581b00772451e5a3370557f04fb995921dace2a27027a1ba71e3ee",
+        "pointer": "/observations/3/forbiddenNetworkCalls"
+      },
+      "value": 0,
+      "expected": 0
+    },
+    {
+      "id": "old-picker-trigger-access-generation-changed-same-session-no-rerender:passed",
+      "actual": {
+        "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/actual-behavior-proof.json",
+        "sha256": "ffec596d9b581b00772451e5a3370557f04fb995921dace2a27027a1ba71e3ee",
+        "pointer": "/observations/4/passed"
+      },
+      "value": true,
+      "expected": true
+    },
+    {
+      "id": "old-picker-trigger-access-generation-changed-same-session-no-rerender:initialAllowedUI",
+      "actual": {
+        "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/actual-behavior-proof.json",
+        "sha256": "ffec596d9b581b00772451e5a3370557f04fb995921dace2a27027a1ba71e3ee",
+        "pointer": "/observations/4/initialAllowedUI"
+      },
+      "value": true,
+      "expected": true
+    },
+    {
+      "id": "old-picker-trigger-access-generation-changed-same-session-no-rerender:childRenderCount",
+      "actual": {
+        "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/actual-behavior-proof.json",
+        "sha256": "ffec596d9b581b00772451e5a3370557f04fb995921dace2a27027a1ba71e3ee",
+        "pointer": "/observations/4/childRenderCount"
+      },
+      "value": 1,
+      "expected": 1
+    },
+    {
+      "id": "old-picker-trigger-access-generation-changed-same-session-no-rerender:submitCalls",
+      "actual": {
+        "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/actual-behavior-proof.json",
+        "sha256": "ffec596d9b581b00772451e5a3370557f04fb995921dace2a27027a1ba71e3ee",
+        "pointer": "/observations/4/submitCalls"
+      },
+      "value": 0,
+      "expected": 0
+    },
+    {
+      "id": "old-picker-trigger-access-generation-changed-same-session-no-rerender:attachCallbackCalls",
+      "actual": {
+        "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/actual-behavior-proof.json",
+        "sha256": "ffec596d9b581b00772451e5a3370557f04fb995921dace2a27027a1ba71e3ee",
+        "pointer": "/observations/4/attachCallbackCalls"
+      },
+      "value": 0,
+      "expected": 0
+    },
+    {
+      "id": "old-picker-trigger-access-generation-changed-same-session-no-rerender:pickerClicks",
+      "actual": {
+        "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/actual-behavior-proof.json",
+        "sha256": "ffec596d9b581b00772451e5a3370557f04fb995921dace2a27027a1ba71e3ee",
+        "pointer": "/observations/4/pickerClicks"
+      },
+      "value": 0,
+      "expected": 0
+    },
+    {
+      "id": "old-picker-trigger-access-generation-changed-same-session-no-rerender:draftWrites",
+      "actual": {
+        "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/actual-behavior-proof.json",
+        "sha256": "ffec596d9b581b00772451e5a3370557f04fb995921dace2a27027a1ba71e3ee",
+        "pointer": "/observations/4/draftWrites"
+      },
+      "value": 0,
+      "expected": 0
+    },
+    {
+      "id": "old-picker-trigger-access-generation-changed-same-session-no-rerender:forbiddenNetworkCalls",
+      "actual": {
+        "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/actual-behavior-proof.json",
+        "sha256": "ffec596d9b581b00772451e5a3370557f04fb995921dace2a27027a1ba71e3ee",
+        "pointer": "/observations/4/forbiddenNetworkCalls"
+      },
+      "value": 0,
+      "expected": 0
+    },
+    {
+      "id": "open-picker-same-session-write-revoke-keeps-own-file:passed",
+      "actual": {
+        "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/actual-behavior-proof.json",
+        "sha256": "ffec596d9b581b00772451e5a3370557f04fb995921dace2a27027a1ba71e3ee",
+        "pointer": "/observations/5/passed"
+      },
+      "value": true,
+      "expected": true
+    },
+    {
+      "id": "open-picker-same-session-write-revoke-keeps-own-file:initialAllowedUI",
+      "actual": {
+        "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/actual-behavior-proof.json",
+        "sha256": "ffec596d9b581b00772451e5a3370557f04fb995921dace2a27027a1ba71e3ee",
+        "pointer": "/observations/5/initialAllowedUI"
+      },
+      "value": true,
+      "expected": true
+    },
+    {
+      "id": "open-picker-same-session-write-revoke-keeps-own-file:childRenderCount",
+      "actual": {
+        "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/actual-behavior-proof.json",
+        "sha256": "ffec596d9b581b00772451e5a3370557f04fb995921dace2a27027a1ba71e3ee",
+        "pointer": "/observations/5/childRenderCount"
+      },
+      "value": 2,
+      "expected": 2
+    },
+    {
+      "id": "open-picker-same-session-write-revoke-keeps-own-file:submitCalls",
+      "actual": {
+        "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/actual-behavior-proof.json",
+        "sha256": "ffec596d9b581b00772451e5a3370557f04fb995921dace2a27027a1ba71e3ee",
+        "pointer": "/observations/5/submitCalls"
+      },
+      "value": 0,
+      "expected": 0
+    },
+    {
+      "id": "open-picker-same-session-write-revoke-keeps-own-file:attachCallbackCalls",
+      "actual": {
+        "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/actual-behavior-proof.json",
+        "sha256": "ffec596d9b581b00772451e5a3370557f04fb995921dace2a27027a1ba71e3ee",
+        "pointer": "/observations/5/attachCallbackCalls"
+      },
+      "value": 0,
+      "expected": 0
+    },
+    {
+      "id": "open-picker-same-session-write-revoke-keeps-own-file:pickerClicks",
+      "actual": {
+        "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/actual-behavior-proof.json",
+        "sha256": "ffec596d9b581b00772451e5a3370557f04fb995921dace2a27027a1ba71e3ee",
+        "pointer": "/observations/5/pickerClicks"
+      },
+      "value": 1,
+      "expected": 1
+    },
+    {
+      "id": "open-picker-same-session-write-revoke-keeps-own-file:draftWrites",
+      "actual": {
+        "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/actual-behavior-proof.json",
+        "sha256": "ffec596d9b581b00772451e5a3370557f04fb995921dace2a27027a1ba71e3ee",
+        "pointer": "/observations/5/draftWrites"
+      },
+      "value": 1,
+      "expected": 1
+    },
+    {
+      "id": "open-picker-same-session-write-revoke-keeps-own-file:forbiddenNetworkCalls",
+      "actual": {
+        "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/actual-behavior-proof.json",
+        "sha256": "ffec596d9b581b00772451e5a3370557f04fb995921dace2a27027a1ba71e3ee",
+        "pointer": "/observations/5/forbiddenNetworkCalls"
+      },
+      "value": 0,
+      "expected": 0
+    },
+    {
+      "id": "old-upload-handler-retained-after-new-session-rerender:passed",
+      "actual": {
+        "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/actual-behavior-proof.json",
+        "sha256": "ffec596d9b581b00772451e5a3370557f04fb995921dace2a27027a1ba71e3ee",
+        "pointer": "/observations/6/passed"
+      },
+      "value": true,
+      "expected": true
+    },
+    {
+      "id": "old-upload-handler-retained-after-new-session-rerender:initialAllowedUI",
+      "actual": {
+        "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/actual-behavior-proof.json",
+        "sha256": "ffec596d9b581b00772451e5a3370557f04fb995921dace2a27027a1ba71e3ee",
+        "pointer": "/observations/6/initialAllowedUI"
+      },
+      "value": true,
+      "expected": true
+    },
+    {
+      "id": "old-upload-handler-retained-after-new-session-rerender:childRenderCount",
+      "actual": {
+        "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/actual-behavior-proof.json",
+        "sha256": "ffec596d9b581b00772451e5a3370557f04fb995921dace2a27027a1ba71e3ee",
+        "pointer": "/observations/6/childRenderCount"
+      },
+      "value": 2,
+      "expected": 2
+    },
+    {
+      "id": "old-upload-handler-retained-after-new-session-rerender:submitCalls",
+      "actual": {
+        "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/actual-behavior-proof.json",
+        "sha256": "ffec596d9b581b00772451e5a3370557f04fb995921dace2a27027a1ba71e3ee",
+        "pointer": "/observations/6/submitCalls"
+      },
+      "value": 0,
+      "expected": 0
+    },
+    {
+      "id": "old-upload-handler-retained-after-new-session-rerender:attachCallbackCalls",
+      "actual": {
+        "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/actual-behavior-proof.json",
+        "sha256": "ffec596d9b581b00772451e5a3370557f04fb995921dace2a27027a1ba71e3ee",
+        "pointer": "/observations/6/attachCallbackCalls"
+      },
+      "value": 0,
+      "expected": 0
+    },
+    {
+      "id": "old-upload-handler-retained-after-new-session-rerender:pickerClicks",
+      "actual": {
+        "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/actual-behavior-proof.json",
+        "sha256": "ffec596d9b581b00772451e5a3370557f04fb995921dace2a27027a1ba71e3ee",
+        "pointer": "/observations/6/pickerClicks"
+      },
+      "value": 0,
+      "expected": 0
+    },
+    {
+      "id": "old-upload-handler-retained-after-new-session-rerender:draftWrites",
+      "actual": {
+        "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/actual-behavior-proof.json",
+        "sha256": "ffec596d9b581b00772451e5a3370557f04fb995921dace2a27027a1ba71e3ee",
+        "pointer": "/observations/6/draftWrites"
+      },
+      "value": 0,
+      "expected": 0
+    },
+    {
+      "id": "old-upload-handler-retained-after-new-session-rerender:forbiddenNetworkCalls",
+      "actual": {
+        "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/actual-behavior-proof.json",
+        "sha256": "ffec596d9b581b00772451e5a3370557f04fb995921dace2a27027a1ba71e3ee",
+        "pointer": "/observations/6/forbiddenNetworkCalls"
+      },
+      "value": 0,
+      "expected": 0
+    },
+    {
+      "id": "old-upload-handler-retained-after-new-generation-rerender:passed",
+      "actual": {
+        "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/actual-behavior-proof.json",
+        "sha256": "ffec596d9b581b00772451e5a3370557f04fb995921dace2a27027a1ba71e3ee",
+        "pointer": "/observations/7/passed"
+      },
+      "value": true,
+      "expected": true
+    },
+    {
+      "id": "old-upload-handler-retained-after-new-generation-rerender:initialAllowedUI",
+      "actual": {
+        "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/actual-behavior-proof.json",
+        "sha256": "ffec596d9b581b00772451e5a3370557f04fb995921dace2a27027a1ba71e3ee",
+        "pointer": "/observations/7/initialAllowedUI"
+      },
+      "value": true,
+      "expected": true
+    },
+    {
+      "id": "old-upload-handler-retained-after-new-generation-rerender:childRenderCount",
+      "actual": {
+        "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/actual-behavior-proof.json",
+        "sha256": "ffec596d9b581b00772451e5a3370557f04fb995921dace2a27027a1ba71e3ee",
+        "pointer": "/observations/7/childRenderCount"
+      },
+      "value": 2,
+      "expected": 2
+    },
+    {
+      "id": "old-upload-handler-retained-after-new-generation-rerender:submitCalls",
+      "actual": {
+        "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/actual-behavior-proof.json",
+        "sha256": "ffec596d9b581b00772451e5a3370557f04fb995921dace2a27027a1ba71e3ee",
+        "pointer": "/observations/7/submitCalls"
+      },
+      "value": 0,
+      "expected": 0
+    },
+    {
+      "id": "old-upload-handler-retained-after-new-generation-rerender:attachCallbackCalls",
+      "actual": {
+        "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/actual-behavior-proof.json",
+        "sha256": "ffec596d9b581b00772451e5a3370557f04fb995921dace2a27027a1ba71e3ee",
+        "pointer": "/observations/7/attachCallbackCalls"
+      },
+      "value": 0,
+      "expected": 0
+    },
+    {
+      "id": "old-upload-handler-retained-after-new-generation-rerender:pickerClicks",
+      "actual": {
+        "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/actual-behavior-proof.json",
+        "sha256": "ffec596d9b581b00772451e5a3370557f04fb995921dace2a27027a1ba71e3ee",
+        "pointer": "/observations/7/pickerClicks"
+      },
+      "value": 0,
+      "expected": 0
+    },
+    {
+      "id": "old-upload-handler-retained-after-new-generation-rerender:draftWrites",
+      "actual": {
+        "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/actual-behavior-proof.json",
+        "sha256": "ffec596d9b581b00772451e5a3370557f04fb995921dace2a27027a1ba71e3ee",
+        "pointer": "/observations/7/draftWrites"
+      },
+      "value": 0,
+      "expected": 0
+    },
+    {
+      "id": "old-upload-handler-retained-after-new-generation-rerender:forbiddenNetworkCalls",
+      "actual": {
+        "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/actual-behavior-proof.json",
+        "sha256": "ffec596d9b581b00772451e5a3370557f04fb995921dace2a27027a1ba71e3ee",
+        "pointer": "/observations/7/forbiddenNetworkCalls"
+      },
+      "value": 0,
+      "expected": 0
+    },
+    {
+      "id": "fresh-same-session-manual-picker-and-upload-positive:passed",
+      "actual": {
+        "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/actual-behavior-proof.json",
+        "sha256": "ffec596d9b581b00772451e5a3370557f04fb995921dace2a27027a1ba71e3ee",
+        "pointer": "/observations/8/passed"
+      },
+      "value": true,
+      "expected": true
+    },
+    {
+      "id": "fresh-same-session-manual-picker-and-upload-positive:initialAllowedUI",
+      "actual": {
+        "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/actual-behavior-proof.json",
+        "sha256": "ffec596d9b581b00772451e5a3370557f04fb995921dace2a27027a1ba71e3ee",
+        "pointer": "/observations/8/initialAllowedUI"
+      },
+      "value": true,
+      "expected": true
+    },
+    {
+      "id": "fresh-same-session-manual-picker-and-upload-positive:childRenderCount",
+      "actual": {
+        "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/actual-behavior-proof.json",
+        "sha256": "ffec596d9b581b00772451e5a3370557f04fb995921dace2a27027a1ba71e3ee",
+        "pointer": "/observations/8/childRenderCount"
+      },
+      "value": 2,
+      "expected": 2
+    },
+    {
+      "id": "fresh-same-session-manual-picker-and-upload-positive:submitCalls",
+      "actual": {
+        "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/actual-behavior-proof.json",
+        "sha256": "ffec596d9b581b00772451e5a3370557f04fb995921dace2a27027a1ba71e3ee",
+        "pointer": "/observations/8/submitCalls"
+      },
+      "value": 1,
+      "expected": 1
+    },
+    {
+      "id": "fresh-same-session-manual-picker-and-upload-positive:attachCallbackCalls",
+      "actual": {
+        "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/actual-behavior-proof.json",
+        "sha256": "ffec596d9b581b00772451e5a3370557f04fb995921dace2a27027a1ba71e3ee",
+        "pointer": "/observations/8/attachCallbackCalls"
+      },
+      "value": 1,
+      "expected": 1
+    },
+    {
+      "id": "fresh-same-session-manual-picker-and-upload-positive:pickerClicks",
+      "actual": {
+        "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/actual-behavior-proof.json",
+        "sha256": "ffec596d9b581b00772451e5a3370557f04fb995921dace2a27027a1ba71e3ee",
+        "pointer": "/observations/8/pickerClicks"
+      },
+      "value": 1,
+      "expected": 1
+    },
+    {
+      "id": "fresh-same-session-manual-picker-and-upload-positive:draftWrites",
+      "actual": {
+        "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/actual-behavior-proof.json",
+        "sha256": "ffec596d9b581b00772451e5a3370557f04fb995921dace2a27027a1ba71e3ee",
+        "pointer": "/observations/8/draftWrites"
+      },
+      "value": 2,
+      "expected": 2
+    },
+    {
+      "id": "fresh-same-session-manual-picker-and-upload-positive:forbiddenNetworkCalls",
+      "actual": {
+        "path": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E527-standalone-photo-controlled/actual-behavior-proof.json",
+        "sha256": "ffec596d9b581b00772451e5a3370557f04fb995921dace2a27027a1ba71e3ee",
+        "pointer": "/observations/8/forbiddenNetworkCalls"
+      },
+      "value": 0,
+      "expected": 0
+    }
+  ],
+  "note": "Fixed expected counts independent of result values. Harness additionally asserts actual File identity, refs, auth-session/generation relationships and draft acknowledgement."
+}

@@ -1,0 +1,22 @@
+.root {
+  display: grid;
+  min-width: 0;
+  gap: var(--ui-space-3);
+}
+
+.root h3,
+.root p {
+  margin: 0;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: var(--ui-space-2);
+}
+
+.row > button {
+  min-width: 44px;
+  min-height: 44px;
+}

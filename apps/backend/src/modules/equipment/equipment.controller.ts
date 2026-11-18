@@ -1,3 +1,4 @@
+import type { SavedWithoutAccess } from '../../common/access/project-committed-write';
 import {
   Body,
   Controller,
@@ -105,7 +106,7 @@ export class EquipmentController {
     @CurrentUser() user: CurrentAuthUser,
     @Param('id') id: string,
     @Body() payload: CreateEquipmentMovementDto,
-  ): Promise<EquipmentMovementResponseDto> {
+  ): Promise<EquipmentMovementResponseDto | SavedWithoutAccess> {
     return this.equipmentService.createMovement(user, id, payload);
   }
 }

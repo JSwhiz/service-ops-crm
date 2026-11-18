@@ -24,7 +24,7 @@ export class InventoryItemResponseDto {
     returnsCount: number;
     writeoffsCount: number;
     adjustmentsCount: number;
-  };
+  } | null;
   archiveState!: {
     canArchive: boolean;
     pendingMovementsCount: number;
@@ -42,6 +42,7 @@ export class InventoryItemResponseDto {
     canEditCatalog: boolean;
     canDelete: boolean;
     canCreateMovement: boolean;
+    canRestore?: boolean;
     canCreateReceipt: boolean;
     canIssueToObject: boolean;
     canIssueToOneTimeOrder: boolean;
@@ -49,5 +50,6 @@ export class InventoryItemResponseDto {
     canWriteoff: boolean;
     canAdjust: boolean;
     canViewReports: boolean;
+    canViewMovements: boolean;
   };
 }

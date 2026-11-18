@@ -8,6 +8,15 @@
 
 .wrappingOptions button { min-width: 0; }
 
+.floatingPopover {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  min-width: min(240px, calc(100vw - 24px));
+  max-width: calc(100vw - 24px);
+  z-index: 320;
+}
+
 :global(.searchable-select__popover) .registrySearchInput {
   width: 100%;
   min-width: 0;

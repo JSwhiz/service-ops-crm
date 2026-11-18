@@ -9,6 +9,7 @@ import {
   UpdateUserAbsenceDto,
   UserAbsenceListResponseDto,
   UserAbsenceResponseDto,
+  UserAbsenceUserOptionDto,
 } from './dto/user-absence.dto';
 import { UserAbsencesService } from './user-absences.service';
 
@@ -38,7 +39,7 @@ export class UserAbsencesController {
   @Get('users')
   listManageableUsers(
     @CurrentUser() user: CurrentAuthUser,
-  ): Promise<Array<{ id: string; login: string; fullName: string }>> {
+  ): Promise<UserAbsenceUserOptionDto[]> {
     return this.service.listManageableUsers(user);
   }
 

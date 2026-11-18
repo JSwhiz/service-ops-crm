@@ -1,3 +1,4 @@
+import type { SavedWithoutAccess } from '../../common/access/project-committed-write';
 import {
   Body,
   Controller,
@@ -130,7 +131,7 @@ export class TimesheetsController {
   upsertEntry(
     @CurrentUser() user: CurrentAuthUser,
     @Body() payload: UpsertTimesheetEntryDto,
-  ): Promise<TimesheetResponseDto | ApprovalRequestResponseDto> {
+  ): Promise<TimesheetResponseDto | ApprovalRequestResponseDto | SavedWithoutAccess> {
     assertTimesheetDateEditable(payload);
     return this.timesheetsService.upsertEntry(user, payload);
   }
@@ -139,7 +140,7 @@ export class TimesheetsController {
   requestManualException(
     @CurrentUser() user: CurrentAuthUser,
     @Body() payload: CreateTimesheetManualExceptionDto,
-  ): Promise<ApprovalRequestResponseDto> {
+  ): Promise<ApprovalRequestResponseDto | SavedWithoutAccess> {
     assertTimesheetDateEditable(payload);
     return this.timesheetsService.requestManualException(user, payload);
   }

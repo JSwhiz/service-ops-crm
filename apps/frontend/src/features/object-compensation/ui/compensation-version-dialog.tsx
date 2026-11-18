@@ -17,8 +17,8 @@ import { focusCompensationField, reportCompensationControl } from './compensatio
 export interface CompensationLine { key: string; name: string; scope: CompensationVersion['scope']; scopeId: string }
 const weekdays = [['mon', 'Пн'], ['tue', 'Вт'], ['wed', 'Ср'], ['thu', 'Чт'], ['fri', 'Пт'], ['sat', 'Сб'], ['sun', 'Вс']] as const;
 
-export function CompensationVersionDialog({ objectId, line, versions, initialTerms, onClose, onSaved }: {
-  objectId: string; line: CompensationLine; versions: CompensationVersion[]; initialTerms?: CompensationTerms; onClose: () => void; onSaved: () => void;
+export function CompensationVersionDialog({ objectId, line, versions, initialTerms, onClose, onSaved, onSavedWithoutAccess }: {
+  objectId: string; line: CompensationLine; versions: CompensationVersion[]; initialTerms?: CompensationTerms; onClose: () => void; onSaved: () => void; onSavedWithoutAccess?: () => void;
 }): React.JSX.Element {
   const current = effectiveCompensationVersion(versions, line.scope, line.scopeId, moscowToday());
   const terms = current?.terms ?? initialTerms;
@@ -64,7 +64,7 @@ export function CompensationVersionDialog({ objectId, line, versions, initialTer
     } };
     const serialized = JSON.stringify(payload);
     if (request.current.payload !== serialized) request.current = { payload: serialized, key: crypto.randomUUID() };
-    try { await createCompensationVersion(objectId, { ...payload, requestKey: request.current.key }); onSaved(); }
+    try { const result = await createCompensationVersion(objectId, { ...payload, requestKey: request.current.key }); if ('outcome' in result) { onSavedWithoutAccess?.(); onClose(); return; } onSaved(); }
     catch (caught) { setError(getErrorMessage(caught, 'Не удалось сохранить версию условий.')); setConflict(caught instanceof ApiError && caught.statusCode === 409); }
     finally { lock.current = false; setPending(false); }
   };

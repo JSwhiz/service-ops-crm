@@ -39,16 +39,18 @@ function optionText(node: React.ReactNode): string {
   return '';
 }
 
-function collectOptions(children: React.ReactNode, into: SearchableSelectOption[] = []): SearchableSelectOption[] {
+type SelectOption = SearchableSelectOption & { disabled: boolean };
+
+function collectOptions(children: React.ReactNode, into: SelectOption[] = []): SelectOption[] {
   React.Children.forEach(children, (child) => {
-    if (!React.isValidElement<{ children?: React.ReactNode; value?: string | number }>(child)) return;
+    if (!React.isValidElement<{ children?: React.ReactNode; value?: string | number; disabled?: boolean }>(child)) return;
     if (child.type === React.Fragment) {
       collectOptions(child.props.children, into);
       return;
     }
     if (child.type === 'option') {
       const label = optionText(child.props.children).trim();
-      into.push({ value: String(child.props.value ?? label), label });
+      into.push({ value: String(child.props.value ?? label), label, disabled: Boolean(child.props.disabled) });
     }
   });
   return into;
@@ -76,13 +78,16 @@ export function Select({
   'aria-required': ariaRequired,
 }: SelectProps): React.JSX.Element {
   const options = collectOptions(children);
+  const enabledOptions = options.filter((option) => !option.disabled);
+  const selectedOption = options.find((option) => option.value === value) ?? null;
   return (
     <div className={className}>
       <SearchableSelect
         label={ariaLabel ?? ''}
         hideLabel
         value={value}
-        options={options}
+        options={enabledOptions}
+        selectedOption={selectedOption}
         placeholder={placeholder ?? options.find((option) => option.value === '')?.label ?? 'Выберите значение'}
         clearable={false}
         searchable={options.length > 10}
@@ -97,6 +102,7 @@ export function Select({
           'aria-invalid': ariaInvalid,
         }}
         onChange={(nextValue) => {
+          if (!enabledOptions.some((option) => option.value === nextValue)) return;
           const event = { target: { value: nextValue }, currentTarget: { value: nextValue } };
           onChange?.(event);
         }}

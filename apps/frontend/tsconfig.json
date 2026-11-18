@@ -3,15 +3,29 @@
   "compilerOptions": {
     "baseUrl": "./",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": [
+        "src/*"
+      ]
     },
     "noEmit": true
   },
   "include": [
+    ".next-acl-preview-102483017/types/**/*.ts",
+    ".next-acl-preview-120783017/types/**/*.ts",
+    ".next-acl-preview-148513017/types/**/*.ts",
+    ".next-acl-preview-161783017/types/**/*.ts",
+    ".next-acl-preview-177513017/types/**/*.ts",
+    ".next-acl-preview-181463017/types/**/*.ts",
+    ".next-acl-preview-187213017/types/**/*.ts",
+    ".next-acl-preview-399093017/types/**/*.ts",
+    ".next-acl-preview-404593017/types/**/*.ts",
+    ".next-acl-preview-427763017/types/**/*.ts",
+    ".next/types/**/*.ts",
     "next-env.d.ts",
     "src/**/*.ts",
-    "src/**/*.tsx",
-    ".next/types/**/*.ts"
+    "src/**/*.tsx"
   ],
-  "exclude": ["node_modules"]
+  "exclude": [
+    "node_modules"
+  ]
 }

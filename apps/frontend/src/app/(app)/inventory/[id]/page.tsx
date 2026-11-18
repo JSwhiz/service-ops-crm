@@ -1,9 +1,16 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { useAccessRevision } from '@/shared/auth/use-access-revision';
+import { useAuth } from '@/shared/auth/use-auth';
+import { getAccessSessionGeneration } from '@/shared/auth/access-generation';
+import { ApiError } from '@/shared/api/fetcher';
+import { isSavedWithoutAccess } from '@/shared/api/saved-without-access';
+import { useOpenAccessRefresh } from '@/shared/auth/use-open-access-refresh';
+import { AccessSnapshotBoundary } from '@/shared/auth/access-snapshot-boundary';
 
-import { uploadFileToEntity } from '@/entities/file/api/file-client';
+import { uploadFileToEntity, uploadFileToEntityAcknowledged } from '@/entities/file/api/file-client';
 import {
   createInventoryMovement,
   deleteInventoryItem,
@@ -59,9 +66,24 @@ export default function InventoryItemDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }): React.JSX.Element {
+  const accessRevision = useAccessRevision();
+  const { user } = useAuth();
+  const [photoAcknowledgement, setPhotoAcknowledgement] = useState<{ params: typeof params; actorId: string | undefined; session: number; terminal: boolean } | null>(null);
+  const photoContext = { params, actorId: user?.id, session: getAccessSessionGeneration() };
+  const latestPhotoContext = useRef(photoContext);
+  latestPhotoContext.current = photoContext;
+  const photoContextIsCurrent = (): boolean => !!photoContext.actorId && latestPhotoContext.current.params === params && latestPhotoContext.current.actorId === photoContext.actorId && latestPhotoContext.current.session === photoContext.session && getAccessSessionGeneration() === photoContext.session;
+  const acknowledgePhoto = (terminal: boolean): void => {
+    if (!photoContextIsCurrent()) return;
+    setPhotoAcknowledgement((previous) => previous?.params === params && previous.actorId === photoContext.actorId && previous.session === photoContext.session && previous.terminal
+      ? previous : { ...photoContext, terminal });
+  };
+  const [loadedAccessRevision, setLoadedAccessRevision] = useState<string | null>(null);
+  const [accessRetry, setAccessRetry] = useState(0);
   const router = useRouter();
   const [itemId, setItemId] = useState<string | null>(null);
   const [item, setItem] = useState<InventoryItem | null>(null);
+  const [savedReceipt, setSavedReceipt] = useState<{ params: typeof params; hasPendingFiles: boolean } | null>(null);
   const [movements, setMovements] = useState<InventoryMovement[]>([]);
   const [objectOptions, setObjectOptions] = useState<InventoryObjectReference[]>(
     [],
@@ -82,8 +104,13 @@ export default function InventoryItemDetailPage({
   const [isLoading, setIsLoading] = useState(true);
   const [isMovementsLoading, setIsMovementsLoading] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
-  const [isDeleteConfirmationOpen, setIsDeleteConfirmationOpen] =
-    useState(false);
+  const [directEdit, setDirectEdit] = useState(false);
+  const [confirmation, setConfirmation] = useState<{ action: 'delete' | 'restore'; revision: string | null; version: number } | null>(null);
+  const [savedCatalogAction, setSavedCatalogAction] = useState<{ params: typeof params; title: string } | null>(null);
+  const confirmedAction = confirmation && confirmation.revision === loadedAccessRevision && loadedAccessRevision === accessRevision
+    ? confirmation.action
+    : null;
+  useOpenAccessRefresh(Boolean(item));
   const [isItemActionPending, setIsItemActionPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [movementError, setMovementError] = useState<string | null>(null);
@@ -91,7 +118,7 @@ export default function InventoryItemDetailPage({
   const [itemActionError, setItemActionError] = useState<string | null>(null);
   const canCreateMovement =
     (item?.isActive ?? false) && (item?.capabilities.canCreateMovement ?? false);
-  const canViewMovementHistory = item?.capabilities.canViewReports ?? false;
+  const canViewMovementHistory = item?.capabilities.canViewMovements ?? false;
 
   useEffect(() => {
     let cancelled = false;
@@ -113,13 +140,13 @@ export default function InventoryItemDetailPage({
     }
 
     let cancelled = false;
-    setIsLoading(true);
     setError(null);
 
     void getInventoryItemById(itemId)
       .then((loadedItem) => {
         if (!cancelled) {
           setItem(loadedItem);
+          setLoadedAccessRevision(accessRevision);
         }
       })
       .catch((loadError: unknown) => {
@@ -138,7 +165,7 @@ export default function InventoryItemDetailPage({
     return () => {
       cancelled = true;
     };
-  }, [itemId]);
+  }, [itemId, accessRevision, accessRetry]);
 
   useEffect(() => {
     if (!canCreateMovement) {
@@ -171,13 +198,17 @@ export default function InventoryItemDetailPage({
     return () => {
       cancelled = true;
     };
-  }, [canCreateMovement]);
+  }, [canCreateMovement, accessRevision]);
 
   useEffect(() => {
-    if (item && window.location.hash === '#edit') {
+    setDirectEdit(window.location.hash === '#edit');
+  }, [params]);
+
+  useEffect(() => {
+    if (directEdit && item?.capabilities.canEditCatalog) {
       setIsEditing(true);
     }
-  }, [item]);
+  }, [directEdit, item?.capabilities.canEditCatalog]);
 
   useEffect(() => {
     if (!itemId || !canViewMovementHistory) {
@@ -238,10 +269,11 @@ export default function InventoryItemDetailPage({
     movementType,
     selectedObjectId,
     selectedOrderId,
+    accessRevision,
   ]);
 
   const handleRestore = async (): Promise<void> => {
-    if (!item) {
+    if (confirmedAction !== 'restore' || !confirmation || !item || !(item.capabilities.canRestore ?? item.capabilities.canDelete) || isItemActionPending) {
       return;
     }
 
@@ -249,9 +281,13 @@ export default function InventoryItemDetailPage({
     setItemActionError(null);
 
     try {
-      const restored = await restoreInventoryItem(item.id, item.version);
+      const restored = await restoreInventoryItem(item.id, confirmation.version);
+      if (isSavedWithoutAccess(restored)) {
+        showSavedCatalogAction('Позиция восстановлена');
+        return;
+      }
       setItem(restored);
-      setIsDeleteConfirmationOpen(false);
+      setConfirmation(null);
     } catch (actionError) {
       setItemActionError(
         getErrorMessage(actionError, 'Не удалось восстановить позицию.'),
@@ -262,7 +298,7 @@ export default function InventoryItemDetailPage({
   };
 
   const handleDelete = async (): Promise<void> => {
-    if (!item) {
+    if (confirmedAction !== 'delete' || !confirmation || !item?.capabilities.canDelete || !item.deletionState.canDelete || isItemActionPending) {
       return;
     }
 
@@ -270,17 +306,30 @@ export default function InventoryItemDetailPage({
     setItemActionError(null);
 
     try {
-      const result = await deleteInventoryItem(item.id);
+      const result = await deleteInventoryItem(item.id, confirmation.version);
+      if (isSavedWithoutAccess(result)) {
+        showSavedCatalogAction('Позиция удалена');
+        return;
+      }
       if (result.mode === 'hard') {
         router.push('/inventory');
         router.refresh();
         return;
       }
 
-      const updated = await getInventoryItemById(item.id);
+      const updated = await getInventoryItemById(item.id).catch((loadError: unknown) => {
+        if (loadError instanceof ApiError &&
+          ([403, 404].includes(loadError.statusCode) || loadError.code === 'ACCESS_VERSION_CHANGED')) return null;
+        throw loadError;
+      });
+      if (!updated) {
+        showSavedCatalogAction('Позиция удалена');
+        return;
+      }
       setItem(updated);
-      setIsDeleteConfirmationOpen(false);
+      setConfirmation(null);
     } catch (actionError) {
+      if (actionError instanceof ApiError && actionError.code === 'INVENTORY_ITEM_VERSION_CONFLICT') setConfirmation(null);
       setItemActionError(
         getErrorMessage(actionError, 'Не удалось удалить позицию.'),
       );
@@ -289,16 +338,49 @@ export default function InventoryItemDetailPage({
     }
   };
 
+  function showSavedCatalogAction(title: string): void {
+    setSavedCatalogAction({ params, title });
+    setConfirmation(null);
+    setIsEditing(false);
+  }
+
+  const visiblePhotoAcknowledgement = photoAcknowledgement?.params === params && photoAcknowledgement.actorId === user?.id && photoAcknowledgement.session === getAccessSessionGeneration();
+  if (visiblePhotoAcknowledgement && photoAcknowledgement?.terminal) return (
+    <div className={`ui-page ${inventoryStyles.inventoryWorkspace}`}>
+      <BackLink href="/inventory">К списку расходников</BackLink>
+      <Alert tone="success" role="status" title="Фото прикреплено">Доступ к записи изменился. Повторная загрузка не требуется.</Alert>
+    </div>
+  );
+
+  if (savedCatalogAction?.params === params) return (
+    <div className={`ui-page ${inventoryStyles.inventoryWorkspace}`}>
+      <BackLink href="/inventory">К списку расходников</BackLink>
+      <Alert tone="success" role="status" title={savedCatalogAction.title}>
+        Доступ к карточке изменился.
+      </Alert>
+    </div>
+  );
+
+  if (savedReceipt?.params === params) return (
+    <div className={`ui-page ${inventoryStyles.inventoryWorkspace}`}>
+      <BackLink href="/inventory">К списку расходников</BackLink>
+      <Alert tone="success" role="status" title="Приход записан">
+        Доступ к позиции изменился.
+        {savedReceipt.hasPendingFiles ? ' Выбранные файлы не прикрепились.' : ''}
+      </Alert>
+    </div>
+  );
+
   return (
     <div className={`ui-page ${inventoryStyles.inventoryWorkspace}`}>
       <BackLink href="/inventory">Расходники</BackLink>
+      {visiblePhotoAcknowledgement ? <Alert tone="success" role="status" title="Фото прикреплено">Повторная загрузка не требуется.</Alert> : null}
+      {loadedAccessRevision !== accessRevision && !error ? <LoadingState label="Проверка доступа к расходнику…" /> : null}
+      {error ? <Alert tone="danger" action={<Button onClick={() => setAccessRetry((value) => value + 1)}>Повторить проверку доступа</Button>}>{error}</Alert> : null}
+      <AccessSnapshotBoundary blocked={Boolean(error) || loadedAccessRevision !== accessRevision}>
 
       {isLoading ? (
         <LoadingState label="Загружаем позицию…" />
-      ) : error ? (
-        <Alert tone="danger" role="alert">
-          {error}
-        </Alert>
       ) : item ? (
         <div className="ui-stack ui-stack--lg">
           <Surface padding="md" className="hero-card ui-stack ui-stack--lg">
@@ -366,7 +448,7 @@ export default function InventoryItemDetailPage({
               </div>
             </div>
 
-            <FactStrip
+            {item.summary ? <FactStrip
               aria-label="Движения по позиции"
               items={[
                 { key: 'all', label: 'Все движения', value: item.summary.movementsCount },
@@ -376,7 +458,7 @@ export default function InventoryItemDetailPage({
                 { key: 'writeoffs', label: 'Списания', value: item.summary.writeoffsCount },
                 { key: 'adjustments', label: 'Корректировки', value: item.summary.adjustmentsCount },
               ]}
-            />
+            /> : null}
 
             <div className="ui-detail-field">
               <div className="ui-detail-label">Примечание</div>
@@ -384,11 +466,27 @@ export default function InventoryItemDetailPage({
             </div>
           </Surface>
 
-          {isEditing && item.isActive && item.capabilities.canEditCatalog ? (
+          {directEdit && !isEditing && item.isActive && !item.capabilities.canEditCatalog ? (
+            <Alert tone="warning" role="status">У вас нет права редактировать позицию.</Alert>
+          ) : null}
+
+          {confirmation?.action === 'delete' && !item.capabilities.canDelete ? (
+            <Alert tone="warning" role="status">У вас больше нет права удалить эту позицию.</Alert>
+          ) : null}
+          {confirmation?.action === 'restore' && !(item.capabilities.canRestore ?? item.capabilities.canDelete) ? (
+            <Alert tone="warning" role="status">У вас больше нет права восстановить эту позицию.</Alert>
+          ) : null}
+
+          {isEditing && item.isActive ? (
             <InventoryItemEditor
               key={`${item.id}:${item.version}`}
               item={item}
+              canSave={item.capabilities.canEditCatalog && loadedAccessRevision === accessRevision && !error}
               onSaved={(updated) => {
+                if (isSavedWithoutAccess(updated)) {
+                  showSavedCatalogAction('Изменения сохранены');
+                  return;
+                }
                 setItem(updated);
                 setItemActionError(null);
               }}
@@ -396,7 +494,7 @@ export default function InventoryItemDetailPage({
             />
           ) : null}
 
-          {item.capabilities.canEditCatalog || item.capabilities.canDelete ? (
+          {item.capabilities.canEditCatalog || item.capabilities.canDelete || (item.capabilities.canRestore ?? item.capabilities.canDelete) ? (
             <Surface padding="md" style={{ display: 'grid', gap: 12 }}>
               <div className="ui-section-header">
                 <div>
@@ -412,16 +510,16 @@ export default function InventoryItemDetailPage({
                 {item.isActive ? (
                   item.capabilities.canDelete ? (
                     <Button variant="danger"
-                      onClick={() => setIsDeleteConfirmationOpen(true)}
+                      onClick={() => setConfirmation({ action: 'delete', revision: loadedAccessRevision, version: item.version })}
                     >
                       Удалить
                     </Button>
                   ) : null
                 ) : (
-                  item.capabilities.canDelete ? (
+                  (item.capabilities.canRestore ?? item.capabilities.canDelete) ? (
                     <Button
                       disabled={isItemActionPending}
-                      onClick={() => void handleRestore()}
+                      onClick={() => setConfirmation({ action: 'restore', revision: loadedAccessRevision, version: item.version })}
                     >
                       {isItemActionPending ? 'Восстанавливаем...' : 'Восстановить'}
                     </Button>
@@ -429,7 +527,7 @@ export default function InventoryItemDetailPage({
                 )}
               </div>
 
-              {isDeleteConfirmationOpen && item.isActive ? (
+              {confirmedAction === 'delete' && item.isActive && item.capabilities.canDelete ? (
                 <Alert tone="warning">
                   <strong>Удалить «{item.name}»?</strong>
                   {item.deletionState.mode === 'hard' ? (
@@ -438,8 +536,7 @@ export default function InventoryItemDetailPage({
                     </div>
                   ) : (
                     <div>
-                      Позиция исчезнет из рабочего каталога. История из{' '}
-                      {item.summary.movementsCount} движений сохранится.
+                      Позиция исчезнет из рабочего каталога. История движений сохранится.
                     </div>
                   )}
                   <div>
@@ -456,11 +553,23 @@ export default function InventoryItemDetailPage({
                       {isItemActionPending ? 'Удаляем...' : 'Удалить'}
                     </Button>
                     <Button
-                      onClick={() => setIsDeleteConfirmationOpen(false)}
+                      onClick={() => setConfirmation(null)}
                       disabled={isItemActionPending}
                     >
                       Отмена
                     </Button>
+                  </div>
+                </Alert>
+              ) : null}
+
+              {confirmedAction === 'restore' && !item.isActive && (item.capabilities.canRestore ?? item.capabilities.canDelete) ? (
+                <Alert tone="warning">
+                  <strong>Восстановить «{item.name}»?</strong>
+                  <div className="ui-inline">
+                    <Button variant="primary" disabled={isItemActionPending} onClick={() => void handleRestore()}>
+                      Восстановить позицию
+                    </Button>
+                    <Button disabled={isItemActionPending} onClick={() => setConfirmation(null)}>Отмена</Button>
                   </div>
                 </Alert>
               ) : null}
@@ -492,8 +601,9 @@ export default function InventoryItemDetailPage({
 
           {referencesError ? <Alert tone="warning" role="alert">Списки объектов и заказов не загрузились. Обновите страницу перед выбором назначения движения.</Alert> : null}
 
-          {item.isActive && item.capabilities.canCreateMovement ? (
+          {item.isActive ? <AccessSnapshotBoundary blocked={!item.capabilities.canCreateMovement}>
             <InventoryMovementForm
+              key={item.id}
               items={[item]}
               objectOptions={objectOptions}
               oneTimeOrderOptions={oneTimeOrderOptions}
@@ -509,6 +619,7 @@ export default function InventoryItemDetailPage({
                 const created = await createInventoryMovement(payload);
                 return created;
               }}
+              onSavedWithoutAccess={(hasPendingFiles) => setSavedReceipt({ params, hasPendingFiles })}
               onAttachEvidence={async (movementId, files) => {
                 await Promise.all(files.map((file) => uploadFileToEntity({
                   entityType: 'inventory_movement',
@@ -523,7 +634,7 @@ export default function InventoryItemDetailPage({
                 setMovementReloadKey((value) => value + 1);
               }}
             />
-          ) : null}
+          </AccessSnapshotBoundary> : null}
 
           {canViewMovementHistory ? (
             <>
@@ -531,7 +642,7 @@ export default function InventoryItemDetailPage({
                 <div className="ui-section-header">
                   <div>
                     <div className="ui-section-title">История движений</div>
-                    <div className="ui-text-muted">Найдено записей: {movementTotal}</div>
+                    <div className="ui-text-muted">{isMovementsLoading ? 'Обновляем историю…' : `Найдено записей: ${movementTotal}`}</div>
                   </div>
                 </div>
                 <div className="ui-detail-grid">
@@ -624,7 +735,17 @@ export default function InventoryItemDetailPage({
               ) : movementError ? (
                 <Alert tone="danger" role="alert">{movementError}</Alert>
               ) : (
-                <InventoryMovementList items={movements} />
+                <InventoryMovementList
+                  items={movements}
+                  onAttachStandalonePhoto={async (movementId, file) => {
+                    if (!photoContextIsCurrent()) throw new ApiError('Сессия или страница изменились. Обновите данные.', 409, 'ACCESS_VERSION_CHANGED');
+                    setPhotoAcknowledgement(null);
+                    const result = await uploadFileToEntityAcknowledged({ entityType: 'inventory_movement', entityId: movementId, file });
+                    if (isSavedWithoutAccess(result)) acknowledgePhoto(true);
+                  }}
+                  onPhotoAcknowledgedWithoutView={() => acknowledgePhoto(false)}
+                  onRefresh={async () => { setMovementReloadKey((value) => value + 1); }}
+                />
               )}
 
               {!isMovementsLoading && !movementError ? <TablePagination page={movementPage} totalPages={movementTotalPages} pending={isMovementsLoading} label="Страницы истории движений"
@@ -636,6 +757,7 @@ export default function InventoryItemDetailPage({
       ) : (
         <Surface padding="md">Расходник не найден.</Surface>
       )}
+      </AccessSnapshotBoundary>
     </div>
   );
 }

@@ -6,6 +6,8 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
+import { lockActorAccessRevision } from '../../common/access/lock-actor-access-revision';
+import { decideAccess } from '../users-access/utils/access-policy.util';
 import { AuditService } from "../audit/audit.service";
 import { PrismaService } from "../prisma/prisma.service";
 import {
@@ -51,6 +53,7 @@ export class OneTimeOrderOperationsService {
     });
     if (!order) throw new NotFoundException("Order not found");
     const params = {
+      subject: user,
       currentUserId: user.id,
       roleCodes: user.roleCodes ?? [user.roleCode],
       permissionCodes: user.permissionCodes,
@@ -66,7 +69,8 @@ export class OneTimeOrderOperationsService {
   }
 
   async escorts(user: VisitPlanUser, id: string, date: string) {
-    await this.order(user, id);
+    const { capabilities } = await this.order(user, id);
+    if (!capabilities.canReadEscorts) throw new ForbiddenException('Escort list read denied');
     const items = await this.prisma.oneTimeOrderEscortList.findMany({
       where: { oneTimeOrderId: id, operationDate: visitPlanDate(date) },
       include: escortInclude,
@@ -75,7 +79,7 @@ export class OneTimeOrderOperationsService {
     return {
       items,
       canManageOwn:
-        user.permissionCodes?.includes(ORDER_ESCORTS_MANAGE) === true,
+        capabilities.canManageOwnEscorts,
       currentUserId: user.id,
     };
   }
@@ -85,12 +89,11 @@ export class OneTimeOrderOperationsService {
     id: string,
     input: SaveOrderEscortsDto,
   ) {
-    if (!user.permissionCodes?.includes(ORDER_ESCORTS_MANAGE))
-      throw new ForbiddenException("Personal escort permission required");
     const operationDate = visitPlanDate(input.operationDate);
     return this.prisma.$transaction(async (tx) => {
       await this.lockOrder(tx, id);
-      const { order } = await this.order(user, id, tx);
+      const { order, capabilities } = await this.order(user, id, tx);
+      if (!capabilities.canManageOwnEscorts) throw new ForbiddenException('Escort permission required');
       if (["completed", "cancelled"].includes(order.status))
         throw new ConflictException("Order is closed");
       const selected = await tx.$queryRaw<Array<{ employeeId: string }>>`
@@ -172,23 +175,28 @@ export class OneTimeOrderOperationsService {
 
   async serviceLines(user: VisitPlanUser, id: string) {
     const { order, capabilities } = await this.order(user, id);
+    const financeVisible = capabilities.canReadServiceLines;
     return {
-      lines: order.serviceLines,
+      lines: order.serviceLines.map(line => ({ ...line, amount: financeVisible ? line.amount : null })),
       version: order.serviceLinesVersion,
-      agreedSum: order.agreedSum,
-      allocatedTotal: order.serviceLines.reduce(
+      agreedSum: financeVisible ? order.agreedSum : null,
+      allocatedTotal: !financeVisible ? null : order.serviceLines.reduce(
         (sum, line) => sum + line.amount,
         0,
       ),
-      isReconciled:
+      isReconciled: !financeVisible ? null :
         order.serviceLines.length > 0 &&
         order.agreedSum !== null &&
         order.serviceLines.reduce((sum, line) => sum + line.amount, 0) ===
           order.agreedSum,
       canEdit:
-        capabilities.canEditFinancialFields &&
-        !["completed", "cancelled"].includes(order.status),
+        capabilities.canUpdateServiceLines,
     };
+  }
+
+  private orderActionAllowed(user: VisitPlanUser, order: { id: string; createdByUserId: string; assignments: Array<{ userId: string; isActive: boolean; assignmentRoleCode: string }> }, actionCode: string, legacy: boolean): boolean {
+    return decideAccess(user, actionCode, legacy, { resourceType: 'one_time_order', resourceId: order.id, ownerUserId: order.createdByUserId,
+      assignedUserIds: order.assignments.filter(a => a.isActive && a.assignmentRoleCode === 'one_time_manager').map(a => a.userId) });
   }
 
   async saveServiceLines(
@@ -205,8 +213,9 @@ export class OneTimeOrderOperationsService {
       );
     await this.prisma.$transaction(async (tx) => {
       await this.lockOrder(tx, id);
+      await lockActorAccessRevision(tx, user);
       const { order, capabilities } = await this.order(user, id, tx);
-      if (!capabilities.canEditFinancialFields)
+      if (!capabilities.canUpdateServiceLines)
         throw new ForbiddenException("Financial edit denied");
       if (["completed", "cancelled"].includes(order.status))
         throw new ConflictException("Closed service totals cannot be changed");
@@ -277,8 +286,7 @@ export class OneTimeOrderOperationsService {
       deadlineAt: order.deadlineAt,
       updatedAt: order.updatedAt,
       canEdit:
-        capabilities.canEditOperationalFields &&
-        !["completed", "cancelled"].includes(order.status),
+        capabilities.canUpdateDeadline,
     };
   }
 
@@ -291,8 +299,9 @@ export class OneTimeOrderOperationsService {
       throw new BadRequestException("Explicit deadline or null required");
     await this.prisma.$transaction(async (tx) => {
       await this.lockOrder(tx, id);
+      await lockActorAccessRevision(tx, user);
       const { order, capabilities } = await this.order(user, id, tx);
-      if (!capabilities.canEditOperationalFields)
+      if (!capabilities.canUpdateDeadline)
         throw new ForbiddenException("Order edit denied");
       if (["completed", "cancelled"].includes(order.status))
         throw new ConflictException("Order is closed");

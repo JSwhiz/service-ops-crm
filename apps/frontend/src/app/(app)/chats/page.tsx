@@ -29,6 +29,7 @@ import {
   markChatRoomRead,
   renameChatRoom,
   removeChatParticipant,
+  restoreAutomaticChatParticipant,
   searchChats,
   sendChatMessage,
   toggleChatMessageHeart,
@@ -37,13 +38,16 @@ import {
 import type {
   ChatMessage,
   ChatRoom,
-  ChatRoomCode,
   ChatRoomParticipant,
   ChatSearchResponse,
 } from '@/entities/chat/model/chat.types';
 import { listChatParticipantCandidates } from '@/entities/user/api/user-client';
 import type { SystemUserOption } from '@/entities/user/model/user.types';
 import { useAuth } from '@/shared/auth/use-auth';
+import { useAccessRevision } from '@/shared/auth/use-access-revision';
+import { getAccessGeneration, getAccessSessionGeneration, isAccessGenerationCurrent } from '@/shared/auth/access-generation';
+import { useOpenAccessRefresh } from '@/shared/auth/use-open-access-refresh';
+import { AccessSnapshotBoundary } from '@/shared/auth/access-snapshot-boundary';
 import {
   getUserDisplayName,
   getUserSecondaryLabel,
@@ -54,11 +58,13 @@ import { getChatSystemTarget } from '@/shared/lib/safe-local-target';
 import { PendingMediaList } from '@/shared/ui/media-entry/pending-media-list';
 import { ChatIcon } from './chat-icon';
 import { ChatExplorer } from './chat-explorer';
+import { ChatMembershipManagement } from './chat-membership-management';
 import { Dialog, useConfirm, useReasonPrompt } from '@/shared/ui/overlays';
 import { UserAvatar } from '@/shared/ui/user-avatar/user-avatar';
 import { ChatMessageMenu } from './chat-message-menu';
 import styles from './chat-ui.module.css';
-import { Alert, Button, ButtonLink, Surface } from '@/shared/ui/foundation';
+import { Alert, Button, ButtonLink, IconButton, Surface } from '@/shared/ui/foundation';
+import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-select';
 
 type RealtimePayload = {
   type?: string;
@@ -227,9 +233,6 @@ function getInitialScrollRunId(
   ].join(':');
 }
 
-function getParticipantRoleLabel(roleInRoom: string): string {
-  return roleInRoom === 'admin' ? 'Администратор' : 'Участник';
-}
 
 function ParticipantPicker({
   candidates,
@@ -345,8 +348,15 @@ function ParticipantPicker({
 
 export default function ChatsPage(): React.JSX.Element {
   const searchParams = useSearchParams();
-  const requestedRoomCode = searchParams.get('room') as ChatRoomCode | null;
+  const requestedRoomId = searchParams.get('roomId');
+  const requestedRoomCode = searchParams.get('room');
+  const handledRoomLink = useRef<string | null>(null);
   const { user } = useAuth();
+  const accessRevision = useAccessRevision();
+  const memberRenderSession = getAccessSessionGeneration();
+  const memberRenderGeneration = getAccessGeneration();
+  useOpenAccessRefresh(Boolean(user));
+  const [roomsRevision, setRoomsRevision] = useState<string | null>(null);
   const [confirm, confirmDialog] = useConfirm();
   const [askReason, reasonDialog] = useReasonPrompt();
   const canManageChats = user?.capabilities?.canManageChats ?? false;
@@ -354,6 +364,24 @@ export default function ChatsPage(): React.JSX.Element {
   const canCreateGroupChat = user?.capabilities?.canCreateGroupChat ?? false;
   const [rooms, setRooms] = useState<ChatRoom[]>([]);
   const [archivedRooms, setArchivedRooms] = useState<ChatRoom[]>([]);
+  const [archivedRoomsRevision, setArchivedRoomsRevision] = useState<string | null>(null);
+  const roomAccessRef = useRef({ rooms, archivedRooms, accessRevision, roomsRevision, archivedRoomsRevision });
+  roomAccessRef.current = { rooms, archivedRooms, accessRevision, roomsRevision, archivedRoomsRevision };
+  const canUseRoom = (roomId: string, permission: 'canSearch' | 'canReadReceipts' | 'canForwardToRoom' | 'canManage' | 'canManageMembers'): boolean => {
+    const current = roomAccessRef.current;
+    return current.roomsRevision === current.accessRevision &&
+      current.rooms.some((room) => room.id === roomId && room.capabilities[permission]);
+  };
+  const searchableRoomIds = roomsRevision === accessRevision
+    ? rooms.filter((room) => room.capabilities.canSearch).map((room) => room.id).sort() : [];
+  const searchScope = JSON.stringify([accessRevision, searchableRoomIds]);
+  const canSearchChats = searchableRoomIds.length > 0;
+  const canManageRoomMembers = roomsRevision === accessRevision && rooms.some((room) => room.capabilities.canManageMembers);
+  const canRestoreArchivedRoom = (roomId: string): boolean => {
+    const current = roomAccessRef.current;
+    return current.archivedRoomsRevision === current.accessRevision &&
+      current.archivedRooms.some((room) => room.id === roomId && room.capabilities.canUnhide === true);
+  };
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [openMessageActionsId, setOpenMessageActionsId] = useState<
@@ -379,6 +407,7 @@ export default function ChatsPage(): React.JSX.Element {
   );
   const [renameTitle, setRenameTitle] = useState('');
   const [addParticipantIds, setAddParticipantIds] = useState<string[]>([]);
+  const roomDraftContextRef = useRef<{ id: string; title: string } | null>(null);
   const [memberActionPending, setMemberActionPending] = useState(false);
   const [text, setText] = useState('');
   const [files, setFiles] = useState<File[]>([]);
@@ -396,8 +425,12 @@ export default function ChatsPage(): React.JSX.Element {
   const [hasNewerMessages, setHasNewerMessages] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [isCreateRoomOpen, setIsCreateRoomOpen] = useState(false);
+  const [isCreatingRoom, setIsCreatingRoom] = useState(false);
+  const createPendingRef = useRef(false);
   const [isRoomSettingsOpen, setIsRoomSettingsOpen] = useState(false);
   const [isParticipantsPanelOpen, setIsParticipantsPanelOpen] = useState(false);
+  const [isMembershipManagementOpen, setIsMembershipManagementOpen] = useState(false);
+  const canManageAllRoomMembers = (user?.roleCodes ?? (user?.roleCode ? [user.roleCode] : [])).some(role => ['founder', 'deputy_founder', 'director', 'corporate_director'].includes(role));
   const [isRoomListOpen, setIsRoomListOpen] = useState(true);
   const [isArchiveOpen, setIsArchiveOpen] = useState(false);
   const [hasNewMessagesBelow, setHasNewMessagesBelow] = useState(false);
@@ -408,12 +441,17 @@ export default function ChatsPage(): React.JSX.Element {
     ChatRoomParticipant[]
   >([]);
   const [isLoadingParticipants, setIsLoadingParticipants] = useState(false);
+  const [participantsError, setParticipantsError] = useState<string | null>(null);
+  const memberActionLock = useRef(false);
+  const participantRequestSequence = useRef(0);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<ChatSearchResponse>({
+  const [storedSearchResults, setSearchResults] = useState<ChatSearchResponse>({
     rooms: [],
     messages: [],
   });
+  const [searchResultsScope, setSearchResultsScope] = useState<string | null>(null);
+  const searchResults = searchResultsScope === searchScope ? storedSearchResults : { rooms: [], messages: [] };
   const [isSearching, setIsSearching] = useState(false);
   const [highlightedMessageId, setHighlightedMessageId] = useState<
     string | null
@@ -434,6 +472,7 @@ export default function ChatsPage(): React.JSX.Element {
       )
         return;
       if (event.key.toLowerCase() === 'f') {
+        if (!canUseRoom(activeRoomId, 'canSearch')) return;
         event.preventDefault();
         setExplorer('search');
         document
@@ -452,7 +491,7 @@ export default function ChatsPage(): React.JSX.Element {
     };
     window.addEventListener('keydown', shortcut);
     return () => window.removeEventListener('keydown', shortcut);
-  }, [activeRoomId, rooms]);
+  }, [activeRoomId, rooms, accessRevision, roomsRevision]);
   const pendingScrollToBottomRef = useRef(false);
   const activeRoomIdRef = useRef<string | null>(null);
   const lastMarkedReadMessageIdRef = useRef<string | null>(null);
@@ -474,6 +513,33 @@ export default function ChatsPage(): React.JSX.Element {
   );
   const realtimeRefreshPromiseRef = useRef<Promise<void> | null>(null);
   const messageLongPressTimerRef = useRef<number | null>(null);
+
+  // A completed request owns only the room and private form that started it.
+  // Replacing a token also fences A→B→A and close/reopen transitions.
+  const chatOperationRef = useRef({ roomId: activeRoomId, accessRevision });
+  if (chatOperationRef.current.roomId !== activeRoomId || chatOperationRef.current.accessRevision !== accessRevision) {
+    chatOperationRef.current = { roomId: activeRoomId, accessRevision };
+  }
+  const captureChatOperation = (): typeof chatOperationRef.current => chatOperationRef.current;
+  const isCurrentChatOperation = (operation: ReturnType<typeof captureChatOperation>): boolean =>
+    chatOperationRef.current === operation;
+
+  const createIntentKey = JSON.stringify([isCreateRoomOpen, newRoomMode, directTargetUserId, newRoomTitle, newRoomParticipantIds]);
+  const createIntentRef = useRef({ key: createIntentKey });
+  if (createIntentRef.current.key !== createIntentKey) createIntentRef.current = { key: createIntentKey };
+  const renameIntentKey = JSON.stringify([isRoomSettingsOpen, renameTitle]);
+  const renameIntentRef = useRef({ key: renameIntentKey });
+  if (renameIntentRef.current.key !== renameIntentKey) renameIntentRef.current = { key: renameIntentKey };
+  const membersIntentKey = JSON.stringify([isParticipantsPanelOpen, addParticipantIds]);
+  const membersIntentRef = useRef({ key: membersIntentKey });
+  if (membersIntentRef.current.key !== membersIntentKey) membersIntentRef.current = { key: membersIntentKey };
+  const editIntentKey = JSON.stringify([editingMessageId, editingText]);
+  const editIntentRef = useRef({ key: editIntentKey });
+  if (editIntentRef.current.key !== editIntentKey) editIntentRef.current = { key: editIntentKey };
+  const forwardIntentKey = JSON.stringify([forwardingMessage?.id, forwardTargetRoomId, forwardQuery]);
+  const forwardIntentRef = useRef({ key: forwardIntentKey });
+  if (forwardIntentRef.current.key !== forwardIntentKey) forwardIntentRef.current = { key: forwardIntentKey };
+
 
   useEffect(() => {
     const textarea = composerTextareaRef.current;
@@ -689,31 +755,24 @@ export default function ChatsPage(): React.JSX.Element {
   );
 
   const loadRooms = async (): Promise<ChatRoom[]> => {
+    const revision = roomAccessRef.current.accessRevision;
     const nextRooms = await listChatRooms({ view: 'active' });
+    if (roomAccessRef.current.accessRevision !== revision) return [];
     setRooms(nextRooms);
-
-    if (!activeRoomId && requestedRoomCode) {
-      const requestedRoom = nextRooms.find(
-        (room) => room.code === requestedRoomCode,
-      );
-
-      if (requestedRoom) {
-        openingRoomSnapshotRef.current = requestedRoom;
-        initialScrollRunIdRef.current = null;
-        setActiveRoomId(requestedRoom.id);
-        setIsRoomListOpen(false);
-      }
-    }
+    setRoomsRevision(revision);
 
     return nextRooms;
   };
 
   const loadArchivedRooms = async (): Promise<ChatRoom[]> => {
+    const revision = roomAccessRef.current.accessRevision;
     setIsLoadingArchivedRooms(true);
 
     try {
       const nextRooms = await listChatRooms({ view: 'archived' });
+      if (roomAccessRef.current.accessRevision !== revision) return [];
       setArchivedRooms(nextRooms);
+      setArchivedRoomsRevision(revision);
       return nextRooms;
     } finally {
       setIsLoadingArchivedRooms(false);
@@ -981,7 +1040,7 @@ export default function ChatsPage(): React.JSX.Element {
     roomId: string,
     messageId: string,
   ): Promise<void> => {
-    if (activeRoomIdRef.current !== roomId) {
+    if (activeRoomIdRef.current !== roomId || !canUseRoom(roomId, 'canReadReceipts')) {
       return;
     }
 
@@ -989,12 +1048,17 @@ export default function ChatsPage(): React.JSX.Element {
       return;
     }
 
+    const operation = captureChatOperation();
+    const revision = roomAccessRef.current.accessRevision;
     const updatedRoom = await markChatRoomRead(roomId, {
       lastReadMessageId: messageId,
     });
+    if (roomAccessRef.current.accessRevision !== revision || !canUseRoom(roomId, 'canReadReceipts')) return;
 
-    lastMarkedReadMessageIdRef.current = messageId;
-    setInitialUnreadMessageId(null);
+    if (isCurrentChatOperation(operation)) {
+      lastMarkedReadMessageIdRef.current = messageId;
+      setInitialUnreadMessageId(null);
+    }
 
     setRooms((current) =>
       current.map((room) => (room.id === updatedRoom.id ? updatedRoom : room)),
@@ -1065,31 +1129,57 @@ export default function ChatsPage(): React.JSX.Element {
     setIsParticipantsPanelOpen(false);
   };
 
-  const loadRoomParticipants = async (roomId: string): Promise<void> => {
-    setIsLoadingParticipants(true);
+  const membershipSnapshotCurrent = (): boolean => memberRenderSession === getAccessSessionGeneration() && isAccessGenerationCurrent(memberRenderGeneration);
 
+  const loadRoomParticipants = useCallback(async (roomId: string): Promise<void> => {
+    const operation = chatOperationRef.current;
+    if (operation.roomId !== roomId) return;
+    const request = ++participantRequestSequence.current;
+    const ownsOperation = (): boolean => chatOperationRef.current === operation && participantRequestSequence.current === request;
+    const ownsPayload = (): boolean => ownsOperation() && memberRenderSession === getAccessSessionGeneration() && isAccessGenerationCurrent(memberRenderGeneration);
+    if (!ownsPayload()) {
+      setRoomParticipants([]); setIsLoadingParticipants(false);
+      setParticipantsError('Доступ обновляется. Обновите список участников.');
+      return;
+    }
+    setIsLoadingParticipants(true); setParticipantsError(null); setRoomParticipants([]);
     try {
       const nextParticipants = await listChatRoomParticipants(roomId);
-      setRoomParticipants(nextParticipants);
-    } catch {
-      setRoomParticipants([]);
+      if (ownsPayload()) setRoomParticipants(nextParticipants);
+      else if (ownsOperation()) setParticipantsError('Доступ обновился. Обновите список участников.');
+    } catch (caught) {
+      if (ownsPayload()) setParticipantsError(getErrorMessage(caught, 'Не удалось загрузить участников.'));
+      else if (ownsOperation()) setParticipantsError('Доступ обновился. Обновите список участников.');
     } finally {
-      setIsLoadingParticipants(false);
+      // Loading ownership is not permission to accept the payload. Invalidation
+      // must stop this request's spinner without ending a newer request's load.
+      if (ownsOperation()) setIsLoadingParticipants(false);
     }
-  };
+  }, [memberRenderSession, memberRenderGeneration]);
 
   useEffect(() => {
+    if (isParticipantsPanelOpen && activeRoomId) void loadRoomParticipants(activeRoomId);
+  }, [isParticipantsPanelOpen, activeRoomId, accessRevision, loadRoomParticipants]);
+
+  useEffect(() => {
+    let active = true;
     setIsLoadingRooms(true);
     setError(null);
+    setMessages([]);
+    setRoomParticipants([]);
+    setArchivedRooms([]);
+    setArchivedRoomsRevision(null);
 
     void refreshRoomLists()
       .catch((loadError) => {
+        if (!active) return;
         setError(getErrorMessage(loadError, 'Не удалось загрузить чаты.'));
         setRooms([]);
         setArchivedRooms([]);
       })
-      .finally(() => setIsLoadingRooms(false));
-  }, []);
+      .finally(() => { if (active) setIsLoadingRooms(false); });
+    return () => { active = false; };
+  }, [accessRevision]);
 
   useEffect(() => () => clearInitialScrollTimers(), [clearInitialScrollTimers]);
 
@@ -1103,14 +1193,17 @@ export default function ChatsPage(): React.JSX.Element {
   );
 
   useEffect(() => {
-    if (!canManageChats && !canCreateDirectChat && !canCreateGroupChat) {
+    if (!canManageChats && !canCreateDirectChat && !canCreateGroupChat && !canManageRoomMembers) {
+      setParticipants([]);
       return;
     }
 
+    let active = true;
     void listChatParticipantCandidates()
-      .then(setParticipants)
-      .catch(() => setParticipants([]));
-  }, [canManageChats, canCreateDirectChat, canCreateGroupChat]);
+      .then((items) => { if (active) setParticipants(items); })
+      .catch(() => { if (active) setParticipants([]); });
+    return () => { active = false; };
+  }, [canManageChats, canCreateDirectChat, canCreateGroupChat, canManageRoomMembers, accessRevision]);
 
   useEffect(() => {
     if (!activeRoomId) {
@@ -1172,14 +1265,18 @@ export default function ChatsPage(): React.JSX.Element {
         setMessages([]);
         isInitialScrollPendingRef.current = false;
       });
-  }, [activeRoomId, clearInitialScrollTimers]);
+  }, [activeRoomId, clearInitialScrollTimers, accessRevision]);
 
   useEffect(() => {
-    if (!activeRoom) {
-      setRenameTitle('');
+    // A current-permission reload temporarily removes the DTO. Keep private
+    // intent for the same room; the existing read boundary conceals its form.
+    if (!activeRoom) return;
+    const previous = roomDraftContextRef.current;
+    roomDraftContextRef.current = { id: activeRoom.id, title: activeRoom.title };
+    if (previous?.id === activeRoom.id) {
+      setRenameTitle((current) => current === previous.title ? activeRoom.title : current);
       return;
     }
-
     setRenameTitle(activeRoom.title);
     setAddParticipantIds([]);
   }, [activeRoom]);
@@ -1187,19 +1284,23 @@ export default function ChatsPage(): React.JSX.Element {
   useEffect(() => {
     const query = searchQuery.trim();
 
-    if (query.length < 2) {
+    if (query.length < 2 || !canSearchChats) {
       setSearchResults({ rooms: [], messages: [] });
       setIsSearching(false);
       return;
     }
 
     let isCancelled = false;
+    setSearchResults({ rooms: [], messages: [] });
     setIsSearching(true);
     const timeoutId = window.setTimeout(() => {
+      const current = roomAccessRef.current;
+      if (current.roomsRevision !== current.accessRevision || !current.rooms.some((room) => room.capabilities.canSearch)) return;
       void searchChats(query)
         .then((results) => {
           if (!isCancelled) {
             setSearchResults(results);
+            setSearchResultsScope(searchScope);
           }
         })
         .catch((searchError) => {
@@ -1220,7 +1321,7 @@ export default function ChatsPage(): React.JSX.Element {
       isCancelled = true;
       window.clearTimeout(timeoutId);
     };
-  }, [searchQuery]);
+  }, [searchQuery, searchScope, canSearchChats]);
 
   useEffect(() => {
     if (!pendingScrollToBottomRef.current) {
@@ -1235,7 +1336,7 @@ export default function ChatsPage(): React.JSX.Element {
     const root = messageListRef.current;
     const sentinel = bottomSentinelRef.current;
 
-    if (!root || !sentinel || !activeRoomId || !latestMessageId) {
+    if (!root || !sentinel || !activeRoomId || !latestMessageId || !activeRoom?.capabilities.canReadReceipts || roomsRevision !== accessRevision) {
       return;
     }
 
@@ -1265,7 +1366,7 @@ export default function ChatsPage(): React.JSX.Element {
     return () => {
       observer.disconnect();
     };
-  }, [activeRoomId, latestMessageId]);
+  }, [activeRoomId, latestMessageId, activeRoom?.capabilities.canReadReceipts, roomsRevision, accessRevision]);
 
   useEffect(() => {
     const socket = new WebSocket(buildChatRealtimeUrl());
@@ -1380,6 +1481,16 @@ export default function ChatsPage(): React.JSX.Element {
       return;
     }
 
+    const roomId = activeRoomId;
+    const revision = roomAccessRef.current.accessRevision;
+    const isCurrentSend = (): boolean => {
+      const current = roomAccessRef.current;
+      return activeRoomIdRef.current === roomId && current.accessRevision === revision &&
+        current.roomsRevision === revision &&
+        current.rooms.some((room) => room.id === roomId && room.capabilities.canWrite);
+    };
+    if (!isCurrentSend()) return;
+
     setIsSending(true);
     setError(null);
     pendingScrollToBottomRef.current = true;
@@ -1387,11 +1498,12 @@ export default function ChatsPage(): React.JSX.Element {
 
     try {
       const sentMessage = await sendChatMessage({
-        roomId: activeRoomId,
+        roomId,
         text,
         files,
         replyToMessageId: replyingTo?.id,
       });
+      if (!isCurrentSend()) return;
       setText('');
       setFiles([]);
       setReplyingTo(null);
@@ -1402,7 +1514,7 @@ export default function ChatsPage(): React.JSX.Element {
       );
       void refreshRoomLists().catch(() => undefined);
     } catch (sendError) {
-      setError(getErrorMessage(sendError, 'Не удалось отправить сообщение.'));
+      if (isCurrentSend()) setError(getErrorMessage(sendError, 'Не удалось отправить сообщение.'));
     } finally {
       setIsSending(false);
     }
@@ -1412,6 +1524,7 @@ export default function ChatsPage(): React.JSX.Element {
     event: React.FormEvent<HTMLFormElement>,
   ): Promise<void> => {
     event.preventDefault();
+    if (createPendingRef.current) return;
 
     if (newRoomMode === 'direct' && !directTargetUserId) {
       return;
@@ -1424,6 +1537,10 @@ export default function ChatsPage(): React.JSX.Element {
       return;
     }
 
+    createPendingRef.current = true;
+    setIsCreatingRoom(true);
+    const operation = captureChatOperation();
+    const intent = createIntentRef.current;
     setError(null);
 
     try {
@@ -1435,18 +1552,22 @@ export default function ChatsPage(): React.JSX.Element {
               participantUserIds: newRoomParticipantIds,
             });
 
+      const nextRooms = await refreshRoomLists();
+      if (!isCurrentChatOperation(operation) || createIntentRef.current !== intent) return;
       setDirectTargetUserId('');
       setNewRoomTitle('');
       setNewRoomParticipantIds([]);
       setIsCreateRoomOpen(false);
       setIsRoomListOpen(false);
-      const nextRooms = await refreshRoomLists();
       openingRoomSnapshotRef.current =
         nextRooms.find((room) => room.id === created.id) ?? created;
       initialScrollRunIdRef.current = null;
       setActiveRoomId(created.id);
     } catch (createError) {
-      setError(getErrorMessage(createError, 'Не удалось создать чат.'));
+      if (isCurrentChatOperation(operation) && createIntentRef.current === intent) setError(getErrorMessage(createError, 'Не удалось создать чат.'));
+    } finally {
+      createPendingRef.current = false;
+      setIsCreatingRoom(false);
     }
   };
 
@@ -1455,18 +1576,20 @@ export default function ChatsPage(): React.JSX.Element {
   ): Promise<void> => {
     event.preventDefault();
 
-    if (!activeRoom || !renameTitle.trim()) {
+    if (!activeRoom || !canUseRoom(activeRoom.id, 'canManage') || !renameTitle.trim()) {
       return;
     }
 
+    const operation = captureChatOperation();
+    const intent = renameIntentRef.current;
     setError(null);
 
     try {
       await renameChatRoom(activeRoom.id, { title: renameTitle.trim() });
-      setIsRoomSettingsOpen(false);
       await refreshRoomLists();
+      if (isCurrentChatOperation(operation) && renameIntentRef.current === intent) setIsRoomSettingsOpen(false);
     } catch (renameError) {
-      setError(getErrorMessage(renameError, 'Не удалось переименовать чат.'));
+      if (isCurrentChatOperation(operation) && renameIntentRef.current === intent) setError(getErrorMessage(renameError, 'Не удалось переименовать чат.'));
     }
   };
 
@@ -1475,46 +1598,76 @@ export default function ChatsPage(): React.JSX.Element {
   ): Promise<void> => {
     event.preventDefault();
 
-    if (!activeRoom?.capabilities.canManageMembers || memberActionPending || addParticipantIds.length === 0) {
+    if (!membershipSnapshotCurrent() || !activeRoom || !canUseRoom(activeRoom.id, 'canManageMembers') || memberActionPending || memberActionLock.current || addParticipantIds.length === 0) {
       return;
     }
 
+    const operation = captureChatOperation();
+    const intent = membersIntentRef.current;
+    memberActionLock.current = true;
+    setParticipantsError(null);
     setError(null);
     setMemberActionPending(true);
     try {
       await addChatParticipants(activeRoom.id, { userIds: addParticipantIds });
-      setAddParticipantIds([]);
       await refreshRoomLists();
+      if (!membershipSnapshotCurrent() || !isCurrentChatOperation(operation) || membersIntentRef.current !== intent) return;
+      setAddParticipantIds([]);
       if (isParticipantsPanelOpen) {
         await loadRoomParticipants(activeRoom.id);
       }
     } catch (addError) {
-      setError(getErrorMessage(addError, 'Не удалось добавить участников.'));
+      if (membershipSnapshotCurrent() && isCurrentChatOperation(operation) && membersIntentRef.current === intent) setParticipantsError(getErrorMessage(addError, 'Не удалось добавить участников.'));
     } finally {
+      memberActionLock.current = false;
       setMemberActionPending(false);
     }
   };
 
   const handleRemoveParticipant = async (participant: ChatRoomParticipant): Promise<void> => {
-    if (!activeRoom?.capabilities.canManageMembers || memberActionPending) return;
+    if (!membershipSnapshotCurrent() || !activeRoom || !canUseRoom(activeRoom.id, 'canManageMembers') || memberActionPending || memberActionLock.current) return;
+    const operation = captureChatOperation();
+    memberActionLock.current = true;
+    setParticipantsError(null);
     setMemberActionPending(true);
     setError(null);
     try {
       const confirmed = await confirm({ title: 'Удалить участника?', consequence: `${getUserDisplayName(participant.user)} потеряет доступ к чату.`, confirmLabel: 'Удалить', tone: 'danger' });
-      if (!confirmed) return;
+      if (!membershipSnapshotCurrent() || !confirmed || !isCurrentChatOperation(operation) || !canUseRoom(activeRoom.id, 'canManageMembers')) return;
       await removeChatParticipant(activeRoom.id, participant.user.id);
       await refreshRoomLists();
-      await loadRoomParticipants(activeRoom.id);
+      if (membershipSnapshotCurrent() && isCurrentChatOperation(operation)) await loadRoomParticipants(activeRoom.id);
     } catch (removeError) {
-      setError(getErrorMessage(removeError, 'Не удалось удалить участника.'));
+      if (membershipSnapshotCurrent() && isCurrentChatOperation(operation)) setParticipantsError(getErrorMessage(removeError, 'Не удалось удалить участника.'));
     } finally {
+      memberActionLock.current = false;
       setMemberActionPending(false);
     }
   };
 
-  const clearActiveRoomAfterRemoval = async (): Promise<void> => {
+  const handleRestoreAutomaticParticipant = async (participant: ChatRoomParticipant): Promise<void> => {
+    if (!membershipSnapshotCurrent() || !activeRoom || !canUseRoom(activeRoom.id, 'canManageMembers') || memberActionLock.current) return;
+    const operation = captureChatOperation();
+    memberActionLock.current = true;
+    setMemberActionPending(true);
+    setParticipantsError(null);
+    try {
+      const confirmed = await confirm({ title: 'Вернуть автоматическое участие?', consequence: `${getUserDisplayName(participant.user)} будет участвовать по текущим правилам комнаты. Ручное добавление или исключение отменится.`, confirmLabel: 'Вернуть автоматическое' });
+      if (!membershipSnapshotCurrent() || !confirmed || !isCurrentChatOperation(operation) || !canUseRoom(activeRoom.id, 'canManageMembers')) return;
+      await restoreAutomaticChatParticipant(activeRoom.id, participant.user.id);
+      await refreshRoomLists();
+      if (membershipSnapshotCurrent() && isCurrentChatOperation(operation)) await loadRoomParticipants(activeRoom.id);
+    } catch (caught) {
+      if (membershipSnapshotCurrent() && isCurrentChatOperation(operation)) setParticipantsError(getErrorMessage(caught, 'Не удалось вернуть автоматическое участие.'));
+    } finally {
+      memberActionLock.current = false;
+      setMemberActionPending(false);
+    }
+  };
+
+  const clearActiveRoomAfterRemoval = async (operation: ReturnType<typeof captureChatOperation>): Promise<void> => {
     await refreshRoomLists();
-    resetActiveChatSelection();
+    if (isCurrentChatOperation(operation)) resetActiveChatSelection();
   };
 
   const handleHideRoom = async (): Promise<void> => {
@@ -1522,22 +1675,26 @@ export default function ChatsPage(): React.JSX.Element {
       return;
     }
 
+    const operation = captureChatOperation();
     setError(null);
 
     try {
       await hideChatRoom(activeRoom.id);
-      await clearActiveRoomAfterRemoval();
+      await clearActiveRoomAfterRemoval(operation);
     } catch (hideError) {
-      setError(getErrorMessage(hideError, 'Не удалось скрыть чат.'));
+      if (isCurrentChatOperation(operation)) setError(getErrorMessage(hideError, 'Не удалось скрыть чат.'));
     }
   };
 
   const handleOpenArchivedRoom = async (roomId: string): Promise<void> => {
+    if (!canRestoreArchivedRoom(roomId)) return;
+    const operation = captureChatOperation();
     setError(null);
 
     try {
       const restoredRoom = await unhideChatRoom(roomId);
       const nextRooms = await refreshRoomLists();
+      if (!isCurrentChatOperation(operation)) return;
       const roomSnapshot =
         nextRooms.find((room) => room.id === restoredRoom.id) ?? restoredRoom;
 
@@ -1547,13 +1704,14 @@ export default function ChatsPage(): React.JSX.Element {
       setIsArchiveOpen(false);
       setIsRoomListOpen(false);
     } catch (unhideError) {
-      setError(
+      if (isCurrentChatOperation(operation)) setError(
         getErrorMessage(unhideError, 'Не удалось вернуть чат из архива.'),
       );
     }
   };
 
   const handleUnhideRoom = async (roomId: string): Promise<void> => {
+    if (!canRestoreArchivedRoom(roomId)) return;
     setError(null);
 
     try {
@@ -1571,6 +1729,7 @@ export default function ChatsPage(): React.JSX.Element {
       return;
     }
 
+    const operation = captureChatOperation();
     if (!(await confirm({
       title: 'Покинуть групповой чат?',
       consequence: 'Чат пропадёт из списка. Вернуться можно по приглашению администратора.',
@@ -1580,13 +1739,14 @@ export default function ChatsPage(): React.JSX.Element {
       return;
     }
 
+    if (!isCurrentChatOperation(operation)) return;
     setError(null);
 
     try {
       await leaveChatRoom(activeRoom.id);
-      await clearActiveRoomAfterRemoval();
+      await clearActiveRoomAfterRemoval(operation);
     } catch (leaveError) {
-      setError(getErrorMessage(leaveError, 'Не удалось покинуть чат.'));
+      if (isCurrentChatOperation(operation)) setError(getErrorMessage(leaveError, 'Не удалось покинуть чат.'));
     }
   };
 
@@ -1595,6 +1755,7 @@ export default function ChatsPage(): React.JSX.Element {
       return;
     }
 
+    const operation = captureChatOperation();
     const reason = await askReason({
       title: 'Закрыть чат для всех?',
       description: 'Участники больше не смогут писать в этот чат.',
@@ -1602,7 +1763,7 @@ export default function ChatsPage(): React.JSX.Element {
       confirmLabel: 'Закрыть чат',
     });
 
-    if (reason === null) {
+    if (reason === null || !isCurrentChatOperation(operation)) {
       return;
     }
 
@@ -1612,25 +1773,31 @@ export default function ChatsPage(): React.JSX.Element {
       await closeChatRoom(activeRoom.id, {
         reason: reason.trim() || undefined,
       });
-      await clearActiveRoomAfterRemoval();
+      await clearActiveRoomAfterRemoval(operation);
     } catch (closeError) {
-      setError(getErrorMessage(closeError, 'Не удалось закрыть чат.'));
+      if (isCurrentChatOperation(operation)) setError(getErrorMessage(closeError, 'Не удалось закрыть чат.'));
     }
   };
 
   const handleEdit = async (message: ChatMessage): Promise<void> => {
-    if (!editingText.trim()) {
+    if (!editingText.trim() || roomAccessRef.current.roomsRevision !== roomAccessRef.current.accessRevision ||
+      !messagesRef.current.some((current) => current.id === message.id && current.capabilities.canEdit)) {
       return;
     }
 
+    const operation = captureChatOperation();
+    const intent = editIntentRef.current;
     setError(null);
 
     try {
       const updatedMessage = await editChatMessage(message.id, {
         text: editingText.trim(),
       });
-      setEditingMessageId(null);
-      setEditingText('');
+      if (!isCurrentChatOperation(operation)) return;
+      if (editIntentRef.current === intent) {
+        setEditingMessageId(null);
+        setEditingText('');
+      }
       setMessages((current) =>
         current.map((currentMessage) =>
           currentMessage.id === updatedMessage.id
@@ -1640,7 +1807,7 @@ export default function ChatsPage(): React.JSX.Element {
       );
       void refreshRoomLists().catch(() => undefined);
     } catch (editError) {
-      setError(getErrorMessage(editError, 'Не удалось изменить сообщение.'));
+      if (isCurrentChatOperation(operation) && editIntentRef.current === intent) setError(getErrorMessage(editError, 'Не удалось изменить сообщение.'));
     }
   };
 
@@ -1681,16 +1848,21 @@ export default function ChatsPage(): React.JSX.Element {
   ): Promise<void> => {
     event.preventDefault();
 
-    if (!forwardingMessage || !forwardTargetRoomId) {
+    if (!forwardingMessage || !forwardTargetRoomId || !canUseRoom(forwardTargetRoomId, 'canForwardToRoom') ||
+      !messagesRef.current.some((message) => message.id === forwardingMessage?.id && message.capabilities.canForward)) {
       return;
     }
 
+    const operation = captureChatOperation();
+    const intent = forwardIntentRef.current;
     setError(null);
 
     try {
       const forwardedMessage = await forwardChatMessage(forwardingMessage.id, {
         targetRoomId: forwardTargetRoomId,
       });
+      await refreshRoomLists();
+      if (!isCurrentChatOperation(operation) || forwardIntentRef.current !== intent) return;
       if (forwardTargetRoomId === activeRoomIdRef.current) {
         setMessages((current) =>
           current.some((message) => message.id === forwardedMessage.id)
@@ -1701,9 +1873,8 @@ export default function ChatsPage(): React.JSX.Element {
       }
       setForwardingMessage(null);
       setForwardTargetRoomId('');
-      await refreshRoomLists();
     } catch (forwardError) {
-      setError(
+      if (isCurrentChatOperation(operation) && forwardIntentRef.current === intent) setError(
         getErrorMessage(forwardError, 'Не удалось переслать сообщение.'),
       );
     }
@@ -1733,23 +1904,24 @@ export default function ChatsPage(): React.JSX.Element {
     (participant) => participant.id !== user?.id,
   );
   const roomParticipantUserIds = new Set(
-    roomParticipants.map((participant) => participant.user.id),
+    roomParticipants.filter((participant) => participant.membershipSource !== 'excluded').map((participant) => participant.user.id),
   );
   const addableParticipants = selectableParticipants.filter(
     (participant) => !roomParticipantUserIds.has(participant.id),
   );
-  const isCreateRoomDisabled =
+  const isCreateRoomDisabled = isCreatingRoom || (
     newRoomMode === 'direct'
       ? !directTargetUserId
-      : !newRoomTitle.trim() || newRoomParticipantIds.length === 0;
+      : !newRoomTitle.trim() || newRoomParticipantIds.length === 0
+  );
   const forwardTargetRooms = rooms.filter(
-    (room) => room.id !== activeRoomId && room.capabilities.canWrite,
+    (room) => room.id !== activeRoomId && roomsRevision === accessRevision && room.capabilities.canForwardToRoom,
   );
   const activeRoomTypeLabel = activeRoom ? getRoomTypeLabel(activeRoom) : '';
   const layoutClassName = `${styles.chatLayout}${
     isRoomListOpen ? ` ${styles.chatLayoutRoomListOpen}` : ''
   }`;
-  const selectRoom = (roomId: string): void => {
+  const selectRoom = useCallback((roomId: string): void => {
     setExplorer(null);
     pendingSearchMessageRef.current = null;
     setHighlightedMessageId(null);
@@ -1758,7 +1930,17 @@ export default function ChatsPage(): React.JSX.Element {
     initialScrollRunIdRef.current = null;
     setActiveRoomId(roomId);
     setIsRoomListOpen(false);
-  };
+  }, [rooms]);
+
+  useEffect(() => {
+    const link = requestedRoomId ? `id:${requestedRoomId}` : requestedRoomCode ? `code:${requestedRoomCode}` : null;
+    if (handledRoomLink.current !== link) handledRoomLink.current = null;
+    if (!link || handledRoomLink.current || roomsRevision !== accessRevision) return;
+    const room = rooms.find((item) => requestedRoomId ? item.id === requestedRoomId : item.code === requestedRoomCode);
+    if (!room) return;
+    handledRoomLink.current = link;
+    selectRoom(room.id);
+  }, [accessRevision, requestedRoomCode, requestedRoomId, rooms, roomsRevision, selectRoom]);
 
   const openSearchMessage = (roomId: string, messageId: string): void => {
     setSearchQuery('');
@@ -1787,7 +1969,6 @@ export default function ChatsPage(): React.JSX.Element {
 
     setParticipantsQuery('');
     setIsParticipantsPanelOpen(true);
-    void loadRoomParticipants(activeRoom.id);
   };
 
   const removePendingFile = (indexToRemove: number): void => {
@@ -1831,9 +2012,15 @@ export default function ChatsPage(): React.JSX.Element {
 
   return (
     <>
+      <h1 className={styles.chatPageTitle}>Чаты</h1>
+      {canManageAllRoomMembers ? <div><Button onClick={() => setIsMembershipManagementOpen(true)}>Состав чатов</Button></div> : null}
+      {isMembershipManagementOpen && canManageAllRoomMembers ? <ChatMembershipManagement onClose={() => setIsMembershipManagementOpen(false)} /> : null}
+      {roomsRevision !== accessRevision ? (
+        error ? <Alert tone="danger" role="alert">{error}</Alert> : <p role="status">Загрузка чатов…</p>
+      ) : null}
+      <AccessSnapshotBoundary blocked={roomsRevision !== accessRevision}>
       {confirmDialog}
       {reasonDialog}
-      <h1 className={styles.chatPageTitle}>Чаты</h1>
 
       <div className={`ui-stack ui-stack--lg chat-page-stack ${styles.workspace}`}>
         {error ? (
@@ -1870,6 +2057,7 @@ export default function ChatsPage(): React.JSX.Element {
                 <ChatIcon name="search" />
                 <input
                   type="search"
+                  disabled={!canSearchChats}
                   value={searchQuery}
                   onChange={(event) => setSearchQuery(event.target.value)}
                   placeholder="Поиск в чатах и сообщениях"
@@ -2053,6 +2241,7 @@ export default function ChatsPage(): React.JSX.Element {
                         <button
                           type="button"
                           className={styles.chatRoomItemOpen}
+                          disabled={archivedRoomsRevision !== accessRevision || room.capabilities.canUnhide !== true}
                           onClick={() => void handleOpenArchivedRoom(room.id)}
                         >
                           <span className={styles.chatRoomItemMain}>
@@ -2066,11 +2255,14 @@ export default function ChatsPage(): React.JSX.Element {
                           </span>
                         </button>
                         <Button variant="ghost" size="sm"
-
+                          disabled={archivedRoomsRevision !== accessRevision || room.capabilities.canUnhide !== true}
                           onClick={() => void handleUnhideRoom(room.id)}
                         >
                           Вернуть
                         </Button>
+                        {archivedRoomsRevision === accessRevision && room.capabilities.canUnhide !== true ? (
+                          <span className="ui-text-muted">Нет права возвращать этот чат из архива.</span>
+                        ) : null}
                       </div>
                     ))
                   )}
@@ -2121,6 +2313,7 @@ export default function ChatsPage(): React.JSX.Element {
                 key={activeRoom.id}
                 roomId={activeRoom.id}
                 roomTitle={getRoomDisplayTitle(activeRoom)}
+                canSearch={roomsRevision === accessRevision && activeRoom.capabilities.canSearch === true}
                 initialTab={explorer}
                 onClose={() => setExplorer(null)}
                 onMessage={(messageId) => {
@@ -2172,6 +2365,7 @@ export default function ChatsPage(): React.JSX.Element {
                       type="button"
                       className={styles.chatIconButton}
                       aria-label="Поиск в этом чате"
+                      disabled={!activeRoom.capabilities.canSearch}
                       title="Поиск в этом чате (⌘/Ctrl+F)"
                       onClick={() => setExplorer('search')}
                     >
@@ -2417,6 +2611,7 @@ export default function ChatsPage(): React.JSX.Element {
                                   />
                                   <div className="ui-inline">
                                     <Button
+                                      disabled={!message.capabilities.canEdit}
                                       onClick={() => void handleEdit(message)}
                                     >
                                       Сохранить
@@ -2430,6 +2625,9 @@ export default function ChatsPage(): React.JSX.Element {
                                       Отмена
                                     </Button>
                                   </div>
+                                  {!message.capabilities.canEdit ? (
+                                    <p className={styles.hint} role="status">Нет права изменять это сообщение.</p>
+                                  ) : null}
                                 </div>
                               ) : (
                                 <>
@@ -2791,16 +2989,18 @@ export default function ChatsPage(): React.JSX.Element {
                   </Button>
                 )}
                 {newRoomMode === 'group' && !groupDetailsStep ? (
-                  <Button variant="primary"
+                  <Button key="chat-create-next" variant="primary"
+                    type="button"
                     disabled={!newRoomParticipantIds.length}
-                    onClick={() => setGroupDetailsStep(true)}
+                    onClick={(event) => { event.preventDefault(); setGroupDetailsStep(true); }}
                   >
                     Далее
                   </Button>
                 ) : (
-                  <Button variant="primary"
+                  <Button key="chat-create-submit" variant="primary"
                     type="submit"
                     form="chat-create-form"
+                    aria-busy={isCreatingRoom || undefined}
                     disabled={isCreateRoomDisabled}
                   >
                     {newRoomMode === 'direct'
@@ -2941,6 +3141,7 @@ export default function ChatsPage(): React.JSX.Element {
           <Dialog
             open
             onOpenChange={setIsParticipantsPanelOpen}
+            busy={memberActionPending}
             title="Информация о чате"
             className={styles.dialog}
           >
@@ -2954,6 +3155,7 @@ export default function ChatsPage(): React.JSX.Element {
             </div>
             <div className={styles.infoActions}>
               <Button
+                disabled={!activeRoom.capabilities.canSearch}
                 onClick={() => {
                   setIsParticipantsPanelOpen(false);
                   setExplorer('search');
@@ -2982,6 +3184,8 @@ export default function ChatsPage(): React.JSX.Element {
               </Button>
             </div>
             <div className={styles.listHeading}>Участники</div>
+            {activeRoom.roomType === 'system_default' ? <p className={styles.hint}>Автоматический состав дополняется вручную. Исключённый участник не вернётся при смене роли или назначения, пока не отменено исключение.</p> : null}
+            {participantsError ? <Alert tone="danger">{participantsError}<Button disabled={isLoadingParticipants || memberActionPending} onClick={() => void loadRoomParticipants(activeRoom.id)}>Обновить участников</Button></Alert> : null}
             <div className={styles.searchField}>
               <ChatIcon name="search" />
               <input
@@ -3011,28 +3215,31 @@ export default function ChatsPage(): React.JSX.Element {
                         <small>{getUserSecondaryLabel(participant.user)}</small>
                       </span>
                       <small className={styles.personRole}>
-                        {getParticipantRoleLabel(participant.roleInRoom)}
+                        {participant.membershipSource === 'excluded' ? 'Исключён вручную' : participant.membershipSource === 'automatic' ? 'По правилу комнаты' : 'Добавлен вручную'}
+                        {participant.roleInRoom === 'admin' ? ' · Администратор' : ''}
                       </small>
-                      {activeRoom.capabilities.canManageMembers && participant.user.id !== user?.id ? (
+                      {participant.canRestoreAutomatic ? <Button size="sm" variant="ghost" disabled={memberActionPending} onClick={() => void handleRestoreAutomaticParticipant(participant)}>Вернуть автоматическое</Button> : null}
+                      {activeRoom.capabilities.canManageMembers && participant.canRemove && participant.user.id !== user?.id ? (
                         <Button size="sm" variant="ghost" disabled={memberActionPending} onClick={() => void handleRemoveParticipant(participant)}>Удалить</Button>
                       ) : null}
                     </div>
                   ))}
               </div>
             )}
-            {activeRoom.capabilities.canManageMembers &&
-            activeRoom.roomType === 'group' ? (
+            {activeRoom.capabilities.canManageMembers ? (
               <form
                 className={styles.dialogForm}
                 onSubmit={handleAddParticipants}
               >
                 <div className={styles.listHeading}>Добавить участников</div>
-                <ParticipantPicker
-                  candidates={addableParticipants}
-                  selectedIds={addParticipantIds}
-                  onChange={setAddParticipantIds}
-                  placeholder="Найти пользователя"
-                />
+                <SearchableSelect label="Добавить пользователя" value="" disabled={memberActionPending}
+                  options={addableParticipants.filter(person => !addParticipantIds.includes(person.id)).map(person => ({ value: person.id, label: getUserDisplayName(person), description: person.login }))}
+                  onChange={id => { if (id) setAddParticipantIds(previous => [...new Set([...previous, id])]); }}
+                  placeholder="Найти пользователя" searchPlaceholder="Имя или логин" emptyText="Пользователи не найдены" />
+                {addParticipantIds.map(id => { const person = participants.find(candidate => candidate.id === id); return <span className={styles.identityChip} key={id}>
+                  <span>{person ? getUserDisplayName(person) : 'Выбранный пользователь'}</span>
+                  <IconButton aria-label={`Убрать ${person ? getUserDisplayName(person) : 'пользователя'}`} disabled={memberActionPending} onClick={() => setAddParticipantIds(previous => previous.filter(value => value !== id))}><ChatIcon name="close" /></IconButton>
+                </span>; })}
                 <Button variant="primary"
                   type="submit"
                   disabled={memberActionPending || !addParticipantIds.length}
@@ -3076,7 +3283,8 @@ export default function ChatsPage(): React.JSX.Element {
                 <Button variant="primary"
                   type="submit"
                   form="chat-forward-form"
-                  disabled={!forwardTargetRoomId}
+                  disabled={!forwardTargetRooms.some((room) => room.id === forwardTargetRoomId) ||
+                    !messages.some((message) => message.id === forwardingMessage?.id && message.capabilities.canForward)}
                 >
                   Переслать
                 </Button>
@@ -3125,6 +3333,9 @@ export default function ChatsPage(): React.JSX.Element {
                     </button>
                   ))}
               </div>
+              {!messages.some((message) => message.id === forwardingMessage?.id && message.capabilities.canForward) ? (
+                <p className={styles.hint} role="status">Нет права пересылать это сообщение.</p>
+              ) : null}
               {!forwardTargetRooms.length ? (
                 <p className={styles.hint}>
                   Нет доступных чатов для пересылки.
@@ -3139,6 +3350,7 @@ export default function ChatsPage(): React.JSX.Element {
           </Dialog>
         ) : null}
       </div>
+      </AccessSnapshotBoundary>
     </>
   );
 }

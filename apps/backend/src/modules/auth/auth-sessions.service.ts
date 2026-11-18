@@ -1,11 +1,14 @@
 import { createHmac, randomBytes } from 'node:crypto';
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import type { Prisma } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 
 import { AuthRequestMeta } from './types/auth-request-meta.type';
+
+type SessionActor = { id: string; accessVersion: number };
 
 interface StoredAuthSession {
   id: string;
@@ -28,7 +31,7 @@ export class AuthSessionsService {
   ) {}
 
   async createSession(params: {
-    userId: string;
+    actor: SessionActor;
     expiresAt: Date;
     meta: AuthRequestMeta;
   }): Promise<{
@@ -38,14 +41,19 @@ export class AuthSessionsService {
     const rawToken = this.generateRawToken();
     const tokenHash = this.buildTokenHash(rawToken);
 
-    const session = await this.getAuthSessionDelegate().create({
-      data: {
-        userId: params.userId,
-        tokenHash,
-        expiresAt: params.expiresAt,
-        userAgent: params.meta.userAgent ?? null,
-        ipAddress: params.meta.ipAddress ?? null,
-      },
+    const session = await this.prisma.$transaction(async (tx) => {
+      if (!await this.lockSessionIssuer(tx, params.actor)) {
+        throw new UnauthorizedException('Access changed. Sign in again.');
+      }
+      return this.getAuthSessionDelegate(tx).create({
+        data: {
+          userId: params.actor.id,
+          tokenHash,
+          expiresAt: params.expiresAt,
+          userAgent: params.meta.userAgent ?? null,
+          ipAddress: params.meta.ipAddress ?? null,
+        },
+      });
     });
 
     return {
@@ -77,6 +85,7 @@ export class AuthSessionsService {
   async rotateSession(
     rawToken: string,
     params: {
+      actor: SessionActor;
       expiresAt: Date;
       meta: AuthRequestMeta;
     },
@@ -92,6 +101,14 @@ export class AuthSessionsService {
 
     return this.prisma.$transaction(async (tx) => {
       const authSession = this.getAuthSessionDelegate(tx);
+      if (!await this.lockSessionIssuer(tx, params.actor)) {
+        // Commit invalidation of the presented token without issuing a successor.
+        await authSession.updateMany({
+          where: { tokenHash: currentTokenHash, userId: params.actor.id, revokedAt: null },
+          data: { revokedAt: now },
+        });
+        return null;
+      }
       const currentSession = await authSession.findUnique({
         where: {
           tokenHash: currentTokenHash,
@@ -100,6 +117,7 @@ export class AuthSessionsService {
 
       if (
         !currentSession ||
+        currentSession.userId !== params.actor.id ||
         currentSession.revokedAt ||
         currentSession.expiresAt.getTime() <= now.getTime()
       ) {
@@ -157,6 +175,18 @@ export class AuthSessionsService {
         revokedAt: new Date(),
       },
     });
+  }
+
+  private async lockSessionIssuer(tx: Prisma.TransactionClient, actor: SessionActor): Promise<boolean> {
+    // Create a row version without changing the permission revision. A
+    // concurrent serializable deny must see this issue or fail, rather than
+    // silently missing its refresh session in an older snapshot.
+    const changed = await tx.$executeRaw`
+      UPDATE "users" SET "accessVersion" = "accessVersion"
+      WHERE "id" = ${actor.id} AND "accessVersion" = ${actor.accessVersion}
+        AND "deletedAt" IS NULL AND "isActive" = true
+    `;
+    return changed === 1;
   }
 
   private generateRawToken(): string {

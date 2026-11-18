@@ -27,24 +27,30 @@
   box-shadow: 0 5px 16px rgb(53 41 32 / 5%);
 }
 
-.accountabilityWorkspace label,
-.accountabilityAccountPanel label {
+.accountabilityWorkspace label:not(:global(.ui-field__label)),
+.accountabilityAccountPanel label:not(:global(.ui-field__label)) {
   display: grid;
   min-width: 0;
   gap: 6px;
 }
 
-.accountabilityWorkspace label > span,
-.accountabilityAccountPanel label > span {
+.accountabilityWorkspace label:not(:global(.ui-field__label)) > span,
+.accountabilityAccountPanel label:not(:global(.ui-field__label)) > span {
   color: var(--ui-text-secondary);
   font-size: 12px;
   font-weight: 650;
 }
 
-.accountabilityWorkspace input:not([type="search"]):not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+.accountabilityWorkspace
+  input:not([type='search']):not([type='checkbox']):not([type='radio']):not(
+    [type='file']
+  ),
 .accountabilityWorkspace select,
 .accountabilityWorkspace textarea,
-.accountabilityAccountPanel input:not([type="search"]):not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+.accountabilityAccountPanel
+  input:not([type='search']):not([type='checkbox']):not([type='radio']):not(
+    [type='file']
+  ),
 .accountabilityAccountPanel select,
 .accountabilityAccountPanel textarea {
   min-width: 0;
@@ -55,10 +61,16 @@
   box-shadow: none;
 }
 
-.accountabilityWorkspace input:not([type="search"]):not([type="checkbox"]):not([type="radio"]):not([type="file"]):focus,
+.accountabilityWorkspace
+  input:not([type='search']):not([type='checkbox']):not([type='radio']):not(
+    [type='file']
+  ):focus,
 .accountabilityWorkspace select:focus,
 .accountabilityWorkspace textarea:focus,
-.accountabilityAccountPanel input:not([type="search"]):not([type="checkbox"]):not([type="radio"]):not([type="file"]):focus,
+.accountabilityAccountPanel
+  input:not([type='search']):not([type='checkbox']):not([type='radio']):not(
+    [type='file']
+  ):focus,
 .accountabilityAccountPanel select:focus,
 .accountabilityAccountPanel textarea:focus {
   border-color: var(--ui-focus-border);
@@ -87,12 +99,6 @@
   gap: 16px !important;
   border-color: var(--ui-border);
   background: var(--ui-surface);
-}
-
-.accountabilityAccountPanel :global(.stat-grid) {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 9px;
 }
 
 .accountabilityAccountPanel :global(.stat-card) {
@@ -134,7 +140,9 @@
   font-weight: 650;
 }
 
-.accountabilityAccountPanel .accountabilitySecondaryTotals :global(.ui-detail-grid) {
+.accountabilityAccountPanel
+  .accountabilitySecondaryTotals
+  :global(.ui-detail-grid) {
   margin-top: 12px;
 }
 
@@ -186,7 +194,9 @@
   grid-column: 1 / -1;
 }
 
-.accountabilityAccountPanel .accountabilityLedgerFilters > :global(.field-grid) {
+.accountabilityAccountPanel
+  .accountabilityLedgerFilters
+  > :global(.field-grid) {
   grid-column: 1 / -1;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr));
 }
@@ -229,9 +239,6 @@
     align-items: flex-start;
   }
 
-  .accountabilityAccountPanel :global(.stat-grid) {
-    grid-template-columns: minmax(0, 1fr);
-  }
 }
 
 .accountabilityWorkspace .accountabilityFileInput {
@@ -270,3 +277,117 @@
 }
 
 /* Подотчёт — moved from globals.css; classes are local to this module. */
+
+.expenseFormGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: var(--ui-space-4, 16px);
+}
+
+.expenseFormWide {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 640px) {
+  .expenseFormGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.moneySummary {
+  display: grid;
+  gap: var(--ui-space-3);
+  min-width: 0;
+}
+
+.moneyPrimary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--ui-space-3);
+  margin: 0;
+  padding: 0 0 var(--ui-space-3);
+  border-bottom: 1px solid var(--ui-border);
+}
+
+.moneyPrimary > div {
+  display: grid;
+  align-content: start;
+  gap: var(--ui-space-1);
+  min-width: 0;
+}
+
+.moneyPrimary dt,
+.moneySecondary dt {
+  color: var(--ui-text-secondary);
+  font-size: var(--ui-text-sm);
+}
+
+.moneyPrimary dd {
+  margin: 0;
+  color: var(--ui-text);
+  font-size: clamp(16px, 2vw, 22px);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: normal;
+  white-space: nowrap;
+}
+
+.moneySecondary {
+  display: grid;
+  gap: var(--ui-space-2);
+  margin: 0;
+}
+
+.moneySecondary > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--ui-space-3);
+  min-width: 0;
+}
+
+.moneySecondary dd {
+  flex-shrink: 0;
+  margin: 0;
+  color: var(--ui-text);
+  font-size: var(--ui-text-sm);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  text-align: right;
+}
+
+.moneyPolicy {
+  margin-top: var(--ui-space-2);
+  color: var(--ui-text-secondary);
+  font-size: var(--ui-text-sm);
+}
+
+.moneyPolicy summary {
+  width: fit-content;
+  cursor: pointer;
+}
+
+.moneyPolicy p {
+  margin-block: var(--ui-space-2);
+}
+
+@media (max-width: 420px) {
+  .moneyPrimary {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--ui-space-2);
+  }
+
+  .moneyPrimary > div {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--ui-space-3);
+  }
+
+  .moneyPrimary dd {
+    flex-shrink: 0;
+    text-align: right;
+  }
+}

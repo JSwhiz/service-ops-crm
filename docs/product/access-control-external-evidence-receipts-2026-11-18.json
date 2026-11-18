@@ -1,0 +1,814 @@
+{
+  "schemaVersion": 1,
+  "kind": "external-acceptance-evidence-receipts",
+  "registrySha256": "0832eaacde5d22ea565bdf79eef5be18f5a613714824e88002d762735c08279a",
+  "entries": [
+    {
+      "id": "E373",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/E373-objects-direct-k3-v2.json",
+      "sha256": "a10794e27977e9976ab38dbe603f721b4a98b917454b21bf8d3609c981cd5bfe",
+      "sizeBytes": 786189
+    },
+    {
+      "id": "E374",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/E374-center18-review-claims-v2-final.json",
+      "sha256": "6a5364a65490d04074b4f195f1e3dd3f24d8d766284b43a1f65dd53bf446366f",
+      "sizeBytes": 133090
+    },
+    {
+      "id": "E375",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/files-upload-k5-four-cell-claim.json",
+      "sha256": "680651d300e7dbed698acab0fd64ab6e3ed3e111f7c153293dff36d078294492",
+      "sizeBytes": 383431
+    },
+    {
+      "id": "E376",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/evidence-reuse/E376-reviewed18-v1/E376-claim.json",
+      "sha256": "6bc5f41a4493c5b03823b2fdf8c786b78b74b18901cb08208a594655eeb2f2a5",
+      "sizeBytes": 18976646
+    },
+    {
+      "id": "E382",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/E382-warehouse-mats-manual-claims.json",
+      "sha256": "f6328c989fe17b80e183ff7ef6302005e616cf0c0a6a5bcdf0d9302bac0439be",
+      "sizeBytes": 240364
+    },
+    {
+      "id": "E383",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/evidence-reuse/E383-packaging28-v1/E383-claim.json",
+      "sha256": "d5647f12b30506ff5ac44301fe13d7f31c46fed6ca34d131da88f268e44935d1",
+      "sizeBytes": 67670920
+    },
+    {
+      "id": "E384",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/mats-quantity-K5-followup-claims.json",
+      "sha256": "9f3f01bfbc62a3099e5ba35e1be2ec13c18f923356e9cfe24d66afaea9b3b9e8",
+      "sizeBytes": 29923
+    },
+    {
+      "id": "E380",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/E380-reviewed12-v1.json",
+      "sha256": "c0ab86ddb7d248fae90054cb034b608e9ca5cb8ecf1d289d7ade8c34eead3bb6",
+      "sizeBytes": 236074
+    },
+    {
+      "id": "E389",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/E389-file-viewer-canonical-v1.json",
+      "sha256": "1b8625c5effc79ad97eb6d8858adbf751fb6cb8eb1db72f874f24b6ea18cd543",
+      "sizeBytes": 356075
+    },
+    {
+      "id": "E381",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/E381-remaining-open-final.json",
+      "sha256": "309fe34284571b578c5b88c20bb33ab238d01f9a7ee113e3d8ee9d8d631d2206",
+      "sizeBytes": 338342
+    },
+    {
+      "id": "E387",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/E387-orders-recovery-v1.json",
+      "sha256": "415b4cf342eb9fdd8a1ffd121579a3916b9b0d4c0b6d79ab36f1f449a8d340e0",
+      "sizeBytes": 143153
+    },
+    {
+      "id": "E385",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/E385-file-expense-bridge-claim.json",
+      "sha256": "efc3b393ad7288171eb5385182e8aa362b03de69d94830487af419b5125dc12e",
+      "sizeBytes": 28904
+    },
+    {
+      "id": "E378",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/objects-E378-intake20-v2/claim.json",
+      "sha256": "51293c6938e71a58726158396a410c5980e6c24b8d76b6b7f1a3a9d728d94781",
+      "sizeBytes": 23467995
+    },
+    {
+      "id": "E392",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/objects-E392-k3-delta3-v1/claim.json",
+      "sha256": "ea90573cd787d9a9a963c76a6b7522e27c23c091631aad071f1a4e658df2aef1",
+      "sizeBytes": 21799148
+    },
+    {
+      "id": "E393",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/E393-p01-center-final-v1/E393-claim.json",
+      "sha256": "8252e394f56bc7f35c48cb35dbfcd5074f231d1f3520a2da10e64c3556c76f4f",
+      "sizeBytes": 323844
+    },
+    {
+      "id": "E377",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/applicability-review/E377-intake-v2/E377-claim.json",
+      "sha256": "ce25a42c84b3c84157373c3e90913f56e8de1b055fec50729d1351a351cc2600",
+      "sizeBytes": 23585242
+    },
+    {
+      "id": "E386",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/evidence-reuse/E386-write3-narrow-v2.json",
+      "sha256": "7b1c85df99d4246e02b192f391abdd0c1da77e2d2bebc66e43939f165bdc1cc9",
+      "sizeBytes": 2370177
+    },
+    {
+      "id": "E394",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/E394-four-existing-ui-closures-v1.json",
+      "sha256": "da3aec6d29c91429326b4c8e1d03d4d760a9e834b7e5c9e355494d0f1e2b5c9a",
+      "sizeBytes": 179581
+    },
+    {
+      "id": "E398",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/E398-canonical-v1.json",
+      "sha256": "d57fd88cf7f07dd4bbb66dc0a2c5f4c2bc6bae54cb929cbdf22e8211ea2d7e79",
+      "sizeBytes": 5296624
+    },
+    {
+      "id": "E399",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/E399-supported4-v2.json",
+      "sha256": "0351d8644dc374d3a91766a8cc3b5c4abf2471cdd1c90ee10adfc585fe48bb0c",
+      "sizeBytes": 4701362
+    },
+    {
+      "id": "E379",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/E379-finance-committed-ack-supplement.json",
+      "sha256": "5a85ce30aae589cf92653976327a6b637e1718549c8ee550fd24ed9e10511a81",
+      "sizeBytes": 51135
+    },
+    {
+      "id": "E396",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/E396-warehouse-equipment-mats-ui-claims-v2.json",
+      "sha256": "1ae4f86ed1add8b6e1cd6df414a2c90354e67203b20664ac9be80c1e62ce0bb5",
+      "sizeBytes": 434574
+    },
+    {
+      "id": "E401",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/E401-source-compatible-closure-proposal.json",
+      "sha256": "e49fc3200a7215054a8dc60590739e2730eaf67556313149e12542b493de81c4",
+      "sizeBytes": 114548
+    },
+    {
+      "id": "E403",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/E403-p01-finite-existing-proof-v1/E403-claim.json",
+      "sha256": "b35bc665d36ba47766cc295b4f2a73e023d81751da10931ae8de7e152ae3af33",
+      "sizeBytes": 924329
+    },
+    {
+      "id": "E402",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/evidence-reuse/E402-catalog-read-k7-v1/E402-claim.json",
+      "sha256": "e638686f2aa7ff3300eb03322e81f0326a470de18dced6d94c97ad08c25f31bd",
+      "sizeBytes": 4042415
+    },
+    {
+      "id": "E407",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/E407-p01-two-K6-v2/E407-claim.json",
+      "sha256": "9b5ce81ede4ad6441f337911acd554cec5ca9b0e530b7e5d6e54787f768a14c0",
+      "sizeBytes": 197552
+    },
+    {
+      "id": "E395",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/E395-people-calendar-missing-only-v4.json",
+      "sha256": "92d66bebe75849274b2435809c42cbb4bd4cb02accbbe4936513458c19d94261",
+      "sizeBytes": 1590263
+    },
+    {
+      "id": "E408",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/E408-domain-seven-v1/E408-claim.json",
+      "sha256": "0b7f4529926faf1b0ee971df12c96a4366a98ce3eed8723603c33845aa5782a8",
+      "sizeBytes": 409271
+    },
+    {
+      "id": "E409",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/E409-auth-refresh-serialized-issuer-v2/E409-claim.json",
+      "sha256": "63fb6daeb4c55ab019dc1023bd055abc4d4758b2fc009a298a97922e90b39092",
+      "sizeBytes": 194547
+    },
+    {
+      "id": "E410",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/E410-bridge-postcommit-v1/E410-claim.json",
+      "sha256": "bcb23435d19a8b058e280128080a36f675fbbfd2404e8ae9ef90116dce6c1c41",
+      "sizeBytes": 129136
+    },
+    {
+      "id": "E404",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/E404-closure-v2/E404-claim.json",
+      "sha256": "24c5ce3ec90c127218bae3b0d131576d26facb12a6603cfcf5948c09fb0df93c",
+      "sizeBytes": 242924
+    },
+    {
+      "id": "E411",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/E411-closure-v1/E411-claim.json",
+      "sha256": "655fb77ca96ec54c1fc9e4e54159ace0dea8c9ace24c2846e0bf297640ddf50f",
+      "sizeBytes": 806438
+    },
+    {
+      "id": "E397",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/E397-whole-criteria-seal-v1/E397-claim.json",
+      "sha256": "d0d30df3918fae4efb10ef1446c89274fd4e91d8587f6235373863fb87bfa731",
+      "sizeBytes": 146607
+    },
+    {
+      "id": "E390",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/E390-finite-claim-v5.json",
+      "sha256": "fc5e078224af1deea23b9d1fd92325791cde35f232e2de390df2b9787648d627",
+      "sizeBytes": 4008853
+    },
+    {
+      "id": "E406",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/E406-whole-criteria-seal-v3/E406-claim.json",
+      "sha256": "7c9e39fbda2d88278b300cc607a257cf425ad0e0eb7f50f0b6092afb53b66b7f",
+      "sizeBytes": 1185419
+    },
+    {
+      "id": "E413",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/E413-notification-two-K7-v1/E413-claim.json",
+      "sha256": "088ea4e676bae38e319d472117d8b1ddab8fad09b3a7f3bdb81ce54c1cd0131f",
+      "sizeBytes": 4600814
+    },
+    {
+      "id": "E405",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/evidence-reuse/E405-whole-reuse-v1/E405-claim.json",
+      "sha256": "26b771bb61e15234c729c7d158bd83a61370be6619dce45693cbe254ea5bc8f1",
+      "sizeBytes": 3126763
+    },
+    {
+      "id": "E412",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/E412-eligible-whole-v1.json",
+      "sha256": "9a777fd356a3a4a49835a915f2cfa3e8e6a9b571f2af9f80539dd65de0503662",
+      "sizeBytes": 2216411
+    },
+    {
+      "id": "E414",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/evidence-reuse/E414-whole-join-v1/E414-claim.json",
+      "sha256": "e646c1c41346afcd138ee8e4d0b1dca40f4040868e8f78e8951a9c853fb9e2be",
+      "sizeBytes": 24356888
+    },
+    {
+      "id": "E420",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/E420-order-three-K7-v1/E420-claim.json",
+      "sha256": "612f62229f347eb9d0423dff283669533da9c45980ad3e2125ad295f98a311c8",
+      "sizeBytes": 584375
+    },
+    {
+      "id": "E419",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/search-E419-missing-only/E419-search-whole-v1/E419-claim.json",
+      "sha256": "7eacf50a51d0e94e6698cafda2da6d14c8a06c11af982e45851c3e07b4b7c49b",
+      "sizeBytes": 4477725
+    },
+    {
+      "id": "E417",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/E417-whole-eligible23-v4.json",
+      "sha256": "529bcfd52d6102875196e7a59dffc3b10156683fd45680c246d0064aa1874a3b",
+      "sizeBytes": 3493645
+    },
+    {
+      "id": "E423",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/E423-people-six-whole-post-v2.json",
+      "sha256": "af9addaf1393b6d1577c499af8b05e949ae4b113377b170973651ffc769618c7",
+      "sizeBytes": 2225882
+    },
+    {
+      "id": "E418",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/E418-eligible-only-v5/E418-claim.json",
+      "sha256": "7b94d803daa95c21277d006a1d9623d3295b68fbac00bd574d8a3463799e1dcb",
+      "sizeBytes": 2667503
+    },
+    {
+      "id": "E424",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/E424-calendar-manage-whole-K7-v1.json",
+      "sha256": "aa4b8681186b2424887641b2dbd5e79999074bd9d4bb801bd9bbce72164dbdb2",
+      "sizeBytes": 598866
+    },
+    {
+      "id": "E416",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/E416-closure-v2/E416-claim.json",
+      "sha256": "8800b7481d4d702d5d3e10af0ba7b4dd9fbada4e012bf86356af7bc5c1f2aedd",
+      "sizeBytes": 1607581
+    },
+    {
+      "id": "E426",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/evidence-reuse/E426-search-recent-final-v1/E426-claim.json",
+      "sha256": "efaf70727159d7bcbcb0a5d85f35ed54849f5a9d5b006c4829d9740489adf18a",
+      "sizeBytes": 46747
+    },
+    {
+      "id": "E415",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/E415-chat-files-claim-v2.json",
+      "sha256": "0e2d2e5d02b518b6540b3d973d838a14744b17d5a0a50e9bdffa8599a021de21",
+      "sizeBytes": 1011966
+    },
+    {
+      "id": "E428",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/E428-task-update-whole-K7-v1.json",
+      "sha256": "d3eb4efe325a6c2d9f4afcb8c65c9677fea2c5949a7ea1a719099fdc85dbe35f",
+      "sizeBytes": 89515
+    },
+    {
+      "id": "E421",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/E421-core-two-K7-v1/E421-claim.json",
+      "sha256": "a023ccd8e32ed1816e34634e084033e060e430e77625e2dcdac3ba7f20ecb39e",
+      "sizeBytes": 219732
+    },
+    {
+      "id": "E422",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/evidence-reuse/E422-final-handoff-v1/E422-claim.json",
+      "sha256": "88fa3bec216ffc3ff5f1e826d4621fa81d4b5fa62781abf900d6646c1739825a",
+      "sizeBytes": 102674
+    },
+    {
+      "id": "E429",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/E429-notification-adapter-whole-v1.json",
+      "sha256": "17dfc3e2878502098f43e185123e28d4a7e7d043dcf53eee8fba894f186ec3e7",
+      "sizeBytes": 467854
+    },
+    {
+      "id": "E430",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/E430-candidate-three-whole-K7-v1.json",
+      "sha256": "65d974071ed33b98701bdbc394c606a09994a00b8f60f06a98ed4c892bcb664b",
+      "sizeBytes": 196350
+    },
+    {
+      "id": "E427",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/E427-closure-v1/E427-claim.json",
+      "sha256": "d58a5452b3087627008b54af0287d4f02964f7caecccccfa3f21ae1f8f593348",
+      "sizeBytes": 6000310
+    },
+    {
+      "id": "E433",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/E433-files-nominated-K6-whole-v1.json",
+      "sha256": "96cf7bebcb12f46412866034d9de678f69f6370f2145915deef48baf0f068290",
+      "sizeBytes": 832581
+    },
+    {
+      "id": "E400",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/objects-E400-operational-whole8-v2/claim.json",
+      "sha256": "3e7f523fc7d3048974a4dd5d2f84a8d76af77a0f675a21e8a1d51d75fa0ba42c",
+      "sizeBytes": 1280424
+    },
+    {
+      "id": "E434",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/evidence-reuse/E434-whole-four-v2/E434-claim.json",
+      "sha256": "648884d260069007fabe941478e046615eef9a64c20d44a8f37f4e2f334af97b",
+      "sizeBytes": 228492
+    },
+    {
+      "id": "E432",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/E432-order-whole8-K7-v1/E432-claim.json",
+      "sha256": "df4f58229006226d1ddf81976981939094b368e9d33f94ef471c6d6681c9fa79",
+      "sizeBytes": 3074726
+    },
+    {
+      "id": "E438",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/E438-closure-v1/E438-claim.json",
+      "sha256": "2a1545b18ce171c6de1f06331668d7867e1668a4cb62afe563efccbc2ffe3506",
+      "sizeBytes": 292823
+    },
+    {
+      "id": "E435",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/objects-E435-readonly-whole8-v4/claim.json",
+      "sha256": "249d16866436f385954dba2283ae3e2cf2f35f0e24d14f6008b1b74f1e03e862",
+      "sizeBytes": 1120778
+    },
+    {
+      "id": "E431",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/evidence-reuse/E431-eligible-whole-v3/E431-claim.json",
+      "sha256": "add282855813f23ac1b96a42b7a12cef487b485dba9a17e31babedd77554f911",
+      "sizeBytes": 16133421
+    },
+    {
+      "id": "E436",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/E436-chat-root-whole-v1.json",
+      "sha256": "ef42bace5280c238fa4483b80d31fb7f040b484d4112a2d73312dcb787bddc2a",
+      "sizeBytes": 398098
+    },
+    {
+      "id": "E425",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/E425-eligible-whole-four-v3/E425-claim.json",
+      "sha256": "487032b246b9aa69b8a04a5791437778afea17b27bde0d8235034395f53d1ee3",
+      "sizeBytes": 480294
+    },
+    {
+      "id": "E444",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/E444-task-update-whole-K7-v3/E444-claim.json",
+      "sha256": "be0e92360105f13801db10e4f9413b8e830ae1249780349cff31f61442cc24a4",
+      "sizeBytes": 1412424
+    },
+    {
+      "id": "E445",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/E445-visit-history-readonly-K7-v1/E445-claim.json",
+      "sha256": "01d5543b8be686a4301d14bf7365f99ecb8addc8049374fc6184dcdfbd715494",
+      "sizeBytes": 84767
+    },
+    {
+      "id": "E446",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/E446-P08-eight-whole-v1.json",
+      "sha256": "98165e333d7b2fdf85a880ae7a37973146d635e4617371eb9a2b1417c44c753e",
+      "sizeBytes": 914691
+    },
+    {
+      "id": "E447",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/E447-money-three-K5-whole-v1/E447-claim.json",
+      "sha256": "6a0e52e8cc7b9153f1a449ef4a9b348764909e62388a7e295e5f4c31359e0bc2",
+      "sizeBytes": 195032
+    },
+    {
+      "id": "E440",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/evidence-reuse/E440-eligible-three-v2/E440-claim.json",
+      "sha256": "9d9f8dbde56845dda8ad38f3dc1cf31d7ef5599740cd287a6908f76e4058140a",
+      "sizeBytes": 1020033
+    },
+    {
+      "id": "E448",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/E448-task-source-whole-v1.json",
+      "sha256": "a061079173abe79a9d8341ba1e435568bb58aad427fef506ab7443c7651ae6e6",
+      "sizeBytes": 4140220
+    },
+    {
+      "id": "E450",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/evidence-reuse/E450-whole-bound-v1/E450-claim.json",
+      "sha256": "33281ef16c70592dbc9f89c58d0bcde4dc49ee9e8b67c486f2ba37cd73c090be",
+      "sizeBytes": 2249003
+    },
+    {
+      "id": "E451",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/evidence-reuse/E451-whole-bound-v1/E451-claim.json",
+      "sha256": "de2245dc9ae87dc412a9a450f3a9f74ad686db838736e5bfa8d705c637926a7b",
+      "sizeBytes": 1063526
+    },
+    {
+      "id": "E452",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/evidence-reuse/E452-whole-bound-v1/E452-claim.json",
+      "sha256": "0387f73ad17b31b1c7bcdc785a1ecde5fa5f2d0618dd87c0a3ddef28550322af",
+      "sizeBytes": 5943962
+    },
+    {
+      "id": "E453",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/evidence-reuse/E453-whole-bound-v1/E453-claim.json",
+      "sha256": "917d619f5edf2818ded74a38bd18850ba5bdadb58972318509b3c25be547c9a5",
+      "sizeBytes": 5333930
+    },
+    {
+      "id": "E442",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/E442-whole-manager-assembly-v1/E442-claim.json",
+      "sha256": "8859197f75331bd3f55d79d2fcdb0bd33305dfa98b1ef90193f180c9cc883345",
+      "sizeBytes": 5244816
+    },
+    {
+      "id": "E449",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/E449-read-root-whole-K7-v2/E449-claim.json",
+      "sha256": "08e60b2fb32aef8e4941130d6eda1a06a4ddb2c253a7504a1e1dec212e380d30",
+      "sizeBytes": 351146
+    },
+    {
+      "id": "E454",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/E454-people-source-whole-v1.json",
+      "sha256": "61ccb3fc71c1e06b919d5a8b4a18336f760511a32863445c9a7a6a789156080e",
+      "sizeBytes": 13104312
+    },
+    {
+      "id": "E457",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/evidence-reuse/E457-whole-bound-v1/E457-claim.json",
+      "sha256": "1b498220ce7c26aedaaf5bf59e2bac1ebe1afeb69bcaffecf11584192dfde02a",
+      "sizeBytes": 1583611
+    },
+    {
+      "id": "E458",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/evidence-reuse/E458-whole-bound-v1/E458-claim.json",
+      "sha256": "fef00dac4aaccf0d0954c40408be1dd6e12de5d08176eb92f118a22bc178dc9f",
+      "sizeBytes": 991514
+    },
+    {
+      "id": "E456",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/E456-photo-K3-whole-v1/E456-claim.json",
+      "sha256": "2b1e2e2b92c569a2f8f9941083983bf42db436e5b0d9c3f26447fb98db83a335",
+      "sizeBytes": 224834
+    },
+    {
+      "id": "E463",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/E463-P08-eleven-UI-whole-v1.json",
+      "sha256": "ba5c568a94facd5b1a88a4219275db713aaa805279e318e469e2572eaf7adbc5",
+      "sizeBytes": 1915274
+    },
+    {
+      "id": "E443",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/objects-E443-inventory-and-read-whole6-v3/claim.json",
+      "sha256": "4f8546f9084626b7c3aec931b426eb10094e9b8d5ce7946c51d45e0d270fe0c1",
+      "sizeBytes": 4496480
+    },
+    {
+      "id": "E465",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/counterparties-E465-retained-whole13-v2/claim.json",
+      "sha256": "1c0dc7ec6e908590da45ad0b0ae261cd6e7429adba9f8058de3665ec68748a3c",
+      "sizeBytes": 11190333
+    },
+    {
+      "id": "E461",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/evidence-reuse/E461-whole-bound-v1/E461-claim.json",
+      "sha256": "a18bf6352344eb8a3dd3bb112e8be297c4c32ff1e556c8c9bfcd1e1d34b53be4",
+      "sizeBytes": 1569710
+    },
+    {
+      "id": "E467",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/objects-E467-readonly-whole11-v1/claim.json",
+      "sha256": "f257172a10dad206630581c5929e0b89cdb34717820c5e07894c1a7f413cc1cb",
+      "sizeBytes": 39471617
+    },
+    {
+      "id": "E470",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/targeted-closeout-v1/results.json",
+      "sha256": "e08dc798d3add09810c88e7bfd4372b77b823f2b3795425405af9c65503395ff",
+      "sizeBytes": 6102
+    },
+    {
+      "id": "E471",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/release-gate-20261115/E471-claim.json",
+      "sha256": "7392e982ac093d41772f45ef7e82d9d77a21a774abcfff78a97a3f8c983cdd7e",
+      "sizeBytes": 12966297
+    },
+    {
+      "id": "E473",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/independent-six/E473-claim.json",
+      "sha256": "4d7e3983b0e3181bcf4a8a507056d851b17388a579ad36fd7bd1e906dd0c41ff",
+      "sizeBytes": 7880395
+    },
+    {
+      "id": "E477",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/native45/E477-claim.json",
+      "sha256": "0f706c060086a4570edd025d99ec8e86de525690271efc1cd48f6f19bac574f2",
+      "sizeBytes": 30651
+    },
+    {
+      "id": "E474",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/independent-runtime/E474-claim.json",
+      "sha256": "9cbc71761ecdaf86133b5f2ad26cb9903bbaebd8dda983de82a426310f1dfb1a",
+      "sizeBytes": 556404
+    },
+    {
+      "id": "E475",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/independent-six/E475-claim.json",
+      "sha256": "3522df85d503ac412cc6828c679f0974b7526eada97b40e152a9d10112f4a0a6",
+      "sizeBytes": 197713
+    },
+    {
+      "id": "E478",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/independent-runtime/E478-claim.json",
+      "sha256": "185503f816117b586c6954082531ee706aa851edd131bef26c802b830fad9080",
+      "sizeBytes": 1040029
+    },
+    {
+      "id": "E479",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/native-read/E479-claim-candidate.json",
+      "sha256": "6111e185ce6b163c3ad4edfe094f6fa18b3a215a8c62a034d1b49626608f691e",
+      "sizeBytes": 2494770
+    },
+    {
+      "id": "E481",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/native-read/candidate-postfix/E481-claim-candidate.json",
+      "sha256": "31d690e93eb43da781cda46d4971c173eb7d78019c0e50c27df6a826280b6a11",
+      "sizeBytes": 843968
+    },
+    {
+      "id": "E482",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/independent-runtime/E482-claim.json",
+      "sha256": "7982217dc543f6f583b5093aa09e0c936424c32f25572afe5aa48090fe6fa5cf",
+      "sizeBytes": 343857
+    },
+    {
+      "id": "E483",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/bindings207/E483-user-absences-read/whole/E483-claim.json",
+      "sha256": "617344476dc17bf1babacae35a00c9f2cf466bf881a275aad0c2d0f5cdb48827",
+      "sizeBytes": 127108
+    },
+    {
+      "id": "E485",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/bindings207/E485-ready-batch/E485-claim.json",
+      "sha256": "fbd3dd73d49aea79a3c8cb8463521c1ebb608e9e58b22f38ccfe0dd0b0ebbbb7",
+      "sizeBytes": 223185
+    },
+    {
+      "id": "E486",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/independent-runtime/E486-claim.json",
+      "sha256": "c6ece09274890bf9d1b03ff8e50f2130e3935d858b44931b868bb6df4caad7c8",
+      "sizeBytes": 204968
+    },
+    {
+      "id": "E488",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/independent-runtime/E488-claim.json",
+      "sha256": "9ea8bd5bb670e0bce4b20408894fd1a71805ea66ce69e1fcfb7780642af82e3e",
+      "sizeBytes": 31739
+    },
+    {
+      "id": "E491",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/independent-runtime/E491-claim.json",
+      "sha256": "ca1adb24cf1fda3baacbd9d3b119836de3564138147eed33e5ffe4bea4538fb1",
+      "sizeBytes": 156274
+    },
+    {
+      "id": "E484",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/native-file-retry/E484-claim-candidate.json",
+      "sha256": "c1219fb5fb01047d7f85e75b99b817c259ecf7cbeb04ada2499e5b2b5faabda1",
+      "sizeBytes": 5871360
+    },
+    {
+      "id": "E480",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/native-object-write/E480-claim-v2.json",
+      "sha256": "2e629a63cc2f48383d57d1c9960cb21f39e5a3cbbab5895bc8066e908f92851a",
+      "sizeBytes": 10941357
+    },
+    {
+      "id": "E492",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/independent-runtime/E492-claim.json",
+      "sha256": "22e3ecdd9a022dd15ab76af8a3754b480937baff932e870aacfa81f01c9b9473",
+      "sizeBytes": 160795
+    },
+    {
+      "id": "E493",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/native-object-write/E493-author-claim.json",
+      "sha256": "901a04ee1913eb487db65e26f90a6fb9ea6a0c483ae17842ba730c3da06c8711",
+      "sizeBytes": 9595231
+    },
+    {
+      "id": "E487",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/native-object-write/E487-author-claim.json",
+      "sha256": "0ed4336906c7ff7fc5e7f40d445cc1e32aeed90aa619a26e375bfd69ca4a33c2",
+      "sizeBytes": 11113619
+    },
+    {
+      "id": "E490",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/bindings207/E490-ready-batch/E490-claim.json",
+      "sha256": "6846938add936f338ae44fc0d759de01c6e3041d65bb02367460887b76d37372",
+      "sizeBytes": 112864
+    },
+    {
+      "id": "E489",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/native-stock-equipment/E489-reviewed-partial-claim.json",
+      "sha256": "6ae4b293b488ddd01073b8ecaa057a6da9a9cc2db19f356d02e357934f99d867",
+      "sizeBytes": 5759867
+    },
+    {
+      "id": "E494",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E494-visit-history-post/E494-claim.json",
+      "sha256": "f253a35c5c06f02f22ac6ba3b2545db332be3062da530b0f892cd9ce8949a448",
+      "sizeBytes": 1452809
+    },
+    {
+      "id": "E496",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/native-money-explanation-E496/E496-author-claim.json",
+      "sha256": "0eea533b4e4e3e6181477cf4ae4bc3947e8d28036b89a66229cfc429fccdc50e",
+      "sizeBytes": 11164182
+    },
+    {
+      "id": "E497",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/native-employee-postcommit/E497-claim-candidate.json",
+      "sha256": "69c17b3244e329b3966e4aa8492d5871c8cf5cb10184336d6d75f6416b08853e",
+      "sizeBytes": 2083239
+    },
+    {
+      "id": "E495",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/api-object-k7-E495/E495-candidate-claim.json",
+      "sha256": "6f9c197612162406d9ef95aa46f030272bca565ff2eb8902629e966908161033",
+      "sizeBytes": 2148213
+    },
+    {
+      "id": "E501",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/api-object-postcommit-E501/E501-reviewed-claim.json",
+      "sha256": "294155a53d7c6eae587ec768b7aaab0b670c0d38ce2c128f959adf48865ad69e",
+      "sizeBytes": 1836958
+    },
+    {
+      "id": "E498",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/native-substitutions-expenses/E498-claim-candidate.json",
+      "sha256": "c03934e119ea228af39f487c33c1a54409018df5f63704641327d35b818d88e0",
+      "sizeBytes": 6042663
+    },
+    {
+      "id": "E500",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/bindings207/E500-documentary-batch/policy-semantic-join/E500-policy-reviewed-claim.json",
+      "sha256": "a39ee5f48bda75118972a369c3c470f2565912d48f93b3a6ad3b3d888b09cf7b",
+      "sizeBytes": 666954
+    },
+    {
+      "id": "E505",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/api-live-catalog-E505/E505-reviewed-mixed-claim.json",
+      "sha256": "3f39f5d12af7a3531f7242506e617226d531e9a0ea65261d3850e7598138de6d",
+      "sizeBytes": 8744368
+    },
+    {
+      "id": "E510",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E510-visit-history-documentary/E510-reviewed-claim.json",
+      "sha256": "b0ee121dbc951d370bc88c2a1803be1f42e4bc5038929e7b36406dcecb023808",
+      "sizeBytes": 36398
+    },
+    {
+      "id": "E499",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/native-stock-equipment-feedback/E499-claim-candidate.json",
+      "sha256": "2422abbf5fd07755f007d8beb110a4c2c392af592b7d9da597e7d14f52a2c429",
+      "sizeBytes": 10234315
+    },
+    {
+      "id": "E512",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/api-direct-catalog-E512/E512-reviewed-extended-claim.json",
+      "sha256": "21a2a9aeee4d423f9e3ff00991bc68dd2915af5a5c157ee6f66bd931ee388984",
+      "sizeBytes": 8735770
+    },
+    {
+      "id": "E515",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E515-admin-knowncommit-fix/E515-reviewed-claim.json",
+      "sha256": "eabd8df00e992571682f4d118eebbc8ec576d4cdf2c590b2c5211976cd6a1d4f",
+      "sizeBytes": 105358
+    },
+    {
+      "id": "E509",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/api-object-scheduling-E509/E509-reviewed-partial-claim.json",
+      "sha256": "f366bf921b1f7b9da80520000c533481aa7c3d33fa5f021dd3f1f39e10e98d5d",
+      "sizeBytes": 4036337
+    },
+    {
+      "id": "E511",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/api-visit-approval-E511-E513/E511-reviewed-claim.json",
+      "sha256": "8cda2f5898d1c13686fad40dd30d1c7673de56ad3f993d10edfa07c265a6175d",
+      "sizeBytes": 9196844
+    },
+    {
+      "id": "E513",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/api-visit-approval-E511-E513/E513-reviewed-claim.json",
+      "sha256": "00e5b2b8f539603b8aca19d1070b89f825bacfcf704acc080d23448195091ca7",
+      "sizeBytes": 855402
+    },
+    {
+      "id": "E517",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/api-expense-decisions-E517/E517-reviewed-claim.json",
+      "sha256": "6b7b73d7ba786907b4d6f38e01caebbb54ad638d6495a64440a9d0a8dffa93f3",
+      "sizeBytes": 2341024
+    },
+    {
+      "id": "E518",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/E518-Terra/E518-reviewed-claim.json",
+      "sha256": "5ae0ce37040a497e0371a098c1d5037ed53c5e91bd722b934ab84d215fbc7b2c",
+      "sizeBytes": 51223
+    },
+    {
+      "id": "E519",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/api-compensation-residual-E519/E519-reviewed-claim.json",
+      "sha256": "8ac4f9655f12100b41b3ac196eed3094e63e8c54152d69a972cbb332483e1041",
+      "sizeBytes": 1803184
+    },
+    {
+      "id": "E520",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/api-scheduling-actor-E520/E520-reviewed-claim.json",
+      "sha256": "255b10cb8731456901bbf9e00a73f896b0ef776f1abee354a538fe68dc9781d3",
+      "sizeBytes": 7947752
+    },
+    {
+      "id": "E522",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/api-legacy-shift-E522/E522-reviewed-claim.json",
+      "sha256": "a3c910875b7f202fcfbec20db177a382e763f49e89d96fe7c31d7520db2b9718",
+      "sizeBytes": 6792640
+    },
+    {
+      "id": "E508",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/native-legacy-deny-E508/formal-admission/E508-claim-candidate.json",
+      "sha256": "ee532c94b20dc9bd63e61ade792c4117b3f60141ab5033490a9838528f33cdf8",
+      "sizeBytes": 148730
+    },
+    {
+      "id": "E506",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/native-inventory-standalone-photo/formal-admission-v4/E506-claim-candidate.json",
+      "sha256": "0b829e21bdabc601f1c8a82b8835572bb4786bbc639e6d2750a02e6229674993",
+      "sizeBytes": 4392170
+    },
+    {
+      "id": "E502",
+      "sourceFile": "/Users/dmitrijkruckov/Documents/Codex/2026-09-27/new-chat/outputs/access-acceptance-20261107/all-rights-acceptance/run-53/closeout-20261116/native-expense-decisions/E502-reviewed-claim.json",
+      "sha256": "7d2cdd4711e48e21cad3a6c6389e0dbd78009612471fcff57a44878105756338",
+      "sizeBytes": 1916456
+    }
+  ],
+  "provenance": {
+    "kind": "local-snapshot-export",
+    "exportedAtUTC": "2026-11-18T19:53:42Z",
+    "registrySourceFile": "docs/product/access-control-acceptance-matrix-2026-11-07.json",
+    "statement": "Local snapshot export only. SHA-256 and size identify file bytes; they do not establish evidence truth, acceptance, provenance authenticity, or runtime success.",
+    "externalFilesParsed": false,
+    "externalFilesCopied": false,
+    "hashMethod": "SHA-256 streamed in 1048576-byte chunks; size counted from the same stream; file identity/size/timestamps checked before and after hashing.",
+    "validation": {
+      "registryEvidenceCount": 501,
+      "externalAbsoluteJsonCount": 129,
+      "receiptCount": 129,
+      "exactCoverage": true,
+      "missingReceiptCount": 0,
+      "unexpectedReceiptCount": 0,
+      "duplicateIds": [],
+      "duplicateSourceFiles": [],
+      "registryDuplicateIds": [],
+      "totalSourceSizeBytes": 533351110,
+      "registryStableDuringExport": true,
+      "sourcesStableDuringHashing": true
+    }
+  },
+  "rawContentIncluded": false,
+  "repositoryAliases": [
+    {
+      "id": "E472",
+      "sourceFile": "/Users/dmitrijkruckov/Desktop/service-ops-crm/docs/product/access-control-release-gate-2026-11-15.md",
+      "repositoryFile": "docs/product/access-control-release-gate-2026-11-15.md",
+      "sha256": "ce87c9e5d5a7afd2d3ee72f6e0d7df26b1cf69e03629642a293eeb21698e58db",
+      "sizeBytes": 10166
+    }
+  ]
+}

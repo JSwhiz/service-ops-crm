@@ -1,8 +1,9 @@
 'use client';
 
 import React from 'react';
+import { AccessSnapshotBoundary } from '@/shared/auth/access-snapshot-boundary';
 
-import type { InventoryMovement } from '@/entities/inventory/model/inventory.types';
+import type { InventoryMovement, InventoryItem } from '@/entities/inventory/model/inventory.types';
 import { getUserDisplayName } from '@/shared/lib/display-name';
 import {
   formatInventoryQuantity,
@@ -10,11 +11,30 @@ import {
 } from '@/shared/lib/inventory-presentation';
 import { AttachmentPreviewList } from '@/shared/ui/media-entry/attachment-preview-list';
 import { Surface } from '@/shared/ui/foundation';
+import { OneTimeOrderInventoryIssueForm, type OrderInventoryIssueInput } from './one-time-order-inventory-issue-form';
 
 export function OneTimeOrderInventoryPanel({
+  orderId,
   items,
+  availableItems,
+  canIssue,
+  canReturn = false,
+  availableReturnItems = [],
+  onReturn,
+  onIssue,
+  onAttachEvidence,
+  onRefresh,
 }: {
+  orderId: string;
   items: InventoryMovement[];
+  availableItems: InventoryItem[];
+  canIssue: boolean;
+  canReturn?: boolean;
+  availableReturnItems?: InventoryItem[];
+  onReturn?: (input: OrderInventoryIssueInput, hasPendingPhotos: boolean) => Promise<string | null>;
+  onIssue: (input: OrderInventoryIssueInput, hasPendingPhotos: boolean) => Promise<string | null>;
+  onAttachEvidence: (movementId: string, files: File[]) => Promise<void>;
+  onRefresh: () => Promise<void>;
 }): React.JSX.Element {
   return (
     <Surface as="section" padding="md">
@@ -27,6 +47,10 @@ export function OneTimeOrderInventoryPanel({
         </div>
         <strong>{items.length}</strong>
       </div>
+
+      <AccessSnapshotBoundary blocked={!canIssue}><OneTimeOrderInventoryIssueForm orderId={orderId} availableItems={availableItems} onIssue={onIssue} onAttachEvidence={onAttachEvidence} onRefresh={onRefresh} /></AccessSnapshotBoundary>
+
+      {onReturn ? <AccessSnapshotBoundary blocked={!canReturn}><OneTimeOrderInventoryIssueForm operation="return" orderId={orderId} availableItems={availableReturnItems} onIssue={onReturn} onAttachEvidence={onAttachEvidence} onRefresh={onRefresh} /></AccessSnapshotBoundary> : null}
 
       {items.length === 0 ? (
         <div className="ui-text-muted">Движений расходников по заказу пока нет.</div>

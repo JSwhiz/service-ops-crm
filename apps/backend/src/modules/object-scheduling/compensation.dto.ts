@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { ArrayMaxSize, ArrayUnique, IsArray, IsBoolean, IsDateString, IsIn, IsInt, IsOptional, IsString, Matches, Max, MaxLength, Min, MinLength, ValidateNested } from 'class-validator';
+import { ArrayMaxSize, ArrayUnique, IsArray, IsBoolean, IsDateString, IsIn, IsInt, IsOptional, IsString, IsUUID, Matches, Max, MaxLength, Min, MinLength, ValidateNested } from 'class-validator';
 
 export class CompensationTermsDto {
   @IsOptional() @IsIn(['default', 'summer', 'winter']) seasonMode?: 'default' | 'summer' | 'winter';
@@ -58,6 +58,7 @@ export class CreateCompensationAdjustmentDto {
 export class CompensationMonthDto {
   @Type(() => Number) @IsInt() @Min(2024) @Max(2100) year!: number;
   @Type(() => Number) @IsInt() @Min(1) @Max(12) month!: number;
+  @IsOptional() @IsUUID() employeeId?: string;
 }
 export class CorrectExtraWorkDto {
   @IsString() @MinLength(1) @MaxLength(100) requestKey!: string;

@@ -11,12 +11,14 @@ import {
 } from '@nestjs/common';
 
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import type { SavedWithoutAccess } from '../../common/access/project-committed-write';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ApprovalRequestResponseDto } from '../approvals/dto/approval-request-response.dto';
 
 import { AssignObjectUserDto } from './dto/assign-object-user.dto';
 import { ChangeObjectStatusDto } from './dto/change-object-status.dto';
 import { CreateObjectDto } from './dto/create-object.dto';
+import { ObjectCreateCapabilitiesDto } from './dto/object-create-capabilities.dto';
 import { ListObjectsQueryDto } from './dto/list-objects-query.dto';
 import { ObjectAuditLogResponseDto } from './dto/object-audit-log-response.dto';
 import { ObjectListResponseDto } from './dto/object-list-response.dto';
@@ -85,8 +87,13 @@ export class ObjectsController {
   createObject(
     @CurrentUser() user: CurrentAuthUser,
     @Body() payload: CreateObjectDto,
-  ): Promise<ObjectResponseDto> {
+  ): Promise<ObjectResponseDto | SavedWithoutAccess> {
     return this.objectsService.createObject(user, payload);
+  }
+
+  @Post('creation-capabilities')
+  creationCapabilities(@CurrentUser() user: CurrentAuthUser, @Body() payload: ObjectCreateCapabilitiesDto) {
+    return this.objectsService.creationCapabilities(user, payload);
   }
 
   @Patch(':id')
@@ -94,7 +101,7 @@ export class ObjectsController {
     @CurrentUser() user: CurrentAuthUser,
     @Param('id') id: string,
     @Body() payload: UpdateObjectDto,
-  ): Promise<ObjectResponseDto> {
+  ): Promise<ObjectResponseDto | import('../../common/access/project-committed-write').SavedWithoutAccess> {
     return this.objectsService.updateObject(user, id, payload);
   }
 
@@ -103,7 +110,7 @@ export class ObjectsController {
     @CurrentUser() user: CurrentAuthUser,
     @Param('id') id: string,
     @Body() payload: ChangeObjectStatusDto,
-  ): Promise<ApprovalRequestResponseDto> {
+  ): Promise<ApprovalRequestResponseDto | import('../../common/access/project-committed-write').SavedWithoutAccess> {
     return this.objectsService.changeStatus(user, id, payload);
   }
 
@@ -112,7 +119,7 @@ export class ObjectsController {
     @CurrentUser() user: CurrentAuthUser,
     @Param('id') id: string,
     @Body() payload: AssignObjectUserDto,
-  ): Promise<ObjectResponseDto> {
+  ): Promise<ObjectResponseDto | import('../../common/access/project-committed-write').SavedWithoutAccess> {
     return this.objectsService.addResponsibleToObject(user, id, payload.userId);
   }
 
@@ -130,7 +137,7 @@ export class ObjectsController {
     @CurrentUser() user: CurrentAuthUser,
     @Param('id') id: string,
     @Body() payload: AssignObjectUserDto,
-  ): Promise<ObjectResponseDto> {
+  ): Promise<ObjectResponseDto | import('../../common/access/project-committed-write').SavedWithoutAccess> {
     return this.objectsService.addManagerToObject(user, id, payload.userId);
   }
 
@@ -139,7 +146,7 @@ export class ObjectsController {
     @CurrentUser() user: CurrentAuthUser,
     @Param('id') id: string,
     @Param('userId') userId: string,
-  ): Promise<ObjectResponseDto> {
+  ): Promise<ObjectResponseDto | import('../../common/access/project-committed-write').SavedWithoutAccess> {
     return this.objectsService.removeManagerFromObject(user, id, userId);
   }
 }

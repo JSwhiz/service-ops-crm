@@ -4,21 +4,28 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
-} from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+} from "@nestjs/common";
+import { Prisma } from "@prisma/client";
+import { lockActorAccessRevision } from "../../common/access/lock-actor-access-revision";
+import { projectCommittedWrite, type SavedWithoutAccess } from "../../common/access/project-committed-write";
+import type {
+  AccessContext,
+  AccessSubject,
+} from "../users-access/types/access-policy.type";
+import { decideAccess } from "../users-access/utils/access-policy.util";
 
-import { AccountabilityService } from '../accountability/accountability.service';
-import { AuditService } from '../audit/audit.service';
-import { EquipmentService } from '../equipment/equipment.service';
-import { InventoryService } from '../inventory/inventory.service';
-import { ObjectsService } from '../objects/objects.service';
-import { OneTimeManagerAvailabilityService } from '../one-time-orders/one-time-manager-availability.service';
-import { PrismaService } from '../prisma/prisma.service';
-import { TasksService } from '../tasks/tasks.service';
-import { TimesheetsService } from '../timesheets/timesheets.service';
-import { ObjectSchedulingService } from '../object-scheduling/object-scheduling.service';
-import { ObjectOperationsService } from '../object-operations/object-operations.service';
-import { LEADERSHIP_OBJECT_ROLE_CODES } from '../objects/utils/object-access.util';
+import { AccountabilityService } from "../accountability/accountability.service";
+import { AuditService } from "../audit/audit.service";
+import { EquipmentService } from "../equipment/equipment.service";
+import { InventoryService } from "../inventory/inventory.service";
+import { ObjectsService } from "../objects/objects.service";
+import { OneTimeManagerAvailabilityService } from "../one-time-orders/one-time-manager-availability.service";
+import { PrismaService } from "../prisma/prisma.service";
+import { TasksService } from "../tasks/tasks.service";
+import { TimesheetsService } from "../timesheets/timesheets.service";
+import { ObjectSchedulingService } from "../object-scheduling/object-scheduling.service";
+import { ObjectOperationsService } from "../object-operations/object-operations.service";
+import { LEADERSHIP_OBJECT_ROLE_CODES } from "../objects/utils/object-access.util";
 
 import {
   ACCOUNTABILITY_CLOSURE_CONFIRMATION_TYPE,
@@ -30,21 +37,23 @@ import {
   ONE_TIME_MANAGER_AVAILABILITY_APPROVAL_TYPE,
   OBJECT_CHANGE_CONFIRMATION_TYPE,
   TASK_RESULT_CONFIRMATION_TYPE,
-} from './constants/approval.constants';
-import { ApprovalRequestResponseDto } from './dto/approval-request-response.dto';
-import { ApprovalRequestListResponseDto } from './dto/approval-request-list-response.dto';
-import { ListApprovalRequestsQueryDto } from './dto/list-approval-requests-query.dto';
+} from "./constants/approval.constants";
+import { ApprovalRequestResponseDto } from "./dto/approval-request-response.dto";
+import { ApprovalRequestListResponseDto } from "./dto/approval-request-list-response.dto";
+import { ListApprovalRequestsQueryDto } from "./dto/list-approval-requests-query.dto";
 import {
   ApproveApprovalRequestDto,
   CancelApprovalRequestDto,
   RejectApprovalRequestDto,
-} from './dto/resolve-approval-request.dto';
+} from "./dto/resolve-approval-request.dto";
+import { canResolveApprovalType } from "./utils/approval-capabilities.util";
 import {
-  canResolveApprovalType,
-  getResolvableApprovalTypes,
-} from './utils/approval-capabilities.util';
+  approvalReadVisibilityWhere,
+  approvalSourceReadContext,
+  type ApprovalReadReference,
+} from "./utils/approval-read-access.util";
 
-interface CurrentAuthUser {
+interface CurrentAuthUser extends AccessSubject {
   id: string;
   login: string;
   fullName: string;
@@ -104,7 +113,10 @@ export class ApprovalsService {
 
   async listRequests(
     currentUser: CurrentAuthUser,
-    query: ListApprovalRequestsQueryDto & { page?: undefined; limit?: undefined },
+    query: ListApprovalRequestsQueryDto & {
+      page?: undefined;
+      limit?: undefined;
+    },
   ): Promise<ApprovalRequestResponseDto[]>;
   async listRequests(
     currentUser: CurrentAuthUser,
@@ -119,7 +131,7 @@ export class ApprovalsService {
     query: ListApprovalRequestsQueryDto,
   ): Promise<ApprovalRequestResponseDto[] | ApprovalRequestListResponseDto> {
     const where: Prisma.ApprovalRequestWhereInput = {
-      ...this.buildVisibilityWhere(currentUser),
+      ...(await this.buildVisibilityWhere(currentUser)),
       ...(query.status ? { status: query.status } : {}),
       ...(query.approvalType ? { approvalType: query.approvalType } : {}),
       ...(query.sourceEntityType
@@ -130,7 +142,8 @@ export class ApprovalsService {
     };
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
-    const shouldPaginate = query.page !== undefined || query.limit !== undefined;
+    const shouldPaginate =
+      query.page !== undefined || query.limit !== undefined;
 
     if (query.search) {
       // Apply visibility and structured filters in the database first. Search
@@ -139,12 +152,14 @@ export class ApprovalsService {
       const requests = (await this.prisma.approvalRequest.findMany({
         where,
         include: this.approvalInclude(),
-        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       })) as ApprovalRequestRecord[];
-      const normalizedSearch = query.search.toLocaleLowerCase('ru');
-      const matching = requests
-        .map((request) => this.mapRequest(request, currentUser))
-        .filter((request) => this.matchesSearch(request, normalizedSearch));
+      const normalizedSearch = query.search.toLocaleLowerCase("ru");
+      const matching = (
+        await Promise.all(
+          requests.map((request) => this.mapRequest(request, currentUser)),
+        )
+      ).filter((request) => this.matchesSearch(request, normalizedSearch));
 
       if (!shouldPaginate) return matching;
 
@@ -154,7 +169,8 @@ export class ApprovalsService {
         page,
         limit,
         total: matching.length,
-        totalPages: matching.length === 0 ? 0 : Math.ceil(matching.length / limit),
+        totalPages:
+          matching.length === 0 ? 0 : Math.ceil(matching.length / limit),
       };
     }
 
@@ -162,10 +178,12 @@ export class ApprovalsService {
       const requests = (await this.prisma.approvalRequest.findMany({
         where,
         include: this.approvalInclude(),
-        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       })) as ApprovalRequestRecord[];
 
-      return requests.map((request) => this.mapRequest(request, currentUser));
+      return Promise.all(
+        requests.map((request) => this.mapRequest(request, currentUser)),
+      );
     }
 
     const [total, requests] = await this.prisma.$transaction([
@@ -175,13 +193,15 @@ export class ApprovalsService {
         skip: (page - 1) * limit,
         take: limit,
         include: this.approvalInclude(),
-        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       }),
     ]);
 
     return {
-      items: (requests as ApprovalRequestRecord[]).map((request) =>
-        this.mapRequest(request, currentUser),
+      items: await Promise.all(
+        (requests as ApprovalRequestRecord[]).map((request) =>
+          this.mapRequest(request, currentUser),
+        ),
       ),
       page,
       limit,
@@ -196,14 +216,16 @@ export class ApprovalsService {
   ): Promise<ApprovalRequestResponseDto> {
     const request = (await this.prisma.approvalRequest.findFirst({
       where: {
-        id,
-        ...this.buildVisibilityWhere(currentUser),
+        AND: [
+          { id },
+          await approvalReadVisibilityWhere(this.prisma, currentUser, [id]),
+        ],
       },
       include: this.approvalInclude(),
     })) as ApprovalRequestRecord | null;
 
     if (!request) {
-      throw new NotFoundException('Approval request not found');
+      throw new NotFoundException("Approval request not found");
     }
 
     return this.mapRequest(request, currentUser);
@@ -213,12 +235,19 @@ export class ApprovalsService {
     currentUser: CurrentAuthUser,
     requestId: string,
     payload: ApproveApprovalRequestDto,
-  ): Promise<ApprovalRequestResponseDto> {
+  ): Promise<ApprovalRequestResponseDto | SavedWithoutAccess> {
     const comment = payload.comment?.trim() || null;
 
     const approved = await this.prisma.$transaction(async (tx) => {
       const request = await this.loadRequestForUpdate(tx, requestId);
       this.assertCanApprove(currentUser, request);
+      await this.assertRequestPolicy(
+        currentUser,
+        request,
+        this.resolveAction(request),
+        tx,
+      );
+      await lockActorAccessRevision(tx, currentUser);
       await this.applyApprovalBusinessEffect(tx, request, currentUser, comment);
 
       const updated = (await tx.approvalRequest.update({
@@ -226,128 +255,210 @@ export class ApprovalsService {
           id: requestId,
         },
         data: {
-          status: 'approved',
+          status: "approved",
           resolvedByUserId: currentUser.id,
           resolvedAt: new Date(),
           decisionComment: comment,
         },
         include: this.approvalInclude(),
       })) as ApprovalRequestRecord;
-      await this.writeApprovalAuditEvent(tx, updated, currentUser.id, 'approved');
+      await this.writeApprovalAuditEvent(
+        tx,
+        updated,
+        currentUser.id,
+        "approved",
+      );
       return updated;
     });
 
     if (approved.approvalType === OBJECT_CHANGE_CONFIRMATION_TYPE) {
-      const payloadSnapshot = this.normalizePayloadSnapshot(approved.payloadSnapshot);
+      const payloadSnapshot = this.normalizePayloadSnapshot(
+        approved.payloadSnapshot,
+      );
       await this.auditService.writeObjectAuditLog({
         objectId: approved.sourceEntityId,
         actorUserId: currentUser.id,
-        actionCode: 'object.status_changed',
+        actionCode: "object.status_changed",
         payload: {
-          oldStatus: this.getStringPayloadValue(payloadSnapshot, 'currentStatus'),
-          newStatus: this.getStringPayloadValue(payloadSnapshot, 'requestedStatus'),
+          oldStatus: this.getStringPayloadValue(
+            payloadSnapshot,
+            "currentStatus",
+          ),
+          newStatus: this.getStringPayloadValue(
+            payloadSnapshot,
+            "requestedStatus",
+          ),
           approvalRequestId: approved.id,
         },
       });
     }
 
-    return this.mapRequest(approved, currentUser);
+    return projectCommittedWrite(this.prisma, currentUser, () =>
+      this.getRequestById(currentUser, approved.id),
+    );
   }
 
   async rejectRequest(
     currentUser: CurrentAuthUser,
     requestId: string,
     payload: RejectApprovalRequestDto,
-  ): Promise<ApprovalRequestResponseDto> {
+  ): Promise<ApprovalRequestResponseDto | SavedWithoutAccess> {
     const comment = payload.comment.trim();
 
     if (!comment) {
-      throw new BadRequestException('Reject comment is required');
+      throw new BadRequestException("Reject comment is required");
     }
 
     const rejected = await this.prisma.$transaction(async (tx) => {
       const request = await this.loadRequestForUpdate(tx, requestId);
       this.assertCanReject(currentUser, request);
-      await this.applyRejectionBusinessEffect(tx, request, currentUser, comment);
+      await this.assertRequestPolicy(
+        currentUser,
+        request,
+        this.resolveAction(request),
+        tx,
+      );
+      await lockActorAccessRevision(tx, currentUser);
+      await this.applyRejectionBusinessEffect(
+        tx,
+        request,
+        currentUser,
+        comment,
+      );
 
       const updated = (await tx.approvalRequest.update({
         where: {
           id: requestId,
         },
         data: {
-          status: 'rejected',
+          status: "rejected",
           resolvedByUserId: currentUser.id,
           resolvedAt: new Date(),
           decisionComment: comment,
         },
         include: this.approvalInclude(),
       })) as ApprovalRequestRecord;
-      await this.writeApprovalAuditEvent(tx, updated, currentUser.id, 'rejected');
+      await this.writeApprovalAuditEvent(
+        tx,
+        updated,
+        currentUser.id,
+        "rejected",
+      );
       return updated;
     });
 
-    return this.mapRequest(rejected, currentUser);
+    return projectCommittedWrite(this.prisma, currentUser, () =>
+      this.getRequestById(currentUser, rejected.id),
+    );
   }
 
   async cancelRequest(
     currentUser: CurrentAuthUser,
     requestId: string,
     payload: CancelApprovalRequestDto,
-  ): Promise<ApprovalRequestResponseDto> {
+  ): Promise<ApprovalRequestResponseDto | SavedWithoutAccess> {
     const comment = payload.comment?.trim() || null;
 
     const cancelled = await this.prisma.$transaction(async (tx) => {
       const request = await this.loadRequestForUpdate(tx, requestId);
       this.assertCanCancel(currentUser, request);
-      await this.applyCancellationBusinessEffect(tx, request, currentUser, comment);
+      await this.assertRequestPolicy(currentUser, request, "approvals.cancel", tx);
+      await lockActorAccessRevision(tx, currentUser);
+      await this.applyCancellationBusinessEffect(
+        tx,
+        request,
+        currentUser,
+        comment,
+      );
 
       const updated = (await tx.approvalRequest.update({
         where: {
           id: requestId,
         },
         data: {
-          status: 'cancelled',
+          status: "cancelled",
           cancelledByUserId: currentUser.id,
           cancelledAt: new Date(),
           decisionComment: comment,
         },
         include: this.approvalInclude(),
       })) as ApprovalRequestRecord;
-      await this.writeApprovalAuditEvent(tx, updated, currentUser.id, 'cancelled');
+      await this.writeApprovalAuditEvent(
+        tx,
+        updated,
+        currentUser.id,
+        "cancelled",
+      );
       return updated;
     });
 
-    return this.mapRequest(cancelled, currentUser);
+    return projectCommittedWrite(this.prisma, currentUser, () =>
+      this.getRequestById(currentUser, cancelled.id),
+    );
   }
 
-  private buildVisibilityWhere(currentUser: CurrentAuthUser): Prisma.ApprovalRequestWhereInput {
-    const roleCodes = this.getRoleCodes(currentUser);
-    const permissionCodes = this.getPermissionCodes(currentUser);
-    const resolvableTypes = getResolvableApprovalTypes({
-      roleCodes,
-      permissionCodes,
-    });
-    const retroactiveTimesheetScope: Prisma.ApprovalRequestWhereInput[] = roleCodes.some(role => (LEADERSHIP_OBJECT_ROLE_CODES as readonly string[]).includes(role)) ? [{approvalType: MANUAL_TIMESHEET_EXCEPTION_CONFIRMATION_TYPE, payloadSnapshot: {path: ['independentLeadershipRequired'], equals: true}}] : [];
-
-    if (resolvableTypes.length === 0) {
-      return {
-        createdByUserId: currentUser.id,
-      };
+  private requestContext(
+    request: ApprovalReadReference,
+    database: Prisma.TransactionClient = this.prisma,
+  ): Promise<AccessContext> {
+    return approvalSourceReadContext(database, request);
+  }
+  private resolveAction(request: { approvalType: string }) {
+    if (request.approvalType === "task_result_confirmation")
+      return "approvals.resolve_task_result";
+    if (request.approvalType.startsWith("inventory_"))
+      return "approvals.resolve_inventory_exception";
+    if (request.approvalType === "accountability_closure_confirmation")
+      return "approvals.resolve_accountability";
+    if (
+      request.approvalType === "manual_timesheet_exception_confirmation" ||
+      request.approvalType === "object_compensation_confirmation"
+    )
+      return "approvals.resolve_timesheet";
+    if (request.approvalType === "one_time_manager_availability")
+      return "one_time_order_calendar.availability.approve";
+    return "approvals.resolve_object_change";
+  }
+  private async assertRequestPolicy(
+    user: CurrentAuthUser,
+    request: ApprovalRequestRecord,
+    actionCode: string,
+    database: Prisma.TransactionClient = this.prisma,
+  ) {
+    const context = await this.requestContext(request, database);
+    // The legacy resolver was already checked; policy may narrow it, never replace independent approval.
+    if (
+      !decideAccess(user, "approvals.read", true, context) ||
+      !decideAccess(
+        user,
+        actionCode,
+        true,
+        this.resolutionContext(actionCode, context),
+      )
+    )
+      throw new ForbiddenException("Approval policy access denied");
+  }
+  private resolutionContext(
+    actionCode: string,
+    context: AccessContext,
+  ): AccessContext {
+    // Calendar actions select the target User, not the approval record UUID.
+    if (actionCode === "one_time_order_calendar.availability.approve") {
+      const calendar = context.parents?.find(
+        (parent) => parent.actionCode === "one_time_order_calendar.read",
+      );
+      if (calendar?.context)
+        return {
+          ...calendar.context,
+          parents: [{ actionCode: "approvals.read", context }],
+        };
     }
-
-    return {
-      OR: [
-        ...retroactiveTimesheetScope,
-        {
-          createdByUserId: currentUser.id,
-        },
-        {
-          approvalType: {
-            in: resolvableTypes,
-          },
-        },
-      ],
-    };
+    return context;
+  }
+  private async buildVisibilityWhere(
+    user: CurrentAuthUser,
+  ): Promise<Prisma.ApprovalRequestWhereInput> {
+    return approvalReadVisibilityWhere(this.prisma, user);
   }
 
   private buildDateRangeWhere(
@@ -380,10 +491,10 @@ export class ApprovalsService {
     normalizedSearch: string,
   ): boolean {
     const statusLabels: Record<string, string> = {
-      pending: 'ожидает решения',
-      approved: 'подтверждено',
-      rejected: 'отклонено',
-      cancelled: 'отменено',
+      pending: "ожидает решения",
+      approved: "подтверждено",
+      rejected: "отклонено",
+      cancelled: "отменено",
     };
     const searchableValues = [
       request.summary.title,
@@ -399,27 +510,29 @@ export class ApprovalsService {
     ];
 
     return searchableValues.some((value) =>
-      value?.toLocaleLowerCase('ru').includes(normalizedSearch),
+      value?.toLocaleLowerCase("ru").includes(normalizedSearch),
     );
   }
 
-  private collectSearchablePayloadText(value: unknown, key = ''): string {
-    if (/id$/i.test(key) || /uuid/i.test(key)) return '';
-    if (typeof value === 'string') return value;
-    if (typeof value === 'number' || typeof value === 'boolean') {
+  private collectSearchablePayloadText(value: unknown, key = ""): string {
+    if (/id$/i.test(key) || /uuid/i.test(key)) return "";
+    if (typeof value === "string") return value;
+    if (typeof value === "number" || typeof value === "boolean") {
       return String(value);
     }
     if (Array.isArray(value)) {
-      return value.map((item) => this.collectSearchablePayloadText(item)).join(' ');
+      return value
+        .map((item) => this.collectSearchablePayloadText(item))
+        .join(" ");
     }
-    if (value !== null && typeof value === 'object') {
+    if (value !== null && typeof value === "object") {
       return Object.entries(value as Record<string, unknown>)
         .map(([nestedKey, nestedValue]) =>
           this.collectSearchablePayloadText(nestedValue, nestedKey),
         )
-        .join(' ');
+        .join(" ");
     }
-    return '';
+    return "";
   }
 
   private approvalInclude() {
@@ -452,6 +565,19 @@ export class ApprovalsService {
     tx: Prisma.TransactionClient,
     requestId: string,
   ): Promise<ApprovalRequestRecord> {
+    // Match direct source writes by locking the domain row before its approval.
+    // Reviewer, creator, policy and unsupported-flow guards remain below.
+    const reference = await tx.approvalRequest.findUnique({ where: { id: requestId }, select: {
+      approvalType: true, sourceEntityType: true, sourceEntityId: true,
+    } });
+    const inventoryException = reference?.approvalType === INVENTORY_EXCEPTION_CONFIRMATION_TYPE &&
+      reference.sourceEntityType === 'inventory_movement';
+    const taskResult = reference?.approvalType === TASK_RESULT_CONFIRMATION_TYPE &&
+      reference.sourceEntityType === 'task';
+    if (inventoryException) await this.inventoryService.lockInventoryExceptionSource(tx, reference.sourceEntityId);
+    if (taskResult) {
+      await tx.$queryRaw`SELECT "id" FROM "tasks" WHERE "id" = ${reference.sourceEntityId} FOR UPDATE`;
+    }
     await tx.$queryRaw`
       SELECT "id"
       FROM "approval_requests"
@@ -466,11 +592,18 @@ export class ApprovalsService {
     })) as ApprovalRequestRecord | null;
 
     if (!request) {
-      throw new NotFoundException('Approval request not found');
+      throw new NotFoundException("Approval request not found");
     }
 
-    if (request.status !== 'pending') {
-      throw new ConflictException('Only pending approval request can be resolved');
+    if ((inventoryException || taskResult) && (request.approvalType !== reference.approvalType ||
+      request.sourceEntityType !== reference.sourceEntityType || request.sourceEntityId !== reference.sourceEntityId)) {
+      throw new ConflictException("Approval source changed");
+    }
+
+    if (request.status !== "pending") {
+      throw new ConflictException(
+        "Only pending approval request can be resolved",
+      );
     }
 
     return request;
@@ -480,11 +613,11 @@ export class ApprovalsService {
     tx: Prisma.TransactionClient,
     request: ApprovalRequestRecord,
     actorUserId: string,
-    action: 'approved' | 'rejected' | 'cancelled',
+    action: "approved" | "rejected" | "cancelled",
   ): Promise<void> {
     await tx.auditEvent.create({
       data: {
-        entityType: 'approval_request',
+        entityType: "approval_request",
         entityId: request.id,
         actorUserId,
         action: `approval.request.${action}`,
@@ -502,8 +635,25 @@ export class ApprovalsService {
     currentUser: CurrentAuthUser,
     request: ApprovalRequestRecord,
   ): void {
-    if (request.approvalType === 'object_compensation_confirmation' || (request.approvalType === MANUAL_TIMESHEET_EXCEPTION_CONFIRMATION_TYPE && this.normalizePayloadSnapshot(request.payloadSnapshot).independentLeadershipRequired === true)) {
-      if (!currentUser.isActive || request.createdByUserId === currentUser.id || !this.getRoleCodes(currentUser).some(role => (LEADERSHIP_OBJECT_ROLE_CODES as readonly string[]).includes(role))) throw new ForbiddenException('Прошлое начисление подтверждает другой активный пользователь руководящего круга');
+    if (request.approvalType === INVENTORY_EXCEPTION_CONFIRMATION_TYPE && request.createdByUserId === currentUser.id) {
+      throw new ForbiddenException("Собственную заявку подтверждает другой пользователь");
+    }
+    if (
+      request.approvalType === "object_compensation_confirmation" ||
+      (request.approvalType === MANUAL_TIMESHEET_EXCEPTION_CONFIRMATION_TYPE &&
+        this.normalizePayloadSnapshot(request.payloadSnapshot)
+          .independentLeadershipRequired === true)
+    ) {
+      if (
+        !currentUser.isActive ||
+        request.createdByUserId === currentUser.id ||
+        !this.getRoleCodes(currentUser).some((role) =>
+          (LEADERSHIP_OBJECT_ROLE_CODES as readonly string[]).includes(role),
+        )
+      )
+        throw new ForbiddenException(
+          "Прошлое начисление подтверждает другой активный пользователь руководящего круга",
+        );
       return;
     }
     if (
@@ -513,7 +663,7 @@ export class ApprovalsService {
         permissionCodes: this.getPermissionCodes(currentUser),
       })
     ) {
-      throw new ForbiddenException('Approval resolve access denied');
+      throw new ForbiddenException("Approval resolve access denied");
     }
   }
 
@@ -525,7 +675,7 @@ export class ApprovalsService {
 
     if (request.approvalType === INVENTORY_EXCEPTION_CONFIRMATION_TYPE) {
       throw new ForbiddenException(
-        'Inventory exception reject flow is not available in this MVP pass',
+        "Inventory exception reject flow is not available in this MVP pass",
       );
     }
   }
@@ -536,7 +686,7 @@ export class ApprovalsService {
   ): void {
     if (
       ![
-        'object_compensation_confirmation',
+        "object_compensation_confirmation",
         TASK_RESULT_CONFIRMATION_TYPE,
         OBJECT_CHANGE_CONFIRMATION_TYPE,
         MANUAL_TIMESHEET_EXCEPTION_CONFIRMATION_TYPE,
@@ -546,7 +696,7 @@ export class ApprovalsService {
       ].includes(request.approvalType as ApprovalType) ||
       request.createdByUserId !== currentUser.id
     ) {
-      throw new ForbiddenException('Approval cancellation denied');
+      throw new ForbiddenException("Approval cancellation denied");
     }
   }
 
@@ -557,25 +707,43 @@ export class ApprovalsService {
     comment: string | null,
   ): Promise<void> {
     switch (request.approvalType) {
-      case 'object_compensation_confirmation':
-        if ((await tx.objectCompensationAdjustment.findUniqueOrThrow({where: {id: request.sourceEntityId}})).kind === 'legacy_attendance') {
-          await this.objectOperations.applyAttendanceFinancialDecision(tx, currentUser, request.sourceEntityId);
+      case "object_compensation_confirmation":
+        if (
+          (
+            await tx.objectCompensationAdjustment.findUniqueOrThrow({
+              where: { id: request.sourceEntityId },
+            })
+          ).kind === "legacy_attendance"
+        ) {
+          await this.objectOperations.applyAttendanceFinancialDecision(
+            tx,
+            currentUser,
+            request.sourceEntityId,
+          );
           return;
         }
-        await this.scheduling.applyFinancialDecision(tx, currentUser, request.sourceEntityId, 'approve');
+        await this.scheduling.applyFinancialDecision(
+          tx,
+          currentUser,
+          request.sourceEntityId,
+          "approve",
+        );
         return;
       case TASK_RESULT_CONFIRMATION_TYPE:
         await this.tasksService.applyTaskResultApprovalDecision(tx, {
           taskId: request.sourceEntityId,
-          decision: 'approve',
+          decision: "approve",
           actorUserId: currentUser.id,
         });
         return;
       case INVENTORY_EXCEPTION_CONFIRMATION_TYPE:
-        await this.inventoryService.applyInventoryExceptionApprovalDecision(tx, {
-          movementId: request.sourceEntityId,
-          actorUserId: currentUser.id,
-        });
+        await this.inventoryService.applyInventoryExceptionApprovalDecision(
+          tx,
+          {
+            movementId: request.sourceEntityId,
+            actorUserId: currentUser.id,
+          },
+        );
         return;
       case INVENTORY_WRITEOFF_CONFIRMATION_TYPE:
         await this.inventoryService.applyInventoryWriteoffApprovalDecision(tx, {
@@ -590,41 +758,47 @@ export class ApprovalsService {
         });
         return;
       case OBJECT_CHANGE_CONFIRMATION_TYPE: {
-        const payloadSnapshot = this.normalizePayloadSnapshot(request.payloadSnapshot);
+        const payloadSnapshot = this.normalizePayloadSnapshot(
+          request.payloadSnapshot,
+        );
         await this.objectsService.applyObjectStatusChangeApprovalDecision(tx, {
           objectId: request.sourceEntityId,
           actorUserId: currentUser.id,
-          expectedCurrentStatus:
-            this.getRequiredStringPayloadValue(payloadSnapshot, 'currentStatus'),
-          nextStatus:
-            this.getRequiredStringPayloadValue(payloadSnapshot, 'requestedStatus'),
+          expectedCurrentStatus: this.getRequiredStringPayloadValue(
+            payloadSnapshot,
+            "currentStatus",
+          ),
+          nextStatus: this.getRequiredStringPayloadValue(
+            payloadSnapshot,
+            "requestedStatus",
+          ),
         });
         return;
       }
       case ACCOUNTABILITY_CLOSURE_CONFIRMATION_TYPE:
         await this.accountabilityService.applyClosureApprovalDecision(tx, {
           closureId: request.sourceEntityId,
-          decision: 'approve',
+          decision: "approve",
           actorUserId: currentUser.id,
         });
         return;
       case MANUAL_TIMESHEET_EXCEPTION_CONFIRMATION_TYPE:
         await this.timesheetsService.applyManualExceptionApprovalDecision(tx, {
           exceptionId: request.sourceEntityId,
-          decision: 'approve',
+          decision: "approve",
           actorUserId: currentUser.id,
         });
         return;
       case ONE_TIME_MANAGER_AVAILABILITY_APPROVAL_TYPE:
         await this.oneTimeManagerAvailabilityService.applyApprovalDecision(tx, {
           availabilityId: request.sourceEntityId,
-          decision: 'approve',
+          decision: "approve",
           actorUserId: currentUser.id,
           comment,
         });
         return;
       default:
-        throw new BadRequestException('Approval type is not wired yet');
+        throw new BadRequestException("Approval type is not wired yet");
     }
   }
 
@@ -635,13 +809,18 @@ export class ApprovalsService {
     comment: string,
   ): Promise<void> {
     switch (request.approvalType) {
-      case 'object_compensation_confirmation':
-        await this.scheduling.applyFinancialDecision(tx, currentUser, request.sourceEntityId, 'reject');
+      case "object_compensation_confirmation":
+        await this.scheduling.applyFinancialDecision(
+          tx,
+          currentUser,
+          request.sourceEntityId,
+          "reject",
+        );
         return;
       case TASK_RESULT_CONFIRMATION_TYPE:
         await this.tasksService.applyTaskResultApprovalDecision(tx, {
           taskId: request.sourceEntityId,
-          decision: 'reject',
+          decision: "reject",
           actorUserId: currentUser.id,
           reason: comment,
         });
@@ -649,47 +828,56 @@ export class ApprovalsService {
       case ACCOUNTABILITY_CLOSURE_CONFIRMATION_TYPE:
         await this.accountabilityService.applyClosureApprovalDecision(tx, {
           closureId: request.sourceEntityId,
-          decision: 'reject',
+          decision: "reject",
           actorUserId: currentUser.id,
           comment,
         });
         return;
       case INVENTORY_WRITEOFF_CONFIRMATION_TYPE:
-        await this.inventoryService.applyInventoryWriteoffRejectionDecision(tx, {
-          movementId: request.sourceEntityId,
-          actorUserId: currentUser.id,
-          decision: 'reject',
-        });
+        await this.inventoryService.applyInventoryWriteoffRejectionDecision(
+          tx,
+          {
+            movementId: request.sourceEntityId,
+            actorUserId: currentUser.id,
+            decision: "reject",
+          },
+        );
         return;
       case EQUIPMENT_WRITEOFF_CONFIRMATION_TYPE:
-        await this.equipmentService.applyEquipmentWriteoffRejectionDecision(tx, {
-          movementId: request.sourceEntityId,
-          actorUserId: currentUser.id,
-          decision: 'reject',
-        });
+        await this.equipmentService.applyEquipmentWriteoffRejectionDecision(
+          tx,
+          {
+            movementId: request.sourceEntityId,
+            actorUserId: currentUser.id,
+            decision: "reject",
+          },
+        );
         return;
       case OBJECT_CHANGE_CONFIRMATION_TYPE:
-        await this.objectsService.assertObjectStatusChangeApprovalStillValid(tx, {
-          objectId: request.sourceEntityId,
-        });
+        await this.objectsService.assertObjectStatusChangeApprovalStillValid(
+          tx,
+          {
+            objectId: request.sourceEntityId,
+          },
+        );
         return;
       case MANUAL_TIMESHEET_EXCEPTION_CONFIRMATION_TYPE:
         await this.timesheetsService.applyManualExceptionApprovalDecision(tx, {
           exceptionId: request.sourceEntityId,
-          decision: 'reject',
+          decision: "reject",
           actorUserId: currentUser.id,
         });
         return;
       case ONE_TIME_MANAGER_AVAILABILITY_APPROVAL_TYPE:
         await this.oneTimeManagerAvailabilityService.applyApprovalDecision(tx, {
           availabilityId: request.sourceEntityId,
-          decision: 'reject',
+          decision: "reject",
           actorUserId: currentUser.id,
           comment,
         });
         return;
       default:
-        throw new BadRequestException('Approval reject path is not wired yet');
+        throw new BadRequestException("Approval reject path is not wired yet");
     }
   }
 
@@ -703,77 +891,123 @@ export class ApprovalsService {
     void comment;
 
     switch (request.approvalType) {
-      case 'object_compensation_confirmation':
-        await this.scheduling.applyFinancialDecision(tx, currentUser, request.sourceEntityId, 'cancel');
+      case "object_compensation_confirmation":
+        await this.scheduling.applyFinancialDecision(
+          tx,
+          currentUser,
+          request.sourceEntityId,
+          "cancel",
+        );
         return;
       case TASK_RESULT_CONFIRMATION_TYPE: {
         await this.tasksService.applyTaskResultApprovalDecision(tx, {
           taskId: request.sourceEntityId,
-          decision: 'cancel',
+          decision: "cancel",
           actorUserId: currentUser.id,
-          reason: comment ?? 'Approval request cancelled',
+          reason: comment ?? "Approval request cancelled",
         });
         return;
       }
       case OBJECT_CHANGE_CONFIRMATION_TYPE:
-        await this.objectsService.assertObjectStatusChangeApprovalStillValid(tx, {
-          objectId: request.sourceEntityId,
-        });
+        await this.objectsService.assertObjectStatusChangeApprovalStillValid(
+          tx,
+          {
+            objectId: request.sourceEntityId,
+          },
+        );
         return;
       case MANUAL_TIMESHEET_EXCEPTION_CONFIRMATION_TYPE:
         await this.timesheetsService.applyManualExceptionApprovalDecision(tx, {
           exceptionId: request.sourceEntityId,
-          decision: 'cancel',
+          decision: "cancel",
           actorUserId: currentUser.id,
         });
         return;
       case INVENTORY_WRITEOFF_CONFIRMATION_TYPE:
-        await this.inventoryService.applyInventoryWriteoffRejectionDecision(tx, {
-          movementId: request.sourceEntityId,
-          actorUserId: currentUser.id,
-          decision: 'cancel',
-        });
+        await this.inventoryService.applyInventoryWriteoffRejectionDecision(
+          tx,
+          {
+            movementId: request.sourceEntityId,
+            actorUserId: currentUser.id,
+            decision: "cancel",
+          },
+        );
         return;
       case EQUIPMENT_WRITEOFF_CONFIRMATION_TYPE:
-        await this.equipmentService.applyEquipmentWriteoffRejectionDecision(tx, {
-          movementId: request.sourceEntityId,
-          actorUserId: currentUser.id,
-          decision: 'cancel',
-        });
+        await this.equipmentService.applyEquipmentWriteoffRejectionDecision(
+          tx,
+          {
+            movementId: request.sourceEntityId,
+            actorUserId: currentUser.id,
+            decision: "cancel",
+          },
+        );
         return;
       case ONE_TIME_MANAGER_AVAILABILITY_APPROVAL_TYPE:
         await this.oneTimeManagerAvailabilityService.applyApprovalDecision(tx, {
           availabilityId: request.sourceEntityId,
-          decision: 'cancel',
+          decision: "cancel",
           actorUserId: currentUser.id,
           comment,
         });
         return;
       default:
-        throw new BadRequestException('Approval cancellation is not wired yet');
+        throw new BadRequestException("Approval cancellation is not wired yet");
     }
   }
 
-  private mapRequest(
+  private async mapRequest(
     request: ApprovalRequestRecord,
     currentUser: CurrentAuthUser,
-  ): ApprovalRequestResponseDto {
-    const payloadSnapshot = this.normalizePayloadSnapshot(request.payloadSnapshot);
+  ): Promise<ApprovalRequestResponseDto> {
+    const payloadSnapshot = this.normalizePayloadSnapshot(
+      request.payloadSnapshot,
+    );
+    const legacyCanApprove =
+      request.status === "pending" &&
+      !(request.approvalType === INVENTORY_EXCEPTION_CONFIRMATION_TYPE && request.createdByUserId === currentUser.id) &&
+      (request.approvalType === "object_compensation_confirmation" ||
+      (request.approvalType === MANUAL_TIMESHEET_EXCEPTION_CONFIRMATION_TYPE &&
+        payloadSnapshot.independentLeadershipRequired === true)
+        ? currentUser.isActive &&
+          request.createdByUserId !== currentUser.id &&
+          this.getRoleCodes(currentUser).some((role) =>
+            (LEADERSHIP_OBJECT_ROLE_CODES as readonly string[]).includes(role),
+          )
+        : canResolveApprovalType({
+            approvalType: request.approvalType as ApprovalType,
+            roleCodes: this.getRoleCodes(currentUser),
+            permissionCodes: this.getPermissionCodes(currentUser),
+          }));
+    const policyContext = currentUser.accessRules?.length
+      ? await this.requestContext(request)
+      : {
+          resourceType: "approval",
+          resourceId: request.id,
+          ownerUserId: request.createdByUserId,
+        };
+    const actionCode = this.resolveAction(request);
+    const canRead = decideAccess(
+      currentUser,
+      "approvals.read",
+      true,
+      policyContext,
+    );
+    const financialSourceAllowed = request.approvalType !== 'object_compensation_confirmation' || await this.scheduling.canApplyFinancialDecision(currentUser, request.sourceEntityId);
     const canApprove =
-      request.status === 'pending' &&
-      ((request.approvalType === 'object_compensation_confirmation' || (request.approvalType === MANUAL_TIMESHEET_EXCEPTION_CONFIRMATION_TYPE && payloadSnapshot.independentLeadershipRequired === true))
-      ? currentUser.isActive && request.createdByUserId !== currentUser.id && this.getRoleCodes(currentUser).some(role => (LEADERSHIP_OBJECT_ROLE_CODES as readonly string[]).includes(role))
-      : canResolveApprovalType({
-        approvalType: request.approvalType as ApprovalType,
-        roleCodes: this.getRoleCodes(currentUser),
-        permissionCodes: this.getPermissionCodes(currentUser),
-      }));
+      canRead &&
+      financialSourceAllowed &&
+      decideAccess(currentUser, actionCode, legacyCanApprove, {
+        ...this.resolutionContext(actionCode, policyContext),
+        invariantAllowed: legacyCanApprove,
+      });
     const canReject =
-      canApprove && request.approvalType !== INVENTORY_EXCEPTION_CONFIRMATION_TYPE;
-    const canCancel =
-      request.status === 'pending' &&
+      canApprove &&
+      request.approvalType !== INVENTORY_EXCEPTION_CONFIRMATION_TYPE;
+    const legacyCanCancel =
+      request.status === "pending" &&
       [
-        'object_compensation_confirmation',
+        "object_compensation_confirmation",
         TASK_RESULT_CONFIRMATION_TYPE,
         OBJECT_CHANGE_CONFIRMATION_TYPE,
         MANUAL_TIMESHEET_EXCEPTION_CONFIRMATION_TYPE,
@@ -782,6 +1016,13 @@ export class ApprovalsService {
         ONE_TIME_MANAGER_AVAILABILITY_APPROVAL_TYPE,
       ].includes(request.approvalType as ApprovalType) &&
       request.createdByUserId === currentUser.id;
+    const canCancel =
+      canRead &&
+      financialSourceAllowed &&
+      decideAccess(currentUser, "approvals.cancel", legacyCanCancel, {
+        ...policyContext,
+        invariantAllowed: legacyCanCancel,
+      });
 
     return {
       id: request.id,
@@ -800,10 +1041,11 @@ export class ApprovalsService {
       cancelledBy: request.cancelledBy,
       summary: {
         title:
-          this.getStringPayloadValue(payloadSnapshot, 'summaryTitle') ??
+          this.getStringPayloadValue(payloadSnapshot, "summaryTitle") ??
           request.approvalType,
         subtitle:
-          this.getStringPayloadValue(payloadSnapshot, 'summarySubtitle') ?? null,
+          this.getStringPayloadValue(payloadSnapshot, "summarySubtitle") ??
+          null,
       },
       capabilities: {
         canApprove,
@@ -818,7 +1060,7 @@ export class ApprovalsService {
   ): Record<string, unknown> {
     if (
       payloadSnapshot !== null &&
-      typeof payloadSnapshot === 'object' &&
+      typeof payloadSnapshot === "object" &&
       !Array.isArray(payloadSnapshot)
     ) {
       return payloadSnapshot as Prisma.JsonObject as Record<string, unknown>;
@@ -834,7 +1076,7 @@ export class ApprovalsService {
     key: string,
   ): string | null {
     const value = payloadSnapshot[key];
-    return typeof value === 'string' && value.trim() ? value : null;
+    return typeof value === "string" && value.trim() ? value : null;
   }
 
   private getRequiredStringPayloadValue(
@@ -851,7 +1093,10 @@ export class ApprovalsService {
   }
 
   private getRoleCodes(currentUser: CurrentAuthUser): string[] {
-    if (Array.isArray(currentUser.roleCodes) && currentUser.roleCodes.length > 0) {
+    if (
+      Array.isArray(currentUser.roleCodes) &&
+      currentUser.roleCodes.length > 0
+    ) {
       return currentUser.roleCodes;
     }
 

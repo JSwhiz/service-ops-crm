@@ -52,6 +52,32 @@ export interface OneTimeOrderItem {
   } | null;
   managers: OneTimeOrderManager[];
   capabilities: {
+    canReadFinance?: boolean;
+    canReadComments?: boolean;
+    canReadReports?: boolean;
+    canReadPhotos?: boolean;
+    canReadSpecification?: boolean;
+    canReadEmployees?: boolean;
+    canManageEmployees?: boolean;
+    canEditEmployeePayment?: boolean;
+    canReadAttendance?: boolean;
+    canEditAttendance?: boolean;
+    canReadTimesheet?: boolean;
+    canExportTimesheet?: boolean;
+    canReadInventory?: boolean;
+    canReadEquipment?: boolean;
+    canReadHistory?: boolean;
+    canReadFiles?: boolean;
+    canReadTasks?: boolean;
+    canReadAccountability?: boolean;
+    canReadPayouts?: boolean;
+    canUpdateReports?: boolean;
+    canReadEscorts?: boolean;
+    canManageOwnEscorts?: boolean;
+    canReadDeadline?: boolean;
+    canUpdateDeadline?: boolean;
+    canReadServiceLines?: boolean;
+    canUpdateServiceLines?: boolean;
     canEdit: boolean;
     canEditOperationalFields: boolean;
     canEditFinancialFields: boolean;
@@ -63,6 +89,8 @@ export interface OneTimeOrderItem {
     canManageManagers: boolean;
     canManageSpecification: boolean;
     canEditSpecification: boolean;
+    canCommentSpecification: boolean;
+    canDetachSpecificationFiles: boolean;
     canUploadPhotos: boolean;
     canDeletePhotos: boolean;
     canRestorePhotos: boolean;
@@ -70,6 +98,7 @@ export interface OneTimeOrderItem {
     canAttachFiles: boolean;
     canCreateTask: boolean;
     canEditReview: boolean;
+    canDeleteReview?: boolean;
     canCopy: boolean;
     canViewCalendar: boolean;
     canManageOwnAvailability: boolean;
@@ -428,6 +457,7 @@ export type OneTimeOrderAvailabilityType =
   | "sick_leave";
 
 export interface OneTimeOrderCalendarAvailability {
+  capabilities: OneTimeManagerAvailabilityCapabilities;
   id: string;
   entryType: OneTimeOrderAvailabilityType;
   startDate: string;
@@ -464,6 +494,7 @@ export interface OneTimeOrderCalendarDay {
 }
 
 export interface OneTimeOrderCalendarManager {
+  capabilities: OneTimeOrderCalendarManagerCapabilities;
   user: { id: string; login: string; fullName: string };
   isActive: boolean;
   workedDays: number;
@@ -474,12 +505,18 @@ export interface OneTimeOrderCalendarManager {
 }
 
 export interface OneTimeOrderCalendarResponse {
+  capabilities: { canExport: boolean; canRequestOwnAvailability: boolean };
+  availabilityTargets: Array<{
+    user: { id: string; login: string; fullName: string };
+    capabilities: OneTimeOrderCalendarManagerCapabilities;
+  }>;
   month: string;
   daysInMonth: number;
   managers: OneTimeOrderCalendarManager[];
 }
 
 export interface OneTimeManagerAvailability {
+  capabilities: OneTimeManagerAvailabilityCapabilities;
   id: string;
   userId: string;
   entryType: OneTimeOrderAvailabilityType;
@@ -499,6 +536,19 @@ export interface OneTimeManagerAvailability {
   requestedBy: { id: string; login: string; fullName: string };
   resolvedBy: { id: string; login: string; fullName: string } | null;
   cancelledBy: { id: string; login: string; fullName: string } | null;
+}
+
+export interface OneTimeManagerAvailabilityCapabilities {
+  canEdit: boolean;
+  canCancel: boolean;
+  canApprove: boolean;
+  canReject: boolean;
+}
+
+export interface OneTimeOrderCalendarManagerCapabilities {
+  canRequestOwnAvailability: boolean;
+  canCreateAvailability: boolean;
+  canExport: boolean;
 }
 
 export interface OneTimeOrderConflictResponse {

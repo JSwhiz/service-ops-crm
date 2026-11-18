@@ -12,7 +12,9 @@ export type ChatMessageType = 'user' | 'system';
 
 export type ChatParticipantRole = 'admin' | 'member';
 
-export interface CurrentAuthUser {
+import type { AccessSubject } from '../../users-access/types/access-policy.type';
+
+export interface CurrentAuthUser extends AccessSubject {
   id: string;
   login: string;
   fullName: string;
@@ -21,3 +23,5 @@ export interface CurrentAuthUser {
   permissionCodes?: string[];
   isActive: boolean;
 }
+
+export type ChatMembershipMutationResponse = import('../dto/chat-response.dto').ChatRoomResponseDto | import('../../../common/access/project-committed-write').SavedWithoutAccess;

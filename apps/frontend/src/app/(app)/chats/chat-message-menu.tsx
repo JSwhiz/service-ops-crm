@@ -1,7 +1,9 @@
 'use client';
 
-import React, { useLayoutEffect, useRef, useState } from 'react';
+import React, { useContext, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { AccessSnapshotBlockedContext } from '@/shared/auth/access-snapshot-boundary';
+import { useAccessRevision } from '@/shared/auth/use-access-revision';
 import styles from './chat-ui.module.css';
 
 /** Presentation only: stays outside the scrolling/clipped message surface. */
@@ -14,12 +16,19 @@ export function ChatMessageMenu({
   onClose: () => void;
   children: React.ReactNode;
 }): React.JSX.Element {
+  const blocked = useContext(AccessSnapshotBlockedContext);
+  const accessRevision = useAccessRevision();
+  const openedRevision = useRef(accessRevision);
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+  const suspended = blocked || openedRevision.current !== accessRevision;
   const menuRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState<React.CSSProperties>({
     visibility: 'hidden',
   });
 
   useLayoutEffect(() => {
+    if (suspended) { closeRef.current(); return; }
     const menu = menuRef.current;
     const anchor = document.querySelector<HTMLElement>(
       `[data-message-id="${CSS.escape(messageId)}"]`,
@@ -73,7 +82,11 @@ export function ChatMessageMenu({
       window.removeEventListener('scroll', place, true);
       window.visualViewport?.removeEventListener('resize', place);
     };
-  }, [messageId]);
+  }, [messageId, suspended]);
+
+  // Body portals are outside the concealed shell DOM. This menu has no private
+  // form state: discard its old intent instead of restoring it after regrant.
+  if (suspended) return <></>;
 
   return createPortal(
     <div

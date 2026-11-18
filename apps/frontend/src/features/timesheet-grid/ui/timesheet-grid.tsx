@@ -144,8 +144,8 @@ export function TimesheetGrid({
                         autoValue={entry.autoValue}
                         isChangedManually={entry.isChangedManually}
                         comment={entry.comment}
-                        canDirectEdit={canEditEntries}
-                        canRequestCorrection={!canEditEntries}
+                        canDirectEdit={row.capabilities?.canManualCorrection ?? canEditEntries}
+                        canRequestCorrection={row.capabilities?.canRequestCorrection ?? (row.capabilities === undefined && !canEditEntries)}
                         isEditableDate={isTimesheetDateEditable({ year: timesheet.year, month: timesheet.month, dayOfMonth: entry.dayOfMonth })}
                         onDirectChange={onDirectChange}
                         onRequestCorrection={onRequestCorrection}

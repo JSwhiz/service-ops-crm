@@ -1,3 +1,4 @@
+import type { SavedWithoutAccess } from '../../common/access/project-committed-write';
 import {
   Body,
   Controller,
@@ -88,7 +89,7 @@ export class AccountabilityController {
     @CurrentUser() user: CurrentAuthUser,
     @Param('userId') userId: string,
     @Body() payload: CreateAccountabilityFundingDto,
-  ): Promise<AccountabilityFundingResponseDto> {
+  ): Promise<AccountabilityFundingResponseDto | SavedWithoutAccess> {
     return this.accountabilityService.issueFunding(user, userId, payload);
   }
 
@@ -96,7 +97,7 @@ export class AccountabilityController {
   recordExternalFunding(
     @CurrentUser() user: CurrentAuthUser,
     @Body() payload: CreateAccountabilityFundingDto,
-  ): Promise<AccountabilityFundingResponseDto> {
+  ): Promise<AccountabilityFundingResponseDto | SavedWithoutAccess> {
     return this.accountabilityService.recordExternalReceipt(user, payload);
   }
 
@@ -105,7 +106,7 @@ export class AccountabilityController {
     @CurrentUser() user: CurrentAuthUser,
     @Param('fundingId') fundingId: string,
     @Body() payload: ReverseExternalReceiptDto,
-  ): Promise<AccountabilityFundingResponseDto> {
+  ): Promise<AccountabilityFundingResponseDto | SavedWithoutAccess> {
     return this.accountabilityService.reverseExternalReceipt(user, fundingId, payload.reason);
   }
 
@@ -113,7 +114,7 @@ export class AccountabilityController {
   createExpense(
     @CurrentUser() user: CurrentAuthUser,
     @Body() payload: SaveAccountabilityExpenseDto,
-  ): Promise<AccountabilityExpenseResponseDto> {
+  ): Promise<AccountabilityExpenseResponseDto | SavedWithoutAccess> {
     return this.accountabilityService.createExpense(user, payload);
   }
 
@@ -122,7 +123,7 @@ export class AccountabilityController {
     @CurrentUser() user: CurrentAuthUser,
     @Param('expenseId') expenseId: string,
     @Body() payload: SaveAccountabilityExpenseDto,
-  ): Promise<AccountabilityExpenseResponseDto> {
+  ): Promise<AccountabilityExpenseResponseDto | SavedWithoutAccess> {
     return this.accountabilityService.updateExpense(user, expenseId, payload);
   }
 
@@ -131,7 +132,7 @@ export class AccountabilityController {
   submitExpense(
     @CurrentUser() user: CurrentAuthUser,
     @Param('expenseId') expenseId: string,
-  ): Promise<AccountabilityExpenseResponseDto> {
+  ): Promise<AccountabilityExpenseResponseDto | SavedWithoutAccess> {
     return this.accountabilityService.submitExpense(user, expenseId);
   }
 
@@ -140,7 +141,7 @@ export class AccountabilityController {
   approveExpense(
     @CurrentUser() user: CurrentAuthUser,
     @Param('expenseId') expenseId: string,
-  ): Promise<AccountabilityExpenseResponseDto> {
+  ): Promise<AccountabilityExpenseResponseDto | SavedWithoutAccess> {
     return this.accountabilityService.approveExpense(user, expenseId);
   }
 
@@ -150,14 +151,14 @@ export class AccountabilityController {
     @CurrentUser() user: CurrentAuthUser,
     @Param('expenseId') expenseId: string,
     @Body() payload: RejectAccountabilityExpenseDto,
-  ): Promise<AccountabilityExpenseResponseDto> {
+  ): Promise<AccountabilityExpenseResponseDto | SavedWithoutAccess> {
     return this.accountabilityService.rejectExpense(user, expenseId, payload);
   }
 
   @Post('me/closures/request')
   requestClosure(
     @CurrentUser() user: CurrentAuthUser,
-  ): Promise<AccountabilityClosureResponseDto> {
+  ): Promise<AccountabilityClosureResponseDto | SavedWithoutAccess> {
     return this.accountabilityService.requestClosure(user);
   }
 
@@ -166,7 +167,7 @@ export class AccountabilityController {
   approveClosure(
     @CurrentUser() user: CurrentAuthUser,
     @Param('closureId') closureId: string,
-  ): Promise<AccountabilityClosureResponseDto> {
+  ): Promise<AccountabilityClosureResponseDto | import('../../common/access/project-committed-write').SavedWithoutAccess> {
     return this.accountabilityService.approveClosure(user, closureId);
   }
 
@@ -176,7 +177,7 @@ export class AccountabilityController {
     @CurrentUser() user: CurrentAuthUser,
     @Param('closureId') closureId: string,
     @Body() payload: RejectAccountabilityClosureDto,
-  ): Promise<AccountabilityClosureResponseDto> {
+  ): Promise<AccountabilityClosureResponseDto | import('../../common/access/project-committed-write').SavedWithoutAccess> {
     return this.accountabilityService.rejectClosure(user, closureId, payload);
   }
 }

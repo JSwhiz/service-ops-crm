@@ -62,7 +62,7 @@ export interface ReasonOptions {
  * Promise-based ReasonDialog (replaces window.prompt). Resolves with the trimmed
  * reason, or null when cancelled.
  */
-export function useReasonPrompt(): [(options: ReasonOptions) => Promise<string | null>, React.ReactNode] {
+export function useReasonPrompt(guard: { confirmDisabled?: boolean; confirmDisabledReason?: React.ReactNode } = {}): [(options: ReasonOptions) => Promise<string | null>, React.ReactNode] {
   const [options, setOptions] = useState<ReasonOptions | null>(null);
   const [reason, setReason] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -93,7 +93,10 @@ export function useReasonPrompt(): [(options: ReasonOptions) => Promise<string |
       reason={reason}
       onReasonChange={(value) => { setReason(value); setError(null); }}
       error={error}
+      confirmDisabled={guard.confirmDisabled}
+      confirmDisabledReason={guard.confirmDisabledReason}
       onConfirm={(value) => {
+        if (guard.confirmDisabled) return;
         const trimmed = value.trim();
         const minLength = options?.minLength ?? 1;
         if (trimmed.length < minLength) {

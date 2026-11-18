@@ -194,6 +194,19 @@ test('counterparty registry, object links, ACL isolation and archive semantics',
   assert.equal(linkThird.status, 201);
   firstCard = await linkThird.json();
   assert.equal(firstCard.objectCount, 3);
+  const linkedObjectIds = [visibleObject.id, hiddenObject.id, secondVisibleObject.id].sort();
+  assert.deepEqual(firstCard.objects.map((object: { id: string }) => object.id).sort(), linkedObjectIds,
+    'Founder must retain all three linked object identities');
+  assert.equal(firstCard.visibleObjectCount, linkedObjectIds.length);
+  const readPersistedLinks = () => prisma.object.findMany({
+    where: { counterpartyId: first.id },
+    select: { id: true, counterpartyId: true, status: true, deletedAt: true },
+    orderBy: { id: 'asc' },
+  });
+  const persistedLinks = await readPersistedLinks();
+  assert.deepEqual(persistedLinks.map(object => object.id), linkedObjectIds);
+  assert.ok(persistedLinks.every(object => object.counterpartyId === first.id && object.status === 'active' && object.deletedAt === null),
+    'All links are active and intact before the manager read; archive filtering is not the cause');
 
   const managerCardResponse = await api(
     baseUrl,
@@ -202,12 +215,16 @@ test('counterparty registry, object links, ACL isolation and archive semantics',
   );
   assert.equal(managerCardResponse.status, 200);
   const managerCard = (await managerCardResponse.json()) as any;
-  assert.equal(managerCard.objectCount, 3);
-  assert.equal(managerCard.visibleObjectCount, 1);
+  const managerObjectIds = [visibleObject.id];
+  assert.equal(managerCard.objectCount, managerObjectIds.length,
+    'Object counts must not disclose links outside the reader object scope');
+  assert.equal(managerCard.visibleObjectCount, managerObjectIds.length);
   assert.deepEqual(
     managerCard.objects.map((object: { id: string }) => object.id),
-    [visibleObject.id],
+    managerObjectIds,
   );
+  assert.deepEqual(await readPersistedLinks(), persistedLinks,
+    'ACL filtering of the manager card must not unlink, archive or otherwise mutate any object');
 
   const hiddenObjectResponse = await api(
     baseUrl,

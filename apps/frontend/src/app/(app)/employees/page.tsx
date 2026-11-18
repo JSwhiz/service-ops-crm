@@ -26,6 +26,8 @@ import type {
   EmployeeWorkScheduleCode,
 } from '@/entities/employee/model/employee.types';
 import { useAuth } from '@/shared/auth/use-auth';
+import { useAccessRevision } from '@/shared/auth/use-access-revision';
+import { AccessSnapshotBoundary } from '@/shared/auth/access-snapshot-boundary';
 import { RegistryToolbar } from '@/shared/ui/registry-filters/registry-toolbar';
 import type { ActiveRegistryFilter, AvailableRegistryFilter } from '@/shared/ui/registry-filters/registry-toolbar';
 import { DataTable } from '@/shared/ui/data-table/data-table';
@@ -119,6 +121,9 @@ function getRegistryTab(
 
 export default function EmployeesPage(): React.JSX.Element {
   const { user } = useAuth();
+  const accessRevision = useAccessRevision();
+  const [loadedRevision, setLoadedRevision] = useState<string | null>(null);
+  const [referencesRevision, setReferencesRevision] = useState<string | null>(null);
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -155,6 +160,7 @@ export default function EmployeesPage(): React.JSX.Element {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const [loadedReloadKey, setLoadedReloadKey] = useState(-1);
 
   const replaceQuery = (updates: Record<string, string | null>): void => {
     const next = new URLSearchParams(searchParams.toString());
@@ -192,6 +198,7 @@ export default function EmployeesPage(): React.JSX.Element {
       .then(([nextObjects, nextPositions]) => {
         if (!cancelled) {
           setObjects(nextObjects);
+          setReferencesRevision(accessRevision);
           setPositions(
             position && !nextPositions.some((item) => item.value === position)
               ? [{ value: position, label: position }, ...nextPositions]
@@ -199,13 +206,14 @@ export default function EmployeesPage(): React.JSX.Element {
           );
         }
       })
+      .catch(() => { if (!cancelled) { setObjects([]); setPositions([]); } })
       .finally(() => {
         if (!cancelled) setIsLoadingReferences(false);
       });
     return () => {
       cancelled = true;
     };
-  }, [canAccessEmployeesHr, objectId, position]);
+  }, [canAccessEmployeesHr, objectId, position, accessRevision]);
 
   useEffect(() => {
     if (!canAccessEmployeesHr) {
@@ -236,7 +244,7 @@ export default function EmployeesPage(): React.JSX.Element {
       limit,
     })
       .then((response) => {
-        if (requestSequence === requestSequenceRef.current) setResult(response);
+        if (requestSequence === requestSequenceRef.current) { setResult(response); setLoadedRevision(accessRevision); setLoadedReloadKey(reloadKey); }
       })
       .catch((loadError) => {
         if (requestSequence === requestSequenceRef.current) setError(getErrorMessage(loadError));
@@ -244,7 +252,8 @@ export default function EmployeesPage(): React.JSX.Element {
       .finally(() => {
         if (requestSequence === requestSequenceRef.current) setIsLoading(false);
       });
-  }, [archiveState, assignmentFilter, birthMonth, canAccessEmployeesHr, employeeType,
+    return () => { requestSequenceRef.current += 1; };
+  }, [accessRevision, archiveState, assignmentFilter, birthMonth, canAccessEmployeesHr, employeeType,
     employmentStatus, limit, objectId, page, position, querySearch, reloadKey, sortBy,
     sortOrder, workScheduleCode, workTimeSearch, passportFilter, contractFilter]);
 
@@ -269,8 +278,8 @@ export default function EmployeesPage(): React.JSX.Element {
     assignmentFilter, workScheduleCode, workTimeSearch, passportFilter, contractFilter].filter(Boolean).length;
   const firstItem = result.total === 0 ? 0 : (result.page - 1) * result.limit + 1;
   const lastItem = Math.min(result.total, result.page * result.limit);
-  const selectedObjectOption = objects.find((object) => object.id === objectId);
-  const positionOptions = positions.map((item) => ({ value: item.value, label: item.label }));
+  const selectedObjectOption = referencesRevision === accessRevision ? objects.find((object) => object.id === objectId) : undefined;
+  const positionOptions = referencesRevision === accessRevision ? positions.map((item) => ({ value: item.value, label: item.label })) : [];
 
   const setTab = (nextTab: typeof tab): void => {
     replaceQuery({
@@ -358,6 +367,8 @@ export default function EmployeesPage(): React.JSX.Element {
 
   return (
     <div className={styles.page}>
+      {loadedRevision !== accessRevision || loadedReloadKey !== reloadKey || error ? <Alert tone={error ? 'danger' : 'info'} action={error ? <Button size="sm" onClick={() => setReloadKey((current) => current + 1)}>Повторить</Button> : undefined}>{error ?? 'Обновляем доступ к сотрудникам…'}</Alert> : null}
+      <AccessSnapshotBoundary blocked={loadedRevision !== accessRevision || loadedReloadKey !== reloadKey || !!error}>
       <PageHeader
         title="Сотрудники"
         actions={result.capabilities.canCreate
@@ -376,6 +387,7 @@ export default function EmployeesPage(): React.JSX.Element {
       </nav>
 
       <RegistryToolbar
+        key={accessRevision}
         searchValue={searchInput}
         searchLabel="Поиск по сотрудникам"
         searchPlaceholder="ФИО или телефон"
@@ -500,6 +512,7 @@ export default function EmployeesPage(): React.JSX.Element {
             onPageSizeChange={(value) => replaceQuery({ limit: value === DEFAULT_LIMIT ? null : String(value), page: null })} />
         </div>
       ) : null}
+      </AccessSnapshotBoundary>
     </div>
   );
 }

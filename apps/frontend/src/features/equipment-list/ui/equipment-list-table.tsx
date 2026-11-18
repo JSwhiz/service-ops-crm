@@ -2,6 +2,8 @@
 
 import Link from 'next/link';
 import React, { useState } from 'react';
+import { AccessSnapshotBoundary } from '@/shared/auth/access-snapshot-boundary';
+import { isSavedWithoutAccess, type SavedWithoutAccess } from '@/shared/api/saved-without-access';
 
 import type { EquipmentMovement, EquipmentUnit } from '@/entities/equipment/model/equipment.types';
 import { getEquipmentStatusLabel } from '@/shared/lib/equipment-presentation';
@@ -37,7 +39,7 @@ export function EquipmentListTable({
   onRefresh,
 }: {
   items: EquipmentUnit[];
-  onWriteoffUnit: (unitId: string, comment: string) => Promise<EquipmentMovement>;
+  onWriteoffUnit: (unitId: string, comment: string) => Promise<EquipmentMovement | SavedWithoutAccess>;
   onAttachEvidence: (movementId: string, files: File[]) => Promise<void>;
   onRefresh: () => Promise<void>;
 }): React.JSX.Element {
@@ -48,6 +50,7 @@ export function EquipmentListTable({
   const [isWritingOff, setIsWritingOff] = useState(false);
   const [writeoffError, setWriteoffError] = useState<string | null>(null);
   const [writeoffSuccess, setWriteoffSuccess] = useState<string | null>(null);
+  const [savedWithoutAccess, setSavedWithoutAccess] = useState<{ hasPendingFiles: boolean } | null>(null);
   const eligibleItems = items.filter((item) => item.capabilities.canWriteoff && item.status !== 'written_off');
 
   const submitWriteoff = (event: React.FormEvent<HTMLFormElement>): void => {
@@ -64,6 +67,14 @@ export function EquipmentListTable({
           let movementId = writeoffMovementIds[unit.id];
           if (!movementId) {
             const movement = await onWriteoffUnit(unit.id, writeoffReason.trim());
+            if (isSavedWithoutAccess(movement)) {
+              setSelectedIds((current) => current.filter((id) => id !== unit.id));
+              setWriteoffMovementIds((current) => Object.fromEntries(
+                Object.entries(current).filter(([unitId]) => unitId !== unit.id),
+              ));
+              setSavedWithoutAccess({ hasPendingFiles: evidenceFiles.length > 0 });
+              return;
+            }
             const createdMovementId = movement.id;
             movementId = createdMovementId;
             setWriteoffMovementIds((current) => ({ ...current, [unit.id]: createdMovementId }));
@@ -93,13 +104,33 @@ export function EquipmentListTable({
     })();
   };
 
+  if (savedWithoutAccess) return (
+    <Stack gap="md">
+      <Alert tone="success" role="status">
+        Операция сохранена. Доступ к данным оборудования изменился.
+        {savedWithoutAccess.hasPendingFiles ? ' Выбранные файлы к этой операции не прикрепились.' : ''}
+        {' '}Остальные операции не отправлены.
+      </Alert>
+      {writeoffError ? <Alert tone="warning" role="alert">{writeoffError}</Alert> : null}
+      <Button pending={isWritingOff} onClick={() => {
+        setIsWritingOff(true);
+        setWriteoffError(null);
+        void onRefresh().then(() => {
+          setSavedWithoutAccess(null);
+        }).catch(() => {
+          setWriteoffError('Не удалось проверить доступ. Операция сохранена.');
+        }).finally(() => setIsWritingOff(false));
+      }}>Проверить доступ</Button>
+    </Stack>
+  );
+
   if (items.length === 0) {
     return <div className="ui-empty-state">По текущим условиям оборудование не найдено.</div>;
   }
 
   return (
     <>
-      {eligibleItems.length > 0 && (selectedIds.length > 0 || writeoffSuccess) ? (
+      {selectedIds.length > 0 || writeoffSuccess ? <AccessSnapshotBoundary blocked={eligibleItems.length === 0}>
         <form className="ui-surface ui-surface--padded ui-stack ui-stack--md" onSubmit={submitWriteoff}>
           <div className="ui-section-header">
             <div>
@@ -114,7 +145,7 @@ export function EquipmentListTable({
             </Field>
             <Stack gap="sm">
               <div className="ui-text-muted">Подтверждающие фото или файлы (необязательно)</div>
-              <MediaActionPicker disabled={isWritingOff} onPick={async (file) => setEvidenceFiles((current) => [...current, file])} />
+              <MediaActionPicker disabled={isWritingOff || eligibleItems.length === 0} onPick={async (file) => setEvidenceFiles((current) => [...current, file])} />
               <PendingMediaList files={evidenceFiles} onRemove={(index) => setEvidenceFiles((current) => current.filter((_, fileIndex) => fileIndex !== index))} emptyText="Подтверждения пока не добавлены." />
             </Stack>
             {writeoffError ? <Alert tone="warning" role="alert">{writeoffError}</Alert> : null}
@@ -125,7 +156,7 @@ export function EquipmentListTable({
             </div>
           </> : writeoffSuccess ? <Alert tone="success" role="status">{writeoffSuccess}</Alert> : null}
         </form>
-      ) : null}
+      </AccessSnapshotBoundary> : null}
       <DataTable
         label="Таблица оборудования"
         className={styles.table}

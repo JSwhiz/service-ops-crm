@@ -6,15 +6,20 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
+import { loadAccessSubject } from '../../common/access/notification-access';
+import { projectCommittedWrite } from '../../common/access/project-committed-write';
+import { lockActorAccessRevision } from '../../common/access/lock-actor-access-revision';
+import type { AccessSubject } from '../users-access/types/access-policy.type';
+import { buildAccessWhere, decideAccess, hasModuleDeny } from '../users-access/utils/access-policy.util';
 
 import { AuditService } from "../audit/audit.service";
 import {
   canViewObjectByScope,
   hasWideObjectAccess,
-  LEADERSHIP_OBJECT_ROLE_CODES,
 } from "../objects/utils/object-access.util";
 import { delegatedObjectIds } from "../user-substitutions/object-delegation.context";
 import { PrismaService } from "../prisma/prisma.service";
+import { visitPlanReadUserWhere } from './visit-plan-access.util';
 import {
   CreateVisitPlanDto,
   RecordVisitDto,
@@ -22,9 +27,10 @@ import {
   SaveVisitPlanReportDto,
   SaveVisitPlanDeadlineDto,
   VisitPlanObjectOptionsQueryDto,
+  VisitPlanCapabilitiesDto,
 } from "./dto/visit-plan.dto";
 
-export interface VisitPlanUser {
+export interface VisitPlanUser extends AccessSubject {
   id: string;
   roleCode: string;
   roleCodes?: string[];
@@ -63,33 +69,66 @@ export class VisitPlansService {
     private readonly audit: AuditService,
   ) {}
 
-  canManage(user: VisitPlanUser): boolean {
-    // Personal grants only. Leadership, ownership and assignment never bypass this.
-    return user.permissionCodes?.includes(VISIT_PLANS_MANAGE) === true;
+  private visibleObjectWhere(user: VisitPlanUser): Prisma.ObjectWhereInput {
+    return buildAccessWhere<Prisma.ObjectWhereInput>({ subject: user, actionCode: 'objects.read', legacyWhere: {}, invariantWhere: {},
+      scopeWhere: rule => rule.scope === 'all' ? {} : rule.scope === 'selected' ? { id: { in: [...rule.selectedIds] } } : rule.scope === 'own' ? { createdByUserId: user.id } : { assignments: { some: { userId: user.id, isActive: true } } },
+    }) as Prisma.ObjectWhereInput;
+  }
+  private planInclude(user: VisitPlanUser) {
+    return { ...include, entries: { ...include.entries, where: { OR: [{ objectId: null }, { object: this.visibleObjectWhere(user) }] } } };
   }
 
-  private assertManage(user: VisitPlanUser): void {
-    if (!this.canManage(user))
+  canManage(user: VisitPlanUser, managerUserId?: string): boolean {
+    // Personal grants only. Leadership, ownership and assignment never bypass this.
+    return decideAccess(user, 'visit_plans.manage', user.permissionCodes?.includes(VISIT_PLANS_MANAGE) === true, this.planContext(managerUserId));
+  }
+
+  private planContext(managerUserId?: string) {
+    return { resourceType: 'user', resourceId: managerUserId, ownerUserId: managerUserId };
+  }
+
+  private planActionAllowed(user: VisitPlanUser, managerUserId?: string, actionCode = 'visit_plans.manage'): boolean {
+    const legacy = user.permissionCodes?.includes(VISIT_PLANS_MANAGE) === true;
+    const context = this.planContext(managerUserId);
+    const bundle = this.canManage(user, managerUserId);
+    const scopedEntry = !managerUserId && !hasModuleDeny(user, actionCode) && !hasModuleDeny(user, 'visit_plans.manage') && user.accessRules?.some(rule => [actionCode, 'visit_plans.manage'].includes(rule.actionCode) && rule.effect === 'allow');
+    return !hasModuleDeny(user, 'visit_plans.manage', context) &&
+      (scopedEntry === true || decideAccess(user, actionCode, legacy || bundle, context));
+  }
+
+  private assertManage(user: VisitPlanUser, managerUserId?: string, actionCode = 'visit_plans.manage'): void {
+    if (!this.planActionAllowed(user, managerUserId, actionCode))
       throw new ForbiddenException("Visit plan management denied");
   }
 
-  private assertRead(user: VisitPlanUser, managerUserId: string): void {
-    const roles = user.roleCodes ?? [user.roleCode];
-    if (
-      user.id !== managerUserId &&
-      !this.canManage(user) &&
-      !roles.some((role) =>
-        (LEADERSHIP_OBJECT_ROLE_CODES as readonly string[]).includes(role),
-      )
-    ) {
+  private planCapabilities(user: VisitPlanUser, managerUserId: string): VisitPlanCapabilitiesDto {
+    return {
+      canManage: this.canManage(user, managerUserId),
+      canManageVisits: this.planActionAllowed(user, managerUserId, 'visit_plans.visits.manage'),
+      canManageReports: this.planActionAllowed(user, managerUserId, 'visit_plans.reports.manage'),
+    };
+  }
+
+  private async assertRead(
+    user: VisitPlanUser,
+    managerUserId: string,
+    database: Pick<Prisma.TransactionClient, 'user'> = this.prisma,
+  ): Promise<void> {
+    const target = await database.user.findFirst({
+      where: { AND: [{ id: managerUserId }, visitPlanReadUserWhere(user)] },
+      select: { id: true },
+    });
+    if (!target) {
       throw new ForbiddenException("Visit plan access denied");
     }
   }
 
   async listManagers(user: VisitPlanUser) {
-    this.assertManage(user);
     return this.prisma.user.findMany({
       where: {
+        // Discovery grants no write authority. Match the day-read scope while
+        // retaining the existing active manager directory eligibility below.
+        AND: [visitPlanReadUserWhere(user)],
         isActive: true,
         deletedAt: null,
         roles: {
@@ -109,7 +148,7 @@ export class VisitPlansService {
     user: VisitPlanUser,
     query: VisitPlanObjectOptionsQueryDto,
   ) {
-    this.assertManage(user);
+    this.assertManage(user, query.managerUserId);
     const manager = await this.prisma.user.findFirst({
       where: {
         id: query.managerUserId,
@@ -142,12 +181,20 @@ export class VisitPlansService {
     if (!hasWideObjectAccess(plannerRoles)) {
       filters.push({
         OR: [
-          { id: { in: delegatedObjectIds(user.id) } },
+          { id: { in: delegatedObjectIds(user.id, 'view', 'objects.read') } },
           { createdByUserId: user.id },
           { assignments: { some: { userId: user.id, isActive: true } } },
         ],
       });
     }
+
+    filters.push(buildAccessWhere<Prisma.ObjectWhereInput>({
+      subject: user,
+      actionCode: 'objects.read',
+      legacyWhere: {},
+      invariantWhere: {},
+      scopeWhere: rule => rule.scope === 'all' ? {} : rule.scope === 'selected' ? { id: { in: [...rule.selectedIds] } } : rule.scope === 'own' ? { createdByUserId: user.id } : { assignments: { some: { userId: user.id, isActive: true } } },
+    }) as Prisma.ObjectWhereInput);
 
     const search = query.q?.trim();
     if (search) {
@@ -182,7 +229,7 @@ export class VisitPlansService {
   }
 
   async getDay(user: VisitPlanUser, date: string, managerUserId = user.id) {
-    this.assertRead(user, managerUserId);
+    await this.assertRead(user, managerUserId);
     const plan = await this.prisma.managerVisitPlan.findUnique({
       where: {
         managerUserId_planDate: {
@@ -190,13 +237,13 @@ export class VisitPlansService {
           planDate: visitPlanDate(date),
         },
       },
-      include,
+      include: this.planInclude(user),
     });
-    return { plan, capabilities: { canManage: this.canManage(user) } };
+    return { plan, capabilities: this.planCapabilities(user, managerUserId) };
   }
 
   async create(user: VisitPlanUser, input: CreateVisitPlanDto) {
-    this.assertManage(user);
+    this.assertManage(user, input.managerUserId);
     const planDate = visitPlanDate(input.planDate);
     const manager = await this.prisma.user.findFirst({
       where: {
@@ -214,7 +261,8 @@ export class VisitPlansService {
     });
     if (!manager) throw new BadRequestException("Active manager required");
     try {
-      return await this.prisma.$transaction(async (tx) => {
+      const saved = await this.prisma.$transaction(async (tx) => {
+        await lockActorAccessRevision(tx, user);
         const plan = await tx.managerVisitPlan.create({
           data: {
             managerUserId: manager.id,
@@ -222,7 +270,7 @@ export class VisitPlansService {
             createdByUserId: user.id,
             reportDueAt: input.reportDueAt ? new Date(input.reportDueAt) : null,
           },
-          include,
+          include: this.planInclude(user),
         });
         await this.audit.writeAuditEvent(
           {
@@ -240,6 +288,7 @@ export class VisitPlansService {
         );
         return plan;
       });
+      return this.mutationResponse(user, saved.id);
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -250,19 +299,42 @@ export class VisitPlansService {
     }
   }
 
+  private mutationResponse(user: VisitPlanUser, id: string) {
+    return projectCommittedWrite(this.prisma, user, async () => {
+      const subject = await loadAccessSubject(this.prisma, user.id);
+      if (!subject?.isActive) throw new ForbiddenException('Visit plan access changed');
+      const actor: VisitPlanUser = {
+        ...subject, roleCode: subject.roleCodes?.[0] ?? '',
+        roleCodes: [...(subject.roleCodes ?? [])],
+        permissionCodes: [...(subject.permissionCodes ?? [])],
+      };
+      const plan = await this.prisma.managerVisitPlan.findUniqueOrThrow({
+        where: { id }, select: { managerUserId: true },
+      });
+      await this.assertRead(actor, plan.managerUserId);
+      return this.prisma.managerVisitPlan.findUniqueOrThrow({
+        where: { id }, include: this.planInclude(actor),
+      });
+    });
+  }
+
   private async lock(
     user: VisitPlanUser,
     tx: Prisma.TransactionClient,
     id: string,
     version: number,
+    actionCode = 'visit_plans.manage',
   ) {
-    this.assertManage(user);
+    this.assertManage(user, undefined, actionCode);
     await tx.$queryRaw`SELECT "id" FROM "manager_visit_plans" WHERE "id" = ${id} FOR UPDATE`;
+    await lockActorAccessRevision(tx, user);
     const plan = await tx.managerVisitPlan.findUnique({
       where: { id },
-      include,
+      include: this.planInclude(user),
     });
     if (!plan) throw new NotFoundException("Visit plan not found");
+    await this.assertRead(user, plan.managerUserId, tx);
+    this.assertManage(user, plan.managerUserId, actionCode);
     if (plan.version !== version)
       throw new ConflictException("Visit plan changed; reload before saving");
     return plan;
@@ -277,7 +349,7 @@ export class VisitPlansService {
     const clientName = input.clientName?.trim() || null;
     if (Boolean(input.objectId) === Boolean(clientName))
       throw new BadRequestException("Choose exactly one object or client");
-    return this.prisma.$transaction(async (tx) => {
+    await this.prisma.$transaction(async (tx) => {
       const plan = await this.lock(user, tx, id, input.expectedVersion);
       if (input.objectId) {
         const object = await tx.object.findUnique({
@@ -337,8 +409,9 @@ export class VisitPlansService {
         },
         tx,
       );
-      return tx.managerVisitPlan.findUniqueOrThrow({ where: { id }, include });
+      return tx.managerVisitPlan.findUniqueOrThrow({ where: { id }, include: this.planInclude(user) });
     });
+    return this.mutationResponse(user, id);
   }
 
   async recordVisit(
@@ -347,9 +420,9 @@ export class VisitPlansService {
     entryId: string,
     input: RecordVisitDto,
   ) {
-    this.assertManage(user);
-    return this.prisma.$transaction(async (tx) => {
-      const plan = await this.lock(user, tx, id, input.expectedVersion);
+    this.assertManage(user, undefined, 'visit_plans.visits.manage');
+    await this.prisma.$transaction(async (tx) => {
+      const plan = await this.lock(user, tx, id, input.expectedVersion, 'visit_plans.visits.manage');
       const entry = plan.entries.find((row) => row.id === entryId);
       if (!entry) throw new NotFoundException("Plan entry not found");
       const visitedAt = input.visited ? (entry.visitedAt ?? new Date()) : null;
@@ -381,8 +454,9 @@ export class VisitPlansService {
         },
         tx,
       );
-      return tx.managerVisitPlan.findUniqueOrThrow({ where: { id }, include });
+      return tx.managerVisitPlan.findUniqueOrThrow({ where: { id }, include: this.planInclude(user) });
     });
+    return this.mutationResponse(user, id);
   }
 
   async saveReport(
@@ -390,12 +464,12 @@ export class VisitPlansService {
     id: string,
     input: SaveVisitPlanReportDto,
   ) {
-    this.assertManage(user);
+    this.assertManage(user, undefined, 'visit_plans.reports.manage');
     const report = input.report.trim();
     if (input.closeReport && !report)
       throw new BadRequestException("Report is required to close");
-    return this.prisma.$transaction(async (tx) => {
-      const plan = await this.lock(user, tx, id, input.expectedVersion);
+    await this.prisma.$transaction(async (tx) => {
+      const plan = await this.lock(user, tx, id, input.expectedVersion, 'visit_plans.reports.manage');
       const reportClosedAt = input.closeReport
         ? (plan.reportClosedAt ?? new Date())
         : null;
@@ -406,7 +480,7 @@ export class VisitPlansService {
           reportClosedAt,
           version: { increment: 1 },
         },
-        include,
+        include: this.planInclude(user),
       });
       await this.audit.writeAuditEvent(
         {
@@ -427,6 +501,7 @@ export class VisitPlansService {
       );
       return saved;
     });
+    return this.mutationResponse(user, id);
   }
 
   async history(user: VisitPlanUser, id: string) {
@@ -434,32 +509,62 @@ export class VisitPlansService {
       where: { id },
     });
     if (!plan) throw new NotFoundException("Visit plan not found");
-    this.assertRead(user, plan.managerUserId);
-    return this.audit.listAuditEvents("manager_visit_plan", id);
+    await this.assertRead(user, plan.managerUserId);
+    if (!decideAccess(user, 'visit_plans.history', true, this.planContext(plan.managerUserId))) throw new ForbiddenException('Visit plan history denied');
+    const [events, entries] = await Promise.all([
+      this.audit.listAuditEvents("manager_visit_plan", id),
+      this.prisma.managerVisitPlanEntry.findMany({ where: { planId: id }, select: { id: true, objectId: true } }),
+    ]);
+    const entryObjects = new Map<string, Set<string>>();
+    const payloads = (event: typeof events[number]): Prisma.JsonObject[] =>
+      [event.oldValues, event.newValues, event.metadata].filter((value): value is Prisma.JsonObject =>
+        value !== null && typeof value === 'object' && !Array.isArray(value));
+    for (const entry of entries) entryObjects.set(entry.id, new Set(entry.objectId ? [entry.objectId] : []));
+    // Deleted entries are resolved from their immutable add/remove payloads.
+    for (const event of events) for (const value of payloads(event)) {
+      if (typeof value.entryId !== 'string' || (value.objectId !== null && typeof value.objectId !== 'string')) continue;
+      const objects = entryObjects.get(value.entryId) ?? new Set<string>();
+      if (typeof value.objectId === 'string') objects.add(value.objectId);
+      entryObjects.set(value.entryId, objects);
+    }
+    const referencedObjects = new Set([...entryObjects.values()].flatMap((objects) => [...objects]));
+    for (const event of events) for (const value of payloads(event)) if (typeof value.objectId === 'string') referencedObjects.add(value.objectId);
+    const visible = new Set((await this.prisma.object.findMany({
+      where: { AND: [{ id: { in: [...referencedObjects] } }, this.visibleObjectWhere(user)] }, select: { id: true },
+    })).map((object) => object.id));
+    return events.filter((event) => payloads(event).every((value) => {
+      if (typeof value.objectId === 'string' && !visible.has(value.objectId)) return false;
+      if (typeof value.entryId !== 'string') return true;
+      const objects = entryObjects.get(value.entryId);
+      // A legacy orphan without a resolvable source cannot disclose visit text.
+      return !!objects && [...objects].every((objectId) => visible.has(objectId));
+    }));
   }
 
   async saveDeadline(user: VisitPlanUser, id: string, input: SaveVisitPlanDeadlineDto) {
     this.assertManage(user);
     if (input.reportDueAt === undefined) throw new BadRequestException('Explicit deadline or null required');
-    return this.prisma.$transaction(async (tx) => {
+    await this.prisma.$transaction(async (tx) => {
       const plan = await this.lock(user, tx, id, input.expectedVersion);
       const reportDueAt = input.reportDueAt ? new Date(input.reportDueAt) : null;
-      const saved = await tx.managerVisitPlan.update({ where: { id }, data: { reportDueAt, version: { increment: 1 } }, include });
+      const saved = await tx.managerVisitPlan.update({ where: { id }, data: { reportDueAt, version: { increment: 1 } }, include: this.planInclude(user) });
       await this.audit.writeAuditEvent({ entityType: 'manager_visit_plan', entityId: id, actorUserId: user.id, action: 'visit_plan.deadline_saved', oldValues: { reportDueAt: plan.reportDueAt?.toISOString() ?? null }, newValues: { reportDueAt: reportDueAt?.toISOString() ?? null } }, tx);
       return saved;
     });
+    return this.mutationResponse(user, id);
   }
 
   async removeEntry(user: VisitPlanUser, id: string, entryId: string, expectedVersion: number) {
     this.assertManage(user);
-    return this.prisma.$transaction(async (tx) => {
+    await this.prisma.$transaction(async (tx) => {
       const plan = await this.lock(user, tx, id, expectedVersion);
       const entry = plan.entries.find((row) => row.id === entryId);
       if (!entry) throw new NotFoundException('Plan entry not found');
       await tx.managerVisitPlanEntry.delete({ where: { id: entryId } });
       await tx.managerVisitPlan.update({ where: { id }, data: { version: { increment: 1 } } });
       await this.audit.writeAuditEvent({ entityType: 'manager_visit_plan', entityId: id, actorUserId: user.id, action: 'visit_plan.entry_removed', oldValues: { entryId, objectId: entry.objectId, objectName: entry.object?.name ?? null, clientName: entry.clientName, isUnplanned: entry.isUnplanned, visitedAt: entry.visitedAt?.toISOString() ?? null, visitReport: entry.visitReport, createdByUserId: entry.createdByUserId } }, tx);
-      return tx.managerVisitPlan.findUniqueOrThrow({ where: { id }, include });
+      return tx.managerVisitPlan.findUniqueOrThrow({ where: { id }, include: this.planInclude(user) });
     });
+    return this.mutationResponse(user, id);
   }
 }

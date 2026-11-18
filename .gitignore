@@ -5,6 +5,7 @@ node_modules
 # build outputs
 dist
 .next
+.next-acl-preview-*/
 coverage
 *.tsbuildinfo
 
@@ -18,6 +19,9 @@ coverage
 .env.frontend.local
 .env.infra
 .env.infra.local
+.env.production
+.env.production.*
+!.env.production.example
 
 # logs
 *.log

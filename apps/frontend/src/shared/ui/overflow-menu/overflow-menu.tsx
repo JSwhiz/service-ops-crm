@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
+import React, { useContext, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
+import { AccessSnapshotBlockedContext } from '@/shared/auth/access-snapshot-boundary';
 
 import { getMenuBoundaryIndex, getOverflowMenuPosition } from './overflow-menu-navigation';
 import styles from './overflow-menu.module.css';
@@ -32,6 +33,7 @@ export function OverflowMenu({
   triggerLabel = 'Другие действия',
   triggerRef,
 }: OverflowMenuProps): React.JSX.Element | null {
+  const accessBlocked = useContext(AccessSnapshotBlockedContext);
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const internalTriggerRef = useRef<HTMLButtonElement | null>(null);
@@ -46,7 +48,7 @@ export function OverflowMenu({
   const firstDangerIndex = ordered.findIndex((item) => item.tone === 'danger');
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || accessBlocked) return;
     const onPointerDown = (event: PointerEvent): void => {
       if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
     };
@@ -63,11 +65,16 @@ export function OverflowMenu({
       document.removeEventListener('scroll', onExternalScroll, true);
       window.removeEventListener('resize', onResize);
     };
-  }, [open]);
+  }, [open, accessBlocked]);
 
   useLayoutEffect(() => {
     if (!open) return;
     const menu = menuRef.current;
+    if (accessBlocked) {
+      if (menu && typeof menu.hidePopover === 'function' && menu.matches(':popover-open')) menu.hidePopover();
+      setOpen(false);
+      return;
+    }
     const trigger = internalTriggerRef.current;
     if (!menu || !trigger) return;
     if (typeof menu.showPopover === 'function' && !menu.matches(':popover-open')) {
@@ -96,7 +103,10 @@ export function OverflowMenu({
     menu.style.minWidth = `${position.minWidth}px`;
     menu.style.left = `${position.left}px`;
     menu.style.top = `${position.top}px`;
-  }, [open]);
+    return () => {
+      if (typeof menu.hidePopover === 'function' && menu.matches(':popover-open')) menu.hidePopover();
+    };
+  }, [open, accessBlocked]);
 
   if (ordered.length === 0) return null;
 
@@ -158,6 +168,7 @@ export function OverflowMenu({
           aria-label={triggerLabel}
           ref={menuRef}
           className={styles.menu}
+          style={accessBlocked ? { display: 'none' } : undefined}
           onKeyDown={(event) => {
             const current = itemRefs.current.findIndex((node) => node === document.activeElement);
             if (event.key === 'ArrowDown') { event.preventDefault(); focusItem(current, 1); }
