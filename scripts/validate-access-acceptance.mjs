@@ -1,12 +1,87 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { existsSync, readFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { closeSync, existsSync, fstatSync, lstatSync, openSync, readFileSync, readSync, realpathSync } from 'node:fs';
+import { dirname, isAbsolute, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const registry = JSON.parse(readFileSync(resolve(root, 'docs/product/access-control-acceptance-matrix-2026-11-07.json'), 'utf8'));
 const markdown = readFileSync(resolve(root, 'docs/product/access-control-acceptance-matrix-2026-11-07.md'), 'utf8');
+
+// Raw artifacts stay outside Git. CI explicitly validates their committed
+// identity receipts; it does not claim to have read or re-run those artifacts.
+// Local/default mode still requires every original, now with hash and size.
+const evidenceMode = process.env.ACCESS_EVIDENCE_MODE ?? 'raw';
+assert.ok(['raw', 'receipts'].includes(evidenceMode), 'ACCESS_EVIDENCE_MODE must be raw or receipts');
+const receiptManifest = JSON.parse(readFileSync(resolve(root, 'docs/product/access-control-external-evidence-receipts-2026-11-18.json'), 'utf8'));
+assert.equal(receiptManifest.schemaVersion, 1);
+assert.equal(receiptManifest.kind, 'external-acceptance-evidence-receipts');
+assert.equal(receiptManifest.rawContentIncluded, false);
+assert.equal(receiptManifest.registrySha256, createHash('sha256').update(readFileSync(resolve(root, 'docs/product/access-control-acceptance-matrix-2026-11-07.json'))).digest('hex'), 'Evidence receipts refer to a different registry');
+assert.equal(receiptManifest.provenance?.kind, 'local-snapshot-export');
+assert.ok(Number.isFinite(Date.parse(receiptManifest.provenance?.exportedAtUTC)), 'Receipt export time required');
+assert.ok(receiptManifest.provenance?.statement?.trim(), 'Receipt provenance and limits required');
+assert.equal(receiptManifest.provenance.externalFilesParsed, false);
+assert.equal(receiptManifest.provenance.externalFilesCopied, false);
+const externalReceipts = new Map();
+const repositoryAliases = new Map();
+const receiptPaths = new Set();
+for (const [records, target] of [[receiptManifest.entries, externalReceipts], [receiptManifest.repositoryAliases, repositoryAliases]]) {
+  assert.ok(Array.isArray(records), 'Receipt and alias arrays required');
+  for (const record of records) {
+    assert.ok(typeof record.id === 'string' && typeof record.sourceFile === 'string' && isAbsolute(record.sourceFile), 'Receipt identity/path required');
+    assert.ok(!externalReceipts.has(record.id) && !repositoryAliases.has(record.id) && !receiptPaths.has(record.sourceFile), `Duplicate receipt ${record.id}`);
+    assert.match(record.sha256, /^[a-f0-9]{64}$/);
+    assert.ok(Number.isSafeInteger(record.sizeBytes) && record.sizeBytes > 0, `Invalid receipt size ${record.id}`);
+    target.set(record.id, record); receiptPaths.add(record.sourceFile);
+  }
+}
+const absoluteEvidence = registry.evidence.filter((entry) => isAbsolute(entry.file));
+assert.equal(absoluteEvidence.length, externalReceipts.size + repositoryAliases.size, 'Receipt coverage must be exact');
+for (const [id, record] of [...externalReceipts, ...repositoryAliases]) {
+  assert.ok(absoluteEvidence.some((entry) => entry.id === id && entry.file === record.sourceFile), `Unexpected or mismatched receipt ${id}`);
+}
+function verifyOriginal(path, receipt) {
+  const before = lstatSync(path);
+  assert.ok(before.isFile(), `Evidence must be a regular file: ${receipt.id}`);
+  const fd = openSync(path, 'r');
+  try {
+    const opened = fstatSync(fd);
+    assert.equal(opened.dev, before.dev); assert.equal(opened.ino, before.ino);
+    const hash = createHash('sha256'); const buffer = Buffer.alloc(1024 * 1024); let size = 0; let bytes;
+    while ((bytes = readSync(fd, buffer, 0, buffer.length, null)) > 0) { hash.update(buffer.subarray(0, bytes)); size += bytes; }
+    const after = fstatSync(fd);
+    for (const field of ['dev', 'ino', 'size', 'mtimeMs', 'ctimeMs']) assert.equal(after[field], opened[field], `Evidence changed during hashing: ${receipt.id}`);
+    assert.equal(size, receipt.sizeBytes, `Evidence size mismatch: ${receipt.id}`);
+    assert.equal(hash.digest('hex'), receipt.sha256, `Evidence SHA-256 mismatch: ${receipt.id}`);
+  } finally { closeSync(fd); }
+}
+let externalRawFilesVerified = 0;
+let repositoryAliasFilesVerified = 0;
+function verifyEvidenceLocation(entry) {
+  const receipt = externalReceipts.get(entry.id);
+  const alias = repositoryAliases.get(entry.id);
+  if (isAbsolute(entry.file)) {
+    assert.ok(Boolean(receipt) !== Boolean(alias), `Missing or ambiguous receipt: ${entry.id}`);
+    if (alias) {
+      assert.ok(typeof alias.repositoryFile === 'string' && !isAbsolute(alias.repositoryFile), 'Repository alias must be relative');
+      const path = resolve(root, alias.repositoryFile);
+      const rel = relative(root, path);
+      assert.ok(rel && rel !== '..' && !rel.startsWith('..' + sep), 'Repository alias escapes root');
+      assert.ok(alias.sourceFile.endsWith('/' + alias.repositoryFile), 'Repository alias source suffix mismatch');
+      const real = relative(realpathSync(root), realpathSync(path));
+      assert.ok(real && real !== '..' && !real.startsWith('..' + sep) && !isAbsolute(real), 'Repository alias resolves outside root');
+      verifyOriginal(path, alias); repositoryAliasFilesVerified += 1;
+      if (evidenceMode === 'raw') verifyOriginal(entry.file, alias);
+    } else if (evidenceMode === 'raw') {
+      verifyOriginal(entry.file, receipt); externalRawFilesVerified += 1;
+    }
+  } else {
+    assert.ok(!receipt && !alias, `Receipt cannot replace repository evidence ${entry.id}`);
+    assert.ok(existsSync(resolve(root, entry.file)), `Missing evidence file ${entry.file}`);
+  }
+}
+
 const markdownRows = markdown.split('\n').filter((line) => line.startsWith('|') && line.includes('<br>`'));
 const summaryStart = '<!-- access-criterion-summary:start -->';
 const summaryEnd = '<!-- access-criterion-summary:end -->';
@@ -40,7 +115,7 @@ const criterionCounts = { verified: 0, partial: 0, not_verified: 0, not_applicab
 let rowsWithCriterionReview = 0;
 for (const entry of registry.evidence) {
   assert.ok(!evidence.has(entry.id), `Duplicate evidence ${entry.id}`);
-  assert.ok(existsSync(resolve(root, entry.file)), `Missing evidence file ${entry.file}`);
+  verifyEvidenceLocation(entry);
   assert.ok(entry.observed && entry.limit && entry.run, `Evidence must record result, run and limits: ${entry.id}`);
   evidence.set(entry.id, entry);
 }
@@ -99,4 +174,4 @@ assert.deepEqual(counts, registry.counts, 'Status totals disagree with rows');
 assert.equal(registry.rows.length, registry.snapshot.total);
 const digest = createHash('sha256').update(readFileSync(resolve(root, registry.snapshot.catalogFile))).digest('hex');
 assert.equal(digest, registry.snapshot.catalogSha256, 'Catalog changed: reconcile named acceptance before claiming coverage');
-console.log(JSON.stringify({ actions: codes.size, evidence: evidence.size, counts, fullyAccepted: counts['подтверждено'], rowsWithCriterionReview, criterionCounts, catalogSnapshotMatches: true }));
+console.log(JSON.stringify({ actions: codes.size, evidence: evidence.size, counts, fullyAccepted: counts['подтверждено'], rowsWithCriterionReview, criterionCounts, catalogSnapshotMatches: true, evidenceValidation: { mode: evidenceMode, externalReceipts: externalReceipts.size, repositoryAliases: repositoryAliases.size, externalRawFilesVerified, repositoryAliasFilesVerified, historicalAcceptanceRerun: false } }));

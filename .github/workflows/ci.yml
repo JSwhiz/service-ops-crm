@@ -143,7 +143,10 @@ jobs:
           P08_STAGE_RACE_OUTPUT: ${{ runner.temp }}/socrm-ci/report-stage-storage-race/result.json
         run: pnpm --filter backend test:integration
 
-      - name: Full repository CI check
+      - name: Full repository CI check (historical evidence receipts; no raw replay)
+        env:
+          # Raw acceptance artifacts remain local; this checks committed identity receipts.
+          ACCESS_EVIDENCE_MODE: receipts
         run: pnpm ci:check
 
       - name: Stop CI infrastructure
