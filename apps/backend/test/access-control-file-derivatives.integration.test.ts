@@ -50,17 +50,23 @@ test('file derivative authorization survives pending jobs, scope denies and live
   const bucket = `${marker}-controlled-storage`;
   const stored = new Map<string, Stored>();
   const ownedFileIds = new Set<string>();
+  const derivativeKeys = new Map<string, string>();
   const locks = new Set<string>();
   const jobs: Job[] = [];
   const storageCalls: string[] = [];
   const queueCalls: string[] = [];
   let failNextRead = false;
   let pauseNextRead: (() => Promise<void>) | undefined;
-  const assertOwnedKey = (key: string) => assert.ok([...ownedFileIds].some((id) => key === `${marker}/${id}.png` || key === `derivatives/${id}/thumbnail.webp`), 'No non-fixture storage access');
+  const assertOwnedKey = (key: string) => assert.ok(derivativeKeys.has(key) || [...ownedFileIds].some((id) => key === `${marker}/${id}.png`), 'No non-fixture storage access');
   const storage = {
     getBucketName: () => bucket,
     uploadObject: async (params: Parameters<StorageService['uploadObject']>[0]) => {
-      assertOwnedKey(params.objectKey);
+      const parts = params.objectKey.split('/');
+      assert.equal(parts.length, 4); assert.equal(parts[0], 'derivatives');
+      assert.ok(ownedFileIds.has(parts[1]), 'Derivative belongs to an owned fixture file');
+      assert.match(parts[2], /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+      assert.equal(parts[3], 'thumbnail.webp');
+      derivativeKeys.set(params.objectKey, parts[1]);
       assert.equal(params.body.length, params.contentLength);
       storageCalls.push(`write:${params.objectKey}`);
       stored.set(params.objectKey, { body: Buffer.from(params.body), contentType: params.contentType, contentLength: params.contentLength });
@@ -77,21 +83,39 @@ test('file derivative authorization survives pending jobs, scope denies and live
       await pause?.();
       return { ...value, body: Buffer.from(value.body) };
     },
+    deleteObject: async (key: string) => {
+      assert.ok(derivativeKeys.has(key), 'Cleanup may delete only a registered owned generation key');
+      storageCalls.push(`delete:${key}`); stored.delete(key);
+    },
     buildObjectUrl: () => { throw new Error('A file response must not build a public/signed storage URL'); },
-  } satisfies Pick<StorageService, 'getBucketName' | 'uploadObject' | 'downloadObject' | 'buildObjectUrl'>;
+  } satisfies Pick<StorageService, 'getBucketName' | 'uploadObject' | 'downloadObject' | 'deleteObject' | 'buildObjectUrl'>;
   const queueClient = {
     del: async (key: string) => { queueCalls.push(`del:${key}`); return Number(locks.delete(key)); },
-    set: async (key: string, value: string, options: { NX: boolean; EX: number }) => {
-      assert.equal(value, '1'); assert.equal(options.NX, true); assert.equal(options.EX, 600);
-      queueCalls.push(`set:${key}`);
-      if (locks.has(key)) return null;
-      locks.add(key); return 'OK';
-    },
-    rPush: async (name: string, payload: string) => {
+    eval: async (script: string, options: { keys: string[]; arguments: string[] }) => {
+      // This adapter supports exactly the production atomic enqueue script,
+      // not arbitrary Lua. Its owned queue is always absent or an array/list.
+      assert.equal(script.replace(/\s+/g, ' ').trim(), `
+        local queueType = redis.call('TYPE', KEYS[2]).ok
+        if queueType ~= 'none' and queueType ~= 'list' then
+          return redis.error_reply('File preview queue is not a list')
+        end
+        if redis.call('SET', KEYS[1], '1', 'NX', 'EX', 600) then
+          redis.call('RPUSH', KEYS[2], ARGV[1])
+          return 1
+        end
+        return 0
+      `.replace(/\s+/g, ' ').trim());
+      assert.equal(options.keys.length, 2); assert.equal(options.arguments.length, 1);
+      const [lockKey, name] = options.keys;
       assert.equal(name, process.env.FILE_PREVIEW_QUEUE_NAME);
-      const job = JSON.parse(payload) as Job;
+      const job = JSON.parse(options.arguments[0]) as Job;
       assert.ok(ownedFileIds.has(job.fileId)); assert.equal(job.derivativeType, 'image_thumbnail');
-      queueCalls.push(`push:${job.fileId}`); jobs.push(job); return jobs.length;
+      assert.equal(lockKey, `service-ops:file-preview:queued:${job.fileId}:${job.derivativeType}`);
+      queueCalls.push(`eval:${job.fileId}`);
+      // No await between reservation and append: concurrent callers observe
+      // the same winner, matching SET NX + RPUSH in one Redis operation.
+      if (locks.has(lockKey)) return 0;
+      locks.add(lockKey); jobs.push(job); return 1;
     },
   };
   // Narrow controlled adapter for only the methods the real preview service
@@ -103,7 +127,7 @@ test('file derivative authorization survives pending jobs, scope denies and live
     try { await closeApp?.(); }
     finally {
       try { await prisma.userAccessRule.deleteMany({ where: { id: { in: [...ruleIds] } } }); }
-      finally { stored.clear(); jobs.length = 0; locks.clear(); await prisma.$disconnect(); }
+      finally { stored.clear(); derivativeKeys.clear(); jobs.length = 0; locks.clear(); await prisma.$disconnect(); }
     }
   });
   const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
@@ -133,6 +157,8 @@ test('file derivative authorization survives pending jobs, scope denies and live
     const processJob = Reflect.get(preview, 'processJob') as (job: Job) => Promise<void>;
     assert.equal(typeof processJob, 'function');
     await processJob.call(preview, job);
+    const outcome = await prisma.fileDerivative.findFirst({ where: { fileId }, select: { status: true, errorMessage: true } });
+    if (outcome?.status === 'failed') t.diagnostic(JSON.stringify({ phase: 'actual-worker-failure', fileId, errorMessage: outcome.errorMessage }));
   };
   const template = await prisma.user.findUniqueOrThrow({ where: { login: 'manager1' } });
   const founder = await prisma.user.findUniqueOrThrow({ where: { login: 'founder' } });
@@ -227,7 +253,15 @@ test('file derivative authorization survives pending jobs, scope denies and live
     assert.match(response.headers.get('cache-control') ?? '', /^private, no-store$/);
     assert.equal(response.headers.get('location'), null);
     const body = Buffer.from(await response.arrayBuffer());
-    assert.deepEqual(body, stored.get(suffix === '/thumbnail' ? `derivatives/${file.id}/thumbnail.webp` : file.objectKey)!.body);
+    const derivative = suffix === '/thumbnail'
+      ? await prisma.fileDerivative.findUniqueOrThrow({ where: { fileId_derivativeType: { fileId: file.id, derivativeType: 'image_thumbnail' } } })
+      : null;
+    const key = derivative?.objectKey ?? file.objectKey;
+    if (derivative) {
+      assert.ok(derivative.objectKey && derivativeKeys.has(derivative.objectKey));
+      assert.equal(derivativeKeys.get(derivative.objectKey), file.id, 'Served generation belongs to this exact file');
+    }
+    assert.deepEqual(body, stored.get(key)!.body);
   };
   const ready = async (file: FixtureFile) => {
     const pending = await view(file); assert.equal(pending.previewStatus, 'pending'); assert.equal(pending.thumbnailUrl, null);
@@ -235,7 +269,9 @@ test('file derivative authorization survives pending jobs, scope denies and live
     const derivative = await prisma.fileDerivative.findFirstOrThrow({ where: { fileId: file.id } });
     assert.equal(derivative.status, 'ready'); assert.equal(derivative.attemptCount, 1);
     assert.equal(derivative.width, 3); assert.equal(derivative.height, 2);
-    assert.equal(derivative.objectKey, `derivatives/${file.id}/thumbnail.webp`);
+    assert.ok(derivative.objectKey && derivativeKeys.has(derivative.objectKey), 'Ready row references an actually uploaded owned generation');
+    assert.equal(derivativeKeys.get(derivative.objectKey), file.id, 'Ready generation belongs to this exact file');
+    assert.notEqual(derivative.objectKey, file.objectKey, 'Derivative never overwrites original bytes');
     assert.equal((await sharp(stored.get(derivative.objectKey!)!.body).metadata()).format, 'webp');
     assert.equal((await view(file)).previewStatus, 'ready'); await bytes(file, '/thumbnail');
   };
@@ -269,7 +305,10 @@ test('file derivative authorization survives pending jobs, scope denies and live
     assert.ok(views.every((result) => result.previewStatus === 'pending'));
     assert.equal(await prisma.fileDerivative.count({ where: { fileId: file.id } }), 1);
     assert.equal(jobs.length, 1);
+    const lockKey = `service-ops:file-preview:queued:${file.id}:image_thumbnail`;
+    assert.equal(locks.has(lockKey), true);
     await runJob(file.id);
+    assert.equal(locks.has(lockKey), false, 'Actual worker releases the queued reservation');
     assert.equal((await view(file)).previewStatus, 'ready');
   });
 

@@ -6,7 +6,10 @@ import {createServer,connect,type Socket} from 'node:net';
 export async function postgresCommitProxy(onCommit?:(pid:number,intercepted:boolean)=>void){
  const sockets=new Set<Socket>();let armed:null|{mode:'hold'|'drop-ack';pid:number;resolve:(v:{pid:number;release:()=>void;commitAckObserved:boolean})=>void}=null;
  const server=createServer(front=>{
-  const back=connect({host:'127.0.0.1',port:55432});sockets.add(front);sockets.add(back);let client=Buffer.alloc(0),backend=Buffer.alloc(0),startup=true,pid=0,held:Buffer[]|null=null,drop=false;
+  // Forward small PostgreSQL frames without proxy-induced Nagle delays.
+  front.setNoDelay(true);
+  const back=connect({host:'127.0.0.1',port:55432});
+  back.setNoDelay(true);sockets.add(front);sockets.add(back);let client=Buffer.alloc(0),backend=Buffer.alloc(0),startup=true,pid=0,held:Buffer[]|null=null,drop=false;
   const destroy=()=>{front.destroy();back.destroy();sockets.delete(front);sockets.delete(back);};front.on('error',destroy);back.on('error',destroy);front.on('close',destroy);back.on('close',destroy);
   let commitWaiter:typeof armed=null;
   front.on('data',chunk=>{client=Buffer.concat([client,chunk]);for(;;){if(startup){if(client.length<4)return;const n=client.readInt32BE(0);if(client.length<n)return;const packet=client.subarray(0,n);client=client.subarray(n);if(n===8&&packet.readInt32BE(4)===80877103){front.write('N');continue;}startup=false;back.write(packet);continue;}

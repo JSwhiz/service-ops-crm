@@ -101,7 +101,9 @@ test('equipment movement leaves reject an actor revision revoked while waiting f
         WHERE ${blocker.pid} = ANY(pg_blocking_pids(pid))
           AND datname = current_database() AND pid <> pg_backend_pid()
       `;
-      const waiter = waiters.find(matches);
+      // Blocking PIDs and activity wait fields can be sampled at different instants.
+      // Keep polling until this exact SQL is also observed in the required Lock wait.
+      const waiter = waiters.find((row) => row.wait_event_type === 'Lock' && matches(row));
       if (waiter) return waiter;
       assert.equal(settled(), false, 'HTTP finished without reaching the required real PostgreSQL lock');
       await new Promise<void>((resolve) => setTimeout(resolve, 20));
